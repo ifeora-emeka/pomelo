@@ -42,13 +42,13 @@ pomelo/
 
 ---
 
-## 🛠️ The `.jsx` Component Anatomy
+## 🛠️ The `.pom` Component Anatomy
 
 Pomelo components use the `.pom` extension. They are compiled at build time to produce optimized, reactive client-side modules and server-side render functions.
 
 ### Example: Product Detail Page (`src/pages/products/[id]/page.pom`)
 
-```html
+```jsx
 <Server lang="ts">
   // Server-side data fetching and API definition $page(async ({ params }) => {
   const product = await ProductService.getById(params.id); if (!product) {
