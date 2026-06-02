@@ -78,21 +78,21 @@ Transform AST → executable JS module.
 
 ## Tasks
 
-- Server block compiler (`$page`)
-- Client block compiler (`$local`, `$store`, `$watch`)
-- Template compiler → render function
-- Style compiler → scoped CSS hash system
-- Directive compiler:
-  - `@click`
-  - `:bind`
-  - `:class`
+- [x] Server block compiler (`$page`)
+- [x] Client block compiler (`$local`, `$store`, `$watch`)
+- [x] Template compiler → render function
+- [x] Style compiler → scoped CSS hash system
+- [x] Directive compiler:
+  - [x] `@click`
+  - [x] `:bind`
+  - [x] `:class`
 
-- Slot resolution system
+- [x] Slot resolution system
 
 ## Exit Criteria
 
-- `.pom` file compiles to JS module
-- No framework runtime required to interpret template
+- [x] `.pom` file compiles to JS module
+- [x] No framework runtime required to interpret template
 
 ---
 
@@ -104,17 +104,17 @@ Build client-side execution system.
 
 ## Tasks
 
-- Reactive system (`state`, `effect`, `computed`)
-- DOM renderer
-- Hydration engine
-- Event delegation system
-- Lifecycle hooks (`$mount`, `$destroy`)
-- Scoped CSS injection system
+- [x] Reactive system (`state`, `effect`, `computed`)
+- [x] DOM renderer
+- [x] Hydration engine
+- [x] Event delegation system
+- [x] Lifecycle hooks (`$mount`, `$destroy`)
+- [x] Scoped CSS injection system
 
 ## Exit Criteria
 
-- Hydration works on SSR pages
-- Client interactivity fully functional
+- [x] Hydration works on SSR pages
+- [x] Client interactivity fully functional
 
 ---
 
@@ -126,23 +126,23 @@ Turn Pomelo into a real SSR framework.
 
 ## Tasks
 
-- Express server wrapper
-- Route generation from file system
-- SSR renderer:
-  - renderToString
-  - stream support (optional)
+- [x] Express server wrapper
+- [x] Route generation from file system
+- [x] SSR renderer:
+  - [x] renderToString
+  - [x] stream support (optional)
 
-- Context system (`req`, `res`)
-- Middleware system:
-  - `$auth`
-  - `$guard`
+- [x] Context system (`req`, `res`)
+- [x] Middleware system:
+  - [x] `$auth`
+  - [x] `$guard`
 
-- Error handling pipeline
+- [x] Error handling pipeline
 
 ## Exit Criteria
 
-- `.pom` page renders via Express SSR
-- Dynamic routes work (`[id]` support)
+- [x] `.pom` page renders via Express SSR
+- [x] Dynamic routes work (`[id]` support)
 
 ---
 
@@ -154,22 +154,22 @@ Enable hot module development.
 
 ## Tasks
 
-- Vite plugin:
-  - `.pom` file loader
-  - transform pipeline
+- [x] Vite plugin:
+  - [x] `.pom` file loader
+  - [x] transform pipeline
 
-- HMR integration
-- Dev server overlay errors
-- Fast refresh for:
-  - template changes
-  - state changes
+- [x] HMR integration
+- [x] Dev server overlay errors
+- [x] Fast refresh for:
+  - [x] template changes
+  - [x] state changes
 
-- File-based routing sync
+- [x] File-based routing sync
 
 ## Exit Criteria
 
-- Editing `.pom` updates UI instantly
-- No full reload required
+- [x] Editing `.pom` updates UI instantly
+- [x] No full reload required
 
 ---
 
@@ -181,18 +181,17 @@ File-based routing like Next.js but simpler.
 
 ## Tasks
 
-- Route scanner
-- Dynamic route parsing:
-  - `[id]`
-  - `[...catchall]`
-
-- Route → server mapping
-- Layout system (`layout.pom`)
-- Nested routes
+- [x] Route scanner
+- [x] Dynamic route parsing:
+  - [x] `[id]`
+  - [x] `[...catchall]`
+- [x] Route → server mapping
+- [x] Layout system (`layout.pom`)
+- [x] Nested routes
 
 ## Exit Criteria
 
-- Full routing works from filesystem only
+- [x] Full routing works from filesystem only
 
 ---
 
@@ -204,15 +203,15 @@ Global + local reactive state system.
 
 ## Tasks
 
-- `$store` global state system
-- `$local` component state
-- Cross-component reactivity
-- Persistence plugin (optional)
-- Devtools hook
+- [x] `$store` global state system
+- [x] `$local` component state
+- [x] Cross-component reactivity
+- [x] Persistence plugin (optional)
+- [x] Devtools hook
 
 ## Exit Criteria
 
-- Shared state updates UI everywhere correctly
+- [x] Shared state updates UI everywhere correctly
 
 ---
 
@@ -224,16 +223,16 @@ Advanced SSR metadata control.
 
 ## Tasks
 
-- `$meta` system
-- Dynamic head injection
-- OpenGraph support
-- Canonical URLs
-- Per-route SEO overrides
-- SSR-safe meta merging
+- [x] `$meta` system
+- [x] Dynamic head injection
+- [x] OpenGraph support
+- [x] Canonical URLs
+- [x] Per-route SEO overrides
+- [x] SSR-safe meta merging
 
 ## Exit Criteria
 
-- Each route can control full HTML head dynamically
+- [x] Each route can control full HTML head dynamically
 
 ---
 
@@ -245,15 +244,15 @@ Built-in authentication abstraction.
 
 ## Tasks
 
-- Session handling
-- Cookie utilities
-- `$auth()` middleware
-- Role-based guards
-- Server/client auth sync
+- [x] Session handling
+- [x] Cookie utilities
+- [x] `$auth()` middleware
+- [x] Role-based guards
+- [x] Server/client auth sync
 
 ## Exit Criteria
 
-- Protected routes work server + client side
+- [x] Protected routes work server + client side
 
 ---
 
@@ -265,23 +264,22 @@ Developer experience layer.
 
 ## Tasks
 
-- `create-pomelo` scaffolder
-- `pomelo dev`
-- `pomelo build`
-- `pomelo start`
-- Code generator:
-  - page
-  - api route
-  - store
-
-- Project templates:
-  - ecommerce
-  - SaaS
-  - blog
+- [x] `create-pomelo` scaffolder
+- [x] `pomelo dev`
+- [x] `pomelo build`
+- [x] `pomelo start`
+- [x] Code generator:
+  - [x] page
+  - [x] api route
+  - [x] store
+- [x] Project templates:
+  - [x] ecommerce
+  - [x] SaaS
+  - [x] blog
 
 ## Exit Criteria
 
-- A full app can be created in < 2 minutes
+- [x] A full app can be created in < 2 minutes
 
 ---
 
@@ -314,7 +312,7 @@ Make Pomelo feel "delightful".
 
 ## Tasks
 
-- Error overlays
+- [x] Error overlays
 - Better stack traces
 - Dev warnings system
 - CLI diagnostics

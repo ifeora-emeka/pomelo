@@ -14,6 +14,8 @@ import {
   $auth,
   $roles,
   $guard,
+  signToken,
+  verifyToken,
 } from "./index.js";
 
 test("Server router registers and dispatches routes", () => {
@@ -450,4 +452,167 @@ test("handleSSR handles $abort 403 correctly", async () => {
 
   await handleSSR(req, res, mockComponent);
   assert.strictEqual(statusVal, 403);
+});
+
+test("signToken and verifyToken work correctly", () => {
+  const secret = "super-secret-key";
+  const payload = { id: "user-123", roles: ["admin"] };
+  const token = signToken(payload, secret);
+  assert.ok(token);
+  assert.strictEqual(typeof token, "string");
+
+  const verified = verifyToken(token, secret);
+  assert.deepStrictEqual(verified, payload);
+
+  const invalidToken = token + "modified";
+  const verifiedInvalid = verifyToken(invalidToken, secret);
+  assert.strictEqual(verifiedInvalid, null);
+});
+
+test("$auth middleware without provider allows authenticated session user", async () => {
+  const middleware = $auth();
+
+  const req = { user: { id: "user-1", roles: ["user"] } } as any;
+  let nextCalled = false;
+
+  await middleware(req, {} as any, () => {
+    nextCalled = true;
+  });
+
+  assert.ok(nextCalled);
+});
+
+test("$auth middleware without provider rejects unauthenticated session user", async () => {
+  const middleware = $auth();
+
+  const req = {} as any;
+  let statusVal = 0;
+  const res = {
+    status(s: number) {
+      statusVal = s;
+      return this;
+    },
+    json() {
+      return this;
+    },
+  } as any;
+
+  let nextCalled = false;
+  await middleware(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.strictEqual(statusVal, 401);
+  assert.strictEqual(nextCalled, false);
+});
+
+test("Server integrates CORS and Authentication endpoints", async () => {
+  const server = createServer({
+    name: "Auth Test App",
+    version: "1.0.0",
+    port: 4050,
+    cors: {
+      origin: "http://localhost:3000",
+      credentials: true,
+      methods: ["GET", "POST"],
+    },
+    auth: {
+      secret: "test-secret",
+      cookieName: "test.session",
+      providers: [
+        {
+          id: "credentials",
+          async authorize(credentials: Record<string, string>) {
+            if (credentials.username === "admin" && credentials.password === "secret") {
+              return { id: "admin-id", name: "Admin User", roles: ["admin"] };
+            }
+            return null;
+          },
+        },
+      ],
+    },
+  });
+
+  const runServer = server.start();
+  assert.ok(runServer);
+
+  try {
+    // 1. Test CORS preflight and headers
+    const corsRes = await fetch("http://localhost:4050/api/auth/session", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "http://localhost:3000",
+        "Access-Control-Request-Method": "POST",
+      },
+    });
+    assert.strictEqual(corsRes.status, 204);
+    assert.strictEqual(corsRes.headers.get("Access-Control-Allow-Origin"), "http://localhost:3000");
+    assert.strictEqual(corsRes.headers.get("Access-Control-Allow-Credentials"), "true");
+
+    // 2. Test initial session is null
+    const sessRes = await fetch("http://localhost:4050/api/auth/session");
+    const sessData = await sessRes.json();
+    assert.strictEqual(sessData.user, null);
+
+    // 3. Test signin with invalid credentials
+    const signinFailRes = await fetch("http://localhost:4050/api/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: "credentials",
+        credentials: { username: "admin", password: "wrong-password" },
+      }),
+    });
+    assert.strictEqual(signinFailRes.status, 401);
+
+    // 4. Test signin with valid credentials
+    const signinSuccessRes = await fetch("http://localhost:4050/api/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: "credentials",
+        credentials: { username: "admin", password: "secret" },
+      }),
+    });
+    assert.strictEqual(signinSuccessRes.status, 200);
+    const signinSuccessData = await signinSuccessRes.json();
+    assert.strictEqual(signinSuccessData.user.id, "admin-id");
+    assert.strictEqual(signinSuccessData.user.name, "Admin User");
+
+    const cookieHeader = signinSuccessRes.headers.get("Set-Cookie");
+    assert.ok(cookieHeader);
+    assert.ok(cookieHeader.includes("test.session="));
+
+    // Extract cookie value
+    const cookieValue = cookieHeader.split(";")[0] || "";
+
+    // 5. Test active session with the cookie
+    const activeSessRes = await fetch("http://localhost:4050/api/auth/session", {
+      headers: {
+        Cookie: cookieValue,
+      },
+    });
+    const activeSessData = await activeSessRes.json();
+    assert.ok(activeSessData.user);
+    assert.strictEqual(activeSessData.user.id, "admin-id");
+
+    // 6. Test signout clears the cookie
+    const signoutRes = await fetch("http://localhost:4050/api/auth/signout", {
+      method: "POST",
+      headers: {
+        Cookie: cookieValue,
+      },
+    });
+    assert.strictEqual(signoutRes.status, 200);
+    const signoutCookieHeader = signoutRes.headers.get("Set-Cookie");
+    assert.ok(signoutCookieHeader);
+    assert.ok(signoutCookieHeader.includes("test.session=;"));
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      runServer.close((err?: Error | null) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
 });

@@ -84,3 +84,14 @@ test("Route sorting prioritizes static over dynamic over catchall", () => {
   assert.strictEqual(sorted[2]!.path, "/blog/:id");
   assert.strictEqual(sorted[3]!.path, "/blog/:catchall(*)");
 });
+
+test("Route sorting handles segment-by-segment specificity", () => {
+  const routes = [
+    { path: "/blog/:id/:commentId", isDynamic: true, isCatchAll: false },
+    { path: "/blog/:id/comments", isDynamic: true, isCatchAll: false }
+  ] as any[];
+
+  const sorted = sortRoutesBySpecificity(routes);
+  assert.strictEqual(sorted[0]!.path, "/blog/:id/comments");
+  assert.strictEqual(sorted[1]!.path, "/blog/:id/:commentId");
+});

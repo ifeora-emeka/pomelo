@@ -4,16 +4,26 @@ export type AuthProvider = (
   req: Request,
 ) => Promise<{ id: string; roles?: string[] } | null>;
 
-export function $auth(provider: AuthProvider) {
+export function $auth(provider?: AuthProvider) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = await provider(req);
-      if (!user) {
-        res.status(401).json({ error: "Unauthorized" });
-        return;
+      if (provider) {
+        const user = await provider(req);
+        if (!user) {
+          res.status(401).json({ error: "Unauthorized" });
+          return;
+        }
+        (req as any).user = user;
+        (req as any).session = { user };
+        next();
+      } else {
+        const user = (req as any).user;
+        if (!user) {
+          res.status(401).json({ error: "Unauthorized" });
+          return;
+        }
+        next();
       }
-      (req as any).user = user;
-      next();
     } catch (err) {
       next(err);
     }

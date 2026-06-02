@@ -1,8 +1,26 @@
+export interface AuthProvider {
+  id: string;
+  authorize(credentials: Record<string, string>): Promise<any | null>;
+}
+
+export interface AuthConfig {
+  secret: string;
+  cookieName?: string;
+  cookieDomain?: string;
+  providers: AuthProvider[];
+}
+
 export interface FrameworkConfig {
   name: string;
   version: string;
   port: number;
   env?: "development" | "production" | "test";
+  cors?: {
+    origin?: string | string[];
+    credentials?: boolean;
+    methods?: string[];
+  };
+  auth?: AuthConfig;
 }
 
 export interface PomeloASTNode {
@@ -66,4 +84,31 @@ export interface PersistAdapter {
   get(key: string): string | null;
   set(key: string, value: string): void;
   remove(key: string): void;
+}
+
+export interface Metadata {
+  title?: string;
+  description?: string;
+  charset?: string;
+  viewport?: string;
+  canonical?: string;
+  robots?: string;
+  openGraph?: {
+    title?: string;
+    description?: string;
+    type?: string;
+    url?: string;
+    image?: string;
+    siteName?: string;
+  };
+  twitter?: {
+    card?: "summary" | "summary_large_image" | "app" | "player";
+    site?: string;
+    creator?: string;
+    title?: string;
+    description?: string;
+    image?: string;
+  };
+  meta?: Array<{ name?: string; property?: string; content: string }>;
+  links?: Array<{ rel: string; href: string; [key: string]: string }>;
 }

@@ -88,10 +88,13 @@ function resolveLayoutChain(
   const layouts: string[] = [];
   let currentDir = path.dirname(filePath);
 
-  while (
-    currentDir.startsWith(pagesDir) ||
-    currentDir === pagesDir
-  ) {
+  while (true) {
+    const relative = path.relative(pagesDir, currentDir);
+    const isInside = currentDir === pagesDir || (!relative.startsWith("..") && !path.isAbsolute(relative));
+    if (!isInside) {
+      break;
+    }
+
     const layout = findLayoutInDir(currentDir);
     if (layout) {
       layouts.unshift(layout);
@@ -180,10 +183,39 @@ export function buildManifest(pagesDir: string): RouteManifest {
   return { routes, layouts };
 }
 
+function getSegmentType(segment: string): number {
+  if (segment.includes("(*)") || segment.startsWith("*")) {
+    return 0; // Catch-all
+  }
+  if (segment.startsWith(":")) {
+    return 1; // Dynamic
+  }
+  return 2; // Static
+}
+
 export function sortRoutesBySpecificity(routes: RouteRecord[]): RouteRecord[] {
   return [...routes].sort((a, b) => {
     if (a.isCatchAll !== b.isCatchAll) return a.isCatchAll ? 1 : -1;
-    if (a.isDynamic !== b.isDynamic) return a.isDynamic ? 1 : -1;
+
+    const aSegs = a.path.split("/").filter(Boolean);
+    const bSegs = b.path.split("/").filter(Boolean);
+    const minLength = Math.min(aSegs.length, bSegs.length);
+
+    for (let i = 0; i < minLength; i++) {
+      const aSeg = aSegs[i]!;
+      const bSeg = bSegs[i]!;
+      const aType = getSegmentType(aSeg);
+      const bType = getSegmentType(bSeg);
+
+      if (aType !== bType) {
+        return bType - aType;
+      }
+    }
+
+    if (aSegs.length !== bSegs.length) {
+      return aSegs.length - bSegs.length;
+    }
+
     return a.path.localeCompare(b.path);
   });
 }

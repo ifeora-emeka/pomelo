@@ -7,6 +7,8 @@ import { PomeloLogger, formatFrameworkName } from "@pomelo/shared";
 import type { FrameworkConfig } from "@pomelo/types";
 import { PomeloError } from "./errors.js";
 import { scanRoutes, sortRoutesBySpecificity } from "./route-scanner.js";
+import { mergeMetadata, renderMetadataHTML } from "./metadata.js";
+import { signToken, verifyToken } from "./auth.js";
 
 declare global {
   namespace Express {
@@ -137,16 +139,9 @@ export async function handleSSR(req: Request, res: Response, component: any) {
 
     let metaHTML = "";
     if (component.$serverMeta) {
-      const meta = await component.$serverMeta(ctx);
+      const meta = await component.$serverMeta(state);
       if (meta) {
-        if (meta.title) metaHTML += `<title>${meta.title}</title>\n`;
-        if (meta.description)
-          metaHTML += `<meta name="description" content="${meta.description}">\n`;
-        if (meta.charset) metaHTML += `<meta charset="${meta.charset}">\n`;
-        if (meta.canonical)
-          metaHTML += `<link rel="canonical" href="${meta.canonical}">\n`;
-        if (meta.image)
-          metaHTML += `<meta property="og:image" content="${meta.image}">\n`;
+        metaHTML = renderMetadataHTML(meta);
       }
     }
 
@@ -230,11 +225,9 @@ export async function handleSSRStream(
 
     let metaHTML = "";
     if (component.$serverMeta) {
-      const meta = await component.$serverMeta(ctx);
+      const meta = await component.$serverMeta(state);
       if (meta) {
-        if (meta.title) metaHTML += `<title>${meta.title}</title>\n`;
-        if (meta.description)
-          metaHTML += `<meta name="description" content="${meta.description}">\n`;
+        metaHTML = renderMetadataHTML(meta);
       }
     }
 
@@ -306,6 +299,23 @@ export function registerFileSystemRoutes(
 
     app.get(route.path, async (req, res, next) => {
       try {
+        if (process.env.NODE_ENV === "development" || process.env.POMELO_ENV === "development") {
+          const content = fs.readFileSync(route.filePath, "utf-8");
+          const compiled = compile(content, route.path);
+          fs.writeFileSync(cacheFile, compiled.code);
+
+          for (const layoutPath of route.layoutPaths) {
+            const layoutRelative = path.relative(pagesDir, layoutPath);
+            const layoutContent = fs.readFileSync(layoutPath, "utf-8");
+            const layoutCompiled = compile(layoutContent, "__layout__");
+            const layoutCacheFile = path.join(
+              cacheDir,
+              "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
+            );
+            fs.writeFileSync(layoutCacheFile, layoutCompiled.code);
+          }
+        }
+
         const component = await import(`file://${cacheFile}?t=${Date.now()}`);
         const layouts: any[] = [];
         for (const layoutCacheFile of layoutCacheFiles) {
@@ -363,6 +373,21 @@ export async function handleSSRWithLayouts(
       }
     }
 
+    const layoutStates: Record<string, any>[] = [];
+    let mergedMeta = {};
+
+    for (const layout of layouts) {
+      const layoutState = layout.$serverPage ? (await layout.$serverPage(ctx)) || {} : {};
+      layoutStates.push(layoutState);
+
+      if (layout.$serverMeta) {
+        const layoutMeta = await layout.$serverMeta(layoutState);
+        if (layoutMeta) {
+          mergedMeta = mergeMetadata(mergedMeta, layoutMeta);
+        }
+      }
+    }
+
     let state: Record<string, any> = {};
     if (component.$serverPage) {
       state = (await component.$serverPage(ctx)) || {};
@@ -372,35 +397,26 @@ export async function handleSSRWithLayouts(
       return;
     }
 
+    if (component.$serverMeta) {
+      const pageMeta = await component.$serverMeta(state);
+      if (pageMeta) {
+        mergedMeta = mergeMetadata(mergedMeta, pageMeta);
+      }
+    }
+
+    const metaHTML = renderMetadataHTML(mergedMeta);
+
     const pageContent = component.render ? component.render(state) : "";
 
     let htmlContent = pageContent;
     for (let i = layouts.length - 1; i >= 0; i--) {
       const layout = layouts[i];
-      const layoutState: Record<string, any> = {};
-      if (layout.$serverPage) {
-        Object.assign(layoutState, (await layout.$serverPage(ctx)) || {});
-      }
+      const layoutState = layoutStates[i] || {};
       htmlContent = layout.render
         ? layout.render(layoutState, {
             default: () => htmlContent,
           })
         : htmlContent;
-    }
-
-    let metaHTML = "";
-    if (component.$serverMeta) {
-      const meta = await component.$serverMeta(ctx);
-      if (meta) {
-        if (meta.title) metaHTML += `<title>${meta.title}</title>\n`;
-        if (meta.description)
-          metaHTML += `<meta name="description" content="${meta.description}">\n`;
-        if (meta.charset) metaHTML += `<meta charset="${meta.charset}">\n`;
-        if (meta.canonical)
-          metaHTML += `<link rel="canonical" href="${meta.canonical}">\n`;
-        if (meta.image)
-          metaHTML += `<meta property="og:image" content="${meta.image}">\n`;
-      }
     }
 
     let styleHTML = "";
@@ -465,6 +481,127 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(responseHelpersMiddleware);
+
+  // CORS Configuration
+  if (config.cors) {
+    const corsOptions = config.cors;
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      const origin = corsOptions.origin;
+      if (origin) {
+        if (Array.isArray(origin)) {
+          const reqOrigin = req.headers.origin;
+          if (reqOrigin && origin.includes(reqOrigin)) {
+            res.setHeader("Access-Control-Allow-Origin", reqOrigin);
+          }
+        } else {
+          res.setHeader("Access-Control-Allow-Origin", origin);
+        }
+      }
+      if (corsOptions.credentials) {
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+      }
+      if (corsOptions.methods) {
+        res.setHeader("Access-Control-Allow-Methods", corsOptions.methods.join(", "));
+      } else {
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+      }
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+
+      if (req.method === "OPTIONS") {
+        res.status(204).end();
+        return;
+      }
+      next();
+    });
+  }
+
+  // Authentication & Session Configuration
+  if (config.auth) {
+    const authOptions = config.auth;
+    const cookieName = authOptions.cookieName || "pomelo.session";
+
+    // 1. Simple custom cookie parser
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      const cookieHeader = req.headers.cookie;
+      const cookies: Record<string, string> = {};
+      if (cookieHeader) {
+        cookieHeader.split(";").forEach((cookie) => {
+          const parts = cookie.split("=");
+          const k = parts[0];
+          const v = parts[1];
+          if (parts.length === 2 && k && v) {
+            cookies[k.trim()] = v.trim();
+          }
+        });
+      }
+      (req as any).cookies = cookies;
+      next();
+    });
+
+    // 2. Session identification and context injection
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      const token = (req as any).cookies?.[cookieName];
+      if (token) {
+        const user = verifyToken(token, authOptions.secret);
+        if (user) {
+          (req as any).user = user;
+          (req as any).session = { user };
+        }
+      }
+      next();
+    });
+
+    // 3. NextAuth-like built-in auth API endpoints
+    app.get("/api/auth/session", (req: Request, res: Response) => {
+      res.json({ user: (req as any).user || null });
+    });
+
+    app.post("/api/auth/signin", async (req: Request, res: Response) => {
+      const { provider: providerId, credentials } = req.body || {};
+      if (!providerId || !credentials) {
+        res.status(400).json({ error: "Missing provider or credentials" });
+        return;
+      }
+
+      const provider = authOptions.providers?.find((p) => p.id === providerId);
+      if (!provider) {
+        res.status(400).json({ error: `Provider ${providerId} not found` });
+        return;
+      }
+
+      try {
+        const user = await provider.authorize(credentials);
+        if (!user) {
+          res.status(401).json({ error: "Invalid credentials" });
+          return;
+        }
+
+        const token = signToken(user, authOptions.secret);
+        res.cookie(cookieName, token, {
+          httpOnly: true,
+          secure: config.env === "production" || process.env.NODE_ENV === "production",
+          path: "/",
+          domain: authOptions.cookieDomain,
+          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+          sameSite: "lax",
+        });
+
+        res.json({ user });
+      } catch (err) {
+        res.status(500).json({ error: String(err) });
+      }
+    });
+
+    app.post("/api/auth/signout", (req: Request, res: Response) => {
+      res.clearCookie(cookieName, {
+        httpOnly: true,
+        secure: config.env === "production" || process.env.NODE_ENV === "production",
+        path: "/",
+        domain: authOptions.cookieDomain,
+      });
+      res.json({ success: true });
+    });
+  }
 
   const isDev = config.env === "development" || !config.env;
   if (isDev) {

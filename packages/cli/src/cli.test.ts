@@ -1,3 +1,6 @@
+process.env.POMELO_ENV = "test";
+process.env.POMELO_TEST = "true";
+
 import test from "node:test";
 import assert from "node:assert";
 import fs from "node:fs";
@@ -37,7 +40,27 @@ test("CLI create command scaffolds new app structure", () => {
   fs.rmSync(testAppPath, { recursive: true, force: true });
 });
 
-test("CLI generate command scaffolds pages and components", () => {
+test("CLI create command scaffolds ecommerce template structure", () => {
+  const testAppName = "test-cli-ecommerce-app";
+  const testAppPath = path.resolve(process.cwd(), testAppName);
+
+  if (fs.existsSync(testAppPath)) {
+    fs.rmSync(testAppPath, { recursive: true, force: true });
+  }
+
+  const createSuccess = handleCLI({
+    command: "create",
+    args: [testAppName, "--template", "ecommerce"],
+  });
+  assert.ok(createSuccess);
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/stores/cart.ts")));
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/pages/api/products.pom")));
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/pages/index.pom")));
+
+  fs.rmSync(testAppPath, { recursive: true, force: true });
+});
+
+test("CLI generate command scaffolds pages, components, api, and stores", () => {
   const tempDir = path.resolve(process.cwd(), "temp-gen-project");
   if (fs.existsSync(tempDir)) {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -55,6 +78,14 @@ test("CLI generate command scaffolds pages and components", () => {
     const componentSuccess = handleCLI({ command: "g", args: ["component", "Button"] });
     assert.ok(componentSuccess);
     assert.ok(fs.existsSync(path.join(tempDir, "src/components/Button.pom")));
+
+    const apiSuccess = handleCLI({ command: "generate", args: ["api", "users"] });
+    assert.ok(apiSuccess);
+    assert.ok(fs.existsSync(path.join(tempDir, "src/pages/api/users.pom")));
+
+    const storeSuccess = handleCLI({ command: "generate", args: ["store", "cart"] });
+    assert.ok(storeSuccess);
+    assert.ok(fs.existsSync(path.join(tempDir, "src/stores/cart.ts")));
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tempDir, { recursive: true, force: true });
