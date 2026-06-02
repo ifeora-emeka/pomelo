@@ -84,7 +84,8 @@ function findLayoutInDir(dir: string): string | null {
 function resolveLayoutChain(
   filePath: string,
   pagesDir: string,
-): string | null {
+): string[] {
+  const layouts: string[] = [];
   let currentDir = path.dirname(filePath);
 
   while (
@@ -93,7 +94,7 @@ function resolveLayoutChain(
   ) {
     const layout = findLayoutInDir(currentDir);
     if (layout) {
-      return layout;
+      layouts.unshift(layout);
     }
 
     const parentDir = path.dirname(currentDir);
@@ -101,7 +102,7 @@ function resolveLayoutChain(
     currentDir = parentDir;
   }
 
-  return null;
+  return layouts;
 }
 
 export function scanRoutes(pagesDir: string): RouteRecord[] {
@@ -143,7 +144,7 @@ export function scanRoutes(pagesDir: string): RouteRecord[] {
       const paramNames = extractParamNames(routePath);
       const isDynamic = paramNames.length > 0;
       const isCatchAll = routePath.includes("(*)");
-      const layoutPath = resolveLayoutChain(fullPath, pagesDir);
+      const layoutPaths = resolveLayoutChain(fullPath, pagesDir);
 
       const route: RouteRecord = {
         path: routePath,
@@ -151,7 +152,7 @@ export function scanRoutes(pagesDir: string): RouteRecord[] {
         isDynamic,
         isCatchAll,
         paramNames,
-        layoutPath,
+        layoutPaths,
         children: [],
         depth,
       };
@@ -171,8 +172,8 @@ export function buildManifest(pagesDir: string): RouteManifest {
   const layouts = new Map<string, string>();
 
   for (const route of routes) {
-    if (route.layoutPath) {
-      layouts.set(route.layoutPath, route.layoutPath);
+    for (const layoutPath of route.layoutPaths) {
+      layouts.set(layoutPath, layoutPath);
     }
   }
 
@@ -183,11 +184,6 @@ export function sortRoutesBySpecificity(routes: RouteRecord[]): RouteRecord[] {
   return [...routes].sort((a, b) => {
     if (a.isCatchAll !== b.isCatchAll) return a.isCatchAll ? 1 : -1;
     if (a.isDynamic !== b.isDynamic) return a.isDynamic ? 1 : -1;
-
-    const aSegments = a.path.split("/").length;
-    const bSegments = b.path.split("/").length;
-    if (aSegments !== bSegments) return bSegments - aSegments;
-
     return a.path.localeCompare(b.path);
   });
 }

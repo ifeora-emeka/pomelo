@@ -13,6 +13,7 @@ import {
   BadRequestError,
   $auth,
   $roles,
+  $guard,
 } from "./index.js";
 
 test("Server router registers and dispatches routes", () => {
@@ -328,5 +329,125 @@ test("$roles middleware enforces role-based access", () => {
   } as any;
 
   middleware(reqWithoutRole, res, () => {});
+  assert.strictEqual(statusVal, 403);
+});
+
+test("$guard middleware blocks access when predicate returns false", async () => {
+  const middleware = $guard(async () => false);
+
+  const req = {} as any;
+  let statusVal = 0;
+  let jsonVal: any = null;
+
+  const res = {
+    status(s: number) {
+      statusVal = s;
+      return this;
+    },
+    json(d: any) {
+      jsonVal = d;
+      return this;
+    },
+  } as any;
+
+  let nextCalled = false;
+  await middleware(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.strictEqual(statusVal, 403);
+  assert.strictEqual(nextCalled, false);
+  assert.strictEqual(jsonVal.error, "Forbidden");
+});
+
+test("$guard middleware allows access when predicate returns true", async () => {
+  const middleware = $guard(async () => true);
+
+  const req = {} as any;
+  let nextCalled = false;
+
+  await middleware(req, {} as any, () => {
+    nextCalled = true;
+  });
+
+  assert.ok(nextCalled);
+});
+
+test("$guard middleware forwards errors to next", async () => {
+  const middleware = $guard(async () => {
+    throw new Error("guard error");
+  });
+
+  const req = {} as any;
+  let caughtErr: any = null;
+
+  await middleware(req, {} as any, (err: any) => {
+    caughtErr = err;
+  });
+
+  assert.ok(caughtErr instanceof Error);
+  assert.strictEqual(caughtErr.message, "guard error");
+});
+
+test("handleSSR handles $abort with correct status code", async () => {
+  const mockComponent = {
+    async $serverPage() {
+      const e = Object.assign(new Error("Pomelo Abort"), {
+        statusCode: 404,
+        isPomeloAbort: true,
+      });
+      throw e;
+    },
+    render() {
+      return "<p>Secret</p>";
+    },
+  };
+
+  const req = { params: {}, query: {} } as any;
+  let statusVal = 0;
+
+  const res = {
+    status(s: number) {
+      statusVal = s;
+      return this;
+    },
+    end() {},
+    headersSent: false,
+  } as any;
+
+  await handleSSR(req, res, mockComponent);
+  assert.strictEqual(statusVal, 404);
+});
+
+test("handleSSR handles $abort 403 correctly", async () => {
+  const mockComponent = {
+    async $serverGuard() {
+      const e = Object.assign(new Error("Pomelo Abort"), {
+        statusCode: 403,
+        isPomeloAbort: true,
+      });
+      throw e;
+    },
+    render() {
+      return "<p>Private</p>";
+    },
+  };
+
+  const req = { params: {}, query: {} } as any;
+  let statusVal = 0;
+
+  const res = {
+    status(s: number) {
+      statusVal = s;
+      return this;
+    },
+    end() {},
+    headersSent: false,
+    forbidden(msg?: string) {
+      statusVal = 403;
+    },
+  } as any;
+
+  await handleSSR(req, res, mockComponent);
   assert.strictEqual(statusVal, 403);
 });

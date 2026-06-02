@@ -1,8 +1,22 @@
-import type { ReactiveState } from "@pomelo/types";
+import type { ReactiveState, StoreOptions } from "@pomelo/types";
 
 let activeEffect: (() => void) | null = null;
+let activeSubscriptions: Set<Signal<any>> | null = null;
 let batchDepth = 0;
 const pendingEffects = new Set<() => void>();
+let signalIdCounter = 0;
+
+function notifyDevtools(type: "store" | "signal", name: string, state: any) {
+  if (typeof window !== "undefined") {
+    const event = new CustomEvent("pomelo:devtools", {
+      detail: { type, name, state: JSON.parse(JSON.stringify(state)) },
+    });
+    window.dispatchEvent(event);
+    if ((window as any).__POMELO_DEVTOOLS__) {
+      (window as any).__POMELO_DEVTOOLS__.emit("change", { type, name, state });
+    }
+  }
+}
 
 function enqueueEffect(sub: () => void) {
   if (batchDepth > 0) {
@@ -35,14 +49,20 @@ export function $batch(fn: () => void): void {
 export class Signal<T> implements ReactiveState<T> {
   private _value: T;
   private subscribers = new Set<() => void>();
+  private name: string;
 
   constructor(initialValue: T) {
     this._value = initialValue;
+    this.name = `signal-${++signalIdCounter}`;
+    notifyDevtools("signal", this.name, this._value);
   }
 
   get value(): T {
     if (activeEffect) {
       this.subscribers.add(activeEffect);
+      if (activeSubscriptions) {
+        activeSubscriptions.add(this as Signal<any>);
+      }
     }
     return this._value;
   }
@@ -50,6 +70,7 @@ export class Signal<T> implements ReactiveState<T> {
   set value(newValue: T) {
     if (this._value !== newValue) {
       this._value = newValue;
+      notifyDevtools("signal", this.name, this._value);
       this.notify();
     }
   }
@@ -89,16 +110,24 @@ export function $watch<T>(state: ReactiveState<T>, cb: (val: T) => void): () => 
 }
 
 export function $effect(cb: () => void): () => void {
+  const subscriptions = new Set<Signal<any>>();
   const effectFn = () => {
     activeEffect = effectFn;
+    activeSubscriptions = subscriptions;
     try {
       cb();
     } finally {
       activeEffect = null;
+      activeSubscriptions = null;
     }
   };
   effectFn();
-  return effectFn;
+  return () => {
+    for (const signal of subscriptions) {
+      signal.unsubscribe(effectFn);
+    }
+    subscriptions.clear();
+  };
 }
 
 export function $computed<T>(fn: () => T): ReactiveState<T> {
@@ -109,30 +138,70 @@ export function $computed<T>(fn: () => T): ReactiveState<T> {
   return signal;
 }
 
-export function $store<T extends object>(initialObj: T): T {
+export function $store<T extends object>(initialObj: T, options?: StoreOptions): T {
   const subscribers = new Set<() => void>();
-  return new Proxy(initialObj, {
-    get(target, key, receiver) {
-      if (activeEffect) {
-        subscribers.add(activeEffect);
+  const state = { ...initialObj };
+  const persistKey = options?.persistKey || "pomelo-store";
+
+  if (options?.persist && typeof window !== "undefined" && window.localStorage) {
+    try {
+      const saved = window.localStorage.getItem(persistKey);
+      if (saved) {
+        Object.assign(state, JSON.parse(saved));
       }
-      const val = Reflect.get(target, key, receiver);
-      if (typeof val === "function") {
-        return val.bind(receiver);
+    } catch (e) {
+      console.error("Failed to load persisted store state", e);
+    }
+  }
+
+  const notifyChange = () => {
+    if (options?.persist && typeof window !== "undefined" && window.localStorage) {
+      try {
+        window.localStorage.setItem(persistKey, JSON.stringify(state));
+      } catch (e) {
+        console.error("Failed to persist store state", e);
       }
-      return val;
-    },
-    set(target, key, value, receiver) {
-      const oldVal = Reflect.get(target, key, receiver);
-      if (oldVal !== value) {
-        Reflect.set(target, key, value, receiver);
-        for (const sub of subscribers) {
-          enqueueEffect(sub);
+    }
+    notifyDevtools("store", persistKey, state);
+    for (const sub of subscribers) {
+      enqueueEffect(sub);
+    }
+  };
+
+  const createDeepProxy = <U extends object>(obj: U): U => {
+    return new Proxy(obj, {
+      get(target, key, receiver) {
+        if (activeEffect) {
+          subscribers.add(activeEffect);
         }
-      }
-      return true;
-    },
-  });
+        const val = Reflect.get(target, key, receiver);
+        if (typeof val === "object" && val !== null) {
+          return createDeepProxy(val);
+        }
+        if (typeof val === "function") {
+          return val.bind(receiver);
+        }
+        return val;
+      },
+      set(target, key, value, receiver) {
+        const oldVal = Reflect.get(target, key, receiver);
+        if (oldVal !== value) {
+          Reflect.set(target, key, value, receiver);
+          notifyChange();
+        }
+        return true;
+      },
+      deleteProperty(target, key) {
+        const res = Reflect.deleteProperty(target, key);
+        notifyChange();
+        return res;
+      },
+    });
+  };
+
+  const proxy = createDeepProxy(state);
+  notifyDevtools("store", persistKey, state);
+  return proxy;
 }
 
 export function $use<T>(store: T): T {

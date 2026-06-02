@@ -47,7 +47,7 @@ export interface RouteRecord {
   isDynamic: boolean;
   isCatchAll: boolean;
   paramNames: string[];
-  layoutPath: string | null;
+  layoutPaths: string[];
   children: RouteRecord[];
   depth: number;
 }

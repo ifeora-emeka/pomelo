@@ -54,6 +54,7 @@ test("Compiler compiles server block keywords", () => {
   assert.ok(result.code.includes("export const $serverMeta = (() =>"));
   assert.ok(result.code.includes("export const $serverGuard = (async"));
   assert.ok(result.code.includes('export const $serverLayout = ("main")'));
+  assert.ok(result.code.includes("const $abort ="));
 });
 
 test("Compiler compiles client block setup and returns", () => {

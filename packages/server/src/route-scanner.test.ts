@@ -57,11 +57,14 @@ test("Route scanner resolves layout chains", () => {
 
   const homeRoute = routes.find((r) => r.path === "/");
   assert.ok(homeRoute);
-  assert.strictEqual(homeRoute.layoutPath, path.join(tmpDir, "layout.pom"));
+  assert.deepStrictEqual(homeRoute.layoutPaths, [path.join(tmpDir, "layout.pom")]);
 
   const blogRoute = routes.find((r) => r.path === "/blog/:id");
   assert.ok(blogRoute);
-  assert.strictEqual(blogRoute.layoutPath, path.join(tmpDir, "blog/layout.pom"));
+  assert.deepStrictEqual(blogRoute.layoutPaths, [
+    path.join(tmpDir, "layout.pom"),
+    path.join(tmpDir, "blog/layout.pom")
+  ]);
 
   cleanupMockPages();
 });
@@ -76,8 +79,8 @@ test("Route sorting prioritizes static over dynamic over catchall", () => {
 
   const sorted = sortRoutesBySpecificity(routes);
   
-  assert.strictEqual(sorted[0].path, "/about");
-  assert.strictEqual(sorted[1].path, "/blog/new");
-  assert.strictEqual(sorted[2].path, "/blog/:id");
-  assert.strictEqual(sorted[3].path, "/blog/:catchall(*)");
+  assert.strictEqual(sorted[0]!.path, "/about");
+  assert.strictEqual(sorted[1]!.path, "/blog/new");
+  assert.strictEqual(sorted[2]!.path, "/blog/:id");
+  assert.strictEqual(sorted[3]!.path, "/blog/:catchall(*)");
 });

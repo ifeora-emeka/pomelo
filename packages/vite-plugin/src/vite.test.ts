@@ -59,6 +59,9 @@ test("Vite plugin outputs HMR code in serve mode", () => {
   assert.ok(result.code.includes("hydrate"));
   assert.ok(result.code.includes("destroyInstance"));
   assert.ok(result.code.includes("injectStyle"));
+  assert.ok(result.code.includes("__pom_setup_hash__"));
+  assert.ok(result.code.includes("setupUnchanged"));
+  assert.ok(result.code.includes("hotUpdate"));
 });
 
 test("Vite plugin injects error overlay on compilation failure", () => {
@@ -100,7 +103,9 @@ test("generateClientModule produces self-accepting HMR module", () => {
   assert.ok(output.includes('import { hydrate, injectStyle, removeStyle, destroyInstance }'));
   assert.ok(output.includes("__pom_css__"));
   assert.ok(output.includes("import.meta.hot.accept"));
-  assert.ok(output.includes("destroyInstance(window.__pom_instance__)"));
+  assert.ok(output.includes("__pom_setup_hash__"));
+  assert.ok(output.includes("setupUnchanged"));
+  assert.ok(output.includes("hotUpdate"));
   assert.ok(output.includes('injectStyle(__pom_css__, "abc123")'));
 });
 
@@ -111,6 +116,15 @@ test("generateClientModule works without CSS", () => {
   assert.ok(!output.includes("__pom_css__"));
   assert.ok(output.includes("export const css = undefined"));
   assert.ok(output.includes("import.meta.hot.accept"));
+});
+
+test("generateClientModule HMR uses hotUpdate for template-only changes", () => {
+  const code = 'export function setup() { return {}; }\n// === Template Block ===\nexport function render() { return "<div>hi</div>"; }';
+  const output = generateClientModule(code, undefined, "abc123", "test.pom");
+
+  assert.ok(output.includes("setupUnchanged && prevInst.hotUpdate"));
+  assert.ok(output.includes("prevInst.hotUpdate(newModule.render)"));
+  assert.ok(output.includes("export const __pom_setup_hash__"));
 });
 
 test("Vite plugin handleHotUpdate returns modules for .pom files", () => {

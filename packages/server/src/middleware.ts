@@ -36,3 +36,18 @@ export function $roles(...roles: string[]) {
     next();
   };
 }
+
+export function $guard(fn: (req: Request) => Promise<boolean> | boolean) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const allowed = await fn(req);
+      if (!allowed) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}

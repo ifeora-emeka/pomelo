@@ -1,5 +1,7 @@
 import type { PomeloASTNode } from "@pomelo/types";
 
+const ABORT_HELPER = `const $abort = (statusCode, message) => { const e = Object.assign(new Error(message || "Pomelo Abort"), { statusCode, isPomeloAbort: true }); throw e; };\n`;
+
 export function transformServer(node: PomeloASTNode): string {
   let content = node.content;
 
@@ -12,5 +14,5 @@ export function transformServer(node: PomeloASTNode): string {
     "export const $serverLayout = (",
   );
 
-  return `// === Server Block ===\n${content}\n`;
+  return `// === Server Block ===\n${ABORT_HELPER}${content}\n`;
 }

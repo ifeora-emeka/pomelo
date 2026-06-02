@@ -1,11 +1,13 @@
 import { PomeloLogger } from "@pomelo/shared";
-import { $effect, $batch } from "../reactivity/index.js";
+import { $effect, $batch, Signal } from "../reactivity/index.js";
 
 export interface ComponentInstance {
   mounts: (() => void)[];
   destroys: (() => void)[];
   container: HTMLElement | null;
   teardown: () => void;
+  state: Record<string, unknown>;
+  hotUpdate: (renderFn: (state: any, slots?: any) => string) => void;
 }
 
 export let activeInstance: ComponentInstance | null = null;
@@ -250,11 +252,15 @@ export function hydrate(
     mounts: [],
     destroys: [],
     container,
+    state: {},
     teardown: () => {},
+    hotUpdate: () => {},
   };
   setActiveInstance(instance);
 
   const rawState = component.setup(props);
+  instance.state = rawState;
+
   const stateProxy = new Proxy(rawState, {
     has(target, key) {
       return key in target || key === "state";
@@ -280,8 +286,12 @@ export function hydrate(
   setActiveInstance(null);
   const removeEvents = setupEventDelegation(container, stateProxy);
 
-  $effect(() => {
-    const html = component.render(stateProxy);
+  let currentRender = component.render;
+  const renderVersion = new Signal(0);
+
+  const cleanupRenderEffect = $effect(() => {
+    renderVersion.get();
+    const html = currentRender(stateProxy);
     const temp = document.createElement("div");
     temp.innerHTML = html;
 
@@ -304,8 +314,14 @@ export function hydrate(
 
   instance.mounts.forEach((cb) => cb());
 
+  instance.hotUpdate = (newRenderFn: (state: any, slots?: any) => string) => {
+    currentRender = newRenderFn;
+    renderVersion.set(renderVersion.get() + 1);
+  };
+
   instance.teardown = () => {
     instance.destroys.forEach((cb) => cb());
+    cleanupRenderEffect();
     removeEvents();
     if (component.css) {
       removeStyle(componentId);

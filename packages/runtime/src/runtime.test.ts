@@ -427,3 +427,98 @@ test("injectStyle creates and removeStyle removes style element", () => {
 
   removeStyle("inject-test");
 });
+
+test("$effect cleanup removes subscriptions", () => {
+  const count = $local(0);
+  let runs = 0;
+
+  const cleanup = $effect(() => {
+    count.get();
+    runs++;
+  });
+
+  assert.strictEqual(runs, 1);
+  count.set(1);
+  assert.strictEqual(runs, 2);
+
+  cleanup();
+  count.set(2);
+  assert.strictEqual(runs, 2);
+});
+
+test("hydrate stores raw state on ComponentInstance.state", () => {
+  const mockContainer = new MockElement("div");
+
+  const component = {
+    setup() {
+      const count = $local(42);
+      return { count };
+    },
+    render(state: any) {
+      return `<p>${state.count}</p>`;
+    },
+  };
+
+  const instance = hydrate(mockContainer as any, component);
+  assert.ok(instance.state);
+  assert.ok("count" in instance.state);
+
+  destroyInstance(instance);
+});
+
+test("hotUpdate replaces render function and re-renders without recreating state", () => {
+  const mockContainer = new MockElement("div");
+
+  const component = {
+    setup() {
+      const count = $local(5);
+      return { count };
+    },
+    render(state: any) {
+      return `<p>v1:${state.count}</p>`;
+    },
+  };
+
+  const instance = hydrate(mockContainer as any, component);
+  const firstChild = mockContainer.childNodes[0] as MockElement;
+  assert.ok(firstChild);
+  assert.strictEqual(firstChild.childNodes[0]?.nodeValue, "v1:5");
+
+  const originalState = instance.state;
+
+  instance.hotUpdate((state: any) => `<p>v2:${state.count}</p>`);
+
+  const updatedChild = mockContainer.childNodes[0] as MockElement;
+  assert.ok(updatedChild);
+  assert.strictEqual(updatedChild.childNodes[0]?.nodeValue, "v2:5");
+
+  assert.strictEqual(instance.state, originalState);
+
+  destroyInstance(instance);
+});
+
+test("destroyInstance cleans up render effect subscriptions", () => {
+  const mockContainer = new MockElement("div");
+  const count = $local(0);
+  let renderCalls = 0;
+
+  const component = {
+    setup() {
+      return { count };
+    },
+    render(state: any) {
+      renderCalls++;
+      return `<p>${state.count}</p>`;
+    },
+  };
+
+  const instance = hydrate(mockContainer as any, component);
+  assert.strictEqual(renderCalls, 1);
+
+  count.set(1);
+  assert.strictEqual(renderCalls, 2);
+
+  destroyInstance(instance);
+  count.set(2);
+  assert.strictEqual(renderCalls, 2);
+});

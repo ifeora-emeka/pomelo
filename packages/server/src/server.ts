@@ -178,6 +178,12 @@ export async function handleSSR(req: Request, res: Response, component: any) {
 
     res.status(200).send(fullHTML);
   } catch (err: any) {
+    if (err.isPomeloAbort === true && typeof err.statusCode === "number") {
+      if (!res.headersSent) {
+        res.status(err.statusCode).end();
+      }
+      return;
+    }
     PomeloLogger.error(
       "SSR Rendering Error: " +
         (err instanceof Error ? err.stack : String(err)),
@@ -245,6 +251,12 @@ export async function handleSSRStream(
     res.write(`</div></body></html>`);
     res.end();
   } catch (err: any) {
+    if (err.isPomeloAbort === true && typeof err.statusCode === "number") {
+      if (!res.headersSent) {
+        res.status(err.statusCode).end();
+      }
+      return;
+    }
     PomeloLogger.error(
       "SSR Stream Error: " +
         (err instanceof Error ? err.stack : String(err)),
@@ -279,29 +291,30 @@ export function registerFileSystemRoutes(
     );
     fs.writeFileSync(cacheFile, compiled.code);
 
-    let layoutCacheFile: string | null = null;
-    if (route.layoutPath) {
-      const layoutRelative = path.relative(pagesDir, route.layoutPath);
-      const layoutContent = fs.readFileSync(route.layoutPath, "utf-8");
+    const layoutCacheFiles: string[] = [];
+    for (const layoutPath of route.layoutPaths) {
+      const layoutRelative = path.relative(pagesDir, layoutPath);
+      const layoutContent = fs.readFileSync(layoutPath, "utf-8");
       const layoutCompiled = compile(layoutContent, "__layout__");
-      layoutCacheFile = path.join(
+      const layoutCacheFile = path.join(
         cacheDir,
         "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
       );
       fs.writeFileSync(layoutCacheFile, layoutCompiled.code);
+      layoutCacheFiles.push(layoutCacheFile);
     }
-
-    const capturedLayoutCache = layoutCacheFile;
 
     app.get(route.path, async (req, res, next) => {
       try {
         const component = await import(`file://${cacheFile}?t=${Date.now()}`);
+        const layouts: any[] = [];
+        for (const layoutCacheFile of layoutCacheFiles) {
+          const layout = await import(`file://${layoutCacheFile}?t=${Date.now()}`);
+          layouts.push(layout);
+        }
 
-        if (capturedLayoutCache) {
-          const layout = await import(
-            `file://${capturedLayoutCache}?t=${Date.now()}`
-          );
-          await handleSSRWithLayout(req, res, component, layout);
+        if (layouts.length > 0) {
+          await handleSSRWithLayouts(req, res, component, layouts);
         } else {
           await handleSSR(req, res, component);
         }
@@ -314,11 +327,11 @@ export function registerFileSystemRoutes(
   }
 }
 
-export async function handleSSRWithLayout(
+export async function handleSSRWithLayouts(
   req: Request,
   res: Response,
   component: any,
-  layout: any,
+  layouts: any[],
 ) {
   try {
     const ctx = {
@@ -338,6 +351,18 @@ export async function handleSSRWithLayout(
       }
     }
 
+    for (const layout of layouts) {
+      if (layout.$serverGuard) {
+        const allowed = await layout.$serverGuard(ctx);
+        if (allowed === false) {
+          if (!res.headersSent) {
+            res.forbidden();
+          }
+          return;
+        }
+      }
+    }
+
     let state: Record<string, any> = {};
     if (component.$serverPage) {
       state = (await component.$serverPage(ctx)) || {};
@@ -349,17 +374,19 @@ export async function handleSSRWithLayout(
 
     const pageContent = component.render ? component.render(state) : "";
 
-    const layoutState: Record<string, any> = {};
-    if (layout.$serverPage) {
-      const layoutCtx = { ...ctx };
-      Object.assign(layoutState, (await layout.$serverPage(layoutCtx)) || {});
+    let htmlContent = pageContent;
+    for (let i = layouts.length - 1; i >= 0; i--) {
+      const layout = layouts[i];
+      const layoutState: Record<string, any> = {};
+      if (layout.$serverPage) {
+        Object.assign(layoutState, (await layout.$serverPage(ctx)) || {});
+      }
+      htmlContent = layout.render
+        ? layout.render(layoutState, {
+            default: () => htmlContent,
+          })
+        : htmlContent;
     }
-
-    const htmlContent = layout.render
-      ? layout.render(layoutState, {
-          default: () => pageContent,
-        })
-      : pageContent;
 
     let metaHTML = "";
     if (component.$serverMeta) {
@@ -380,8 +407,10 @@ export async function handleSSRWithLayout(
     if (component.css) {
       styleHTML += `<style>${component.css}</style>`;
     }
-    if (layout.css) {
-      styleHTML += `<style>${layout.css}</style>`;
+    for (const layout of layouts) {
+      if (layout.css) {
+        styleHTML += `<style>${layout.css}</style>`;
+      }
     }
 
     const routePath = req.route?.path || req.path;
@@ -407,8 +436,14 @@ export async function handleSSRWithLayout(
 
     res.status(200).send(fullHTML);
   } catch (err: any) {
+    if (err.isPomeloAbort === true && typeof err.statusCode === "number") {
+      if (!res.headersSent) {
+        res.status(err.statusCode).end();
+      }
+      return;
+    }
     PomeloLogger.error(
-      "SSR Layout Rendering Error: " +
+      "SSR Layouts Rendering Error: " +
         (err instanceof Error ? err.stack : String(err)),
     );
     if (!res.headersSent) {

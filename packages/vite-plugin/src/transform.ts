@@ -10,6 +10,14 @@ export function handleSFCCompilation(code: string, id: string) {
   return null;
 }
 
+function computeHash(str: string): string {
+  return Math.abs(
+    str.split("").reduce((hash, char) => (hash << 5) - hash + char.charCodeAt(0), 0),
+  )
+    .toString(36)
+    .slice(0, 8);
+}
+
 export function generateClientModule(
   code: string,
   css: string | undefined,
@@ -30,13 +38,26 @@ export function generateClientModule(
   output += `\nexport const componentId = ${JSON.stringify(componentId)};\n`;
   output += `export const css = ${css ? "__pom_css__" : "undefined"};\n`;
 
+  const setupCode = code.split("// === Template Block ===")[0] ?? code;
+  const setupHash = computeHash(setupCode);
+  output += `export const __pom_setup_hash__ = ${JSON.stringify(setupHash)};\n`;
+
   output += `\nif (import.meta.hot) {\n`;
   output += `  import.meta.hot.accept((newModule) => {\n`;
-  output += `    if (newModule) {\n`;
-  output += `      const container = document.getElementById("app");\n`;
-  output += `      if (container && newModule.setup) {\n`;
-  output += `        if (window.__pom_instance__) {\n`;
-  output += `          destroyInstance(window.__pom_instance__);\n`;
+  output += `    if (!newModule) return;\n`;
+  output += `    const container = document.getElementById("app");\n`;
+  output += `    if (!container) return;\n`;
+  output += `    const prevInst = window.__pom_instance__;\n`;
+  output += `    if (newModule.setup) {\n`;
+  output += `      const setupUnchanged = !!prevInst && newModule.__pom_setup_hash__ === __pom_setup_hash__;\n`;
+  output += `      if (setupUnchanged && prevInst.hotUpdate) {\n`;
+  output += `        if (newModule.css) {\n`;
+  output += `          injectStyle(newModule.css, newModule.componentId || ${JSON.stringify(componentId)});\n`;
+  output += `        }\n`;
+  output += `        prevInst.hotUpdate(newModule.render);\n`;
+  output += `      } else {\n`;
+  output += `        if (prevInst) {\n`;
+  output += `          destroyInstance(prevInst);\n`;
   output += `        }\n`;
   output += `        if (newModule.css) {\n`;
   output += `          injectStyle(newModule.css, newModule.componentId || ${JSON.stringify(componentId)});\n`;
@@ -47,9 +68,9 @@ export function generateClientModule(
   output += `          css: newModule.css || "",\n`;
   output += `          componentId: newModule.componentId || ${JSON.stringify(componentId)}\n`;
   output += `        });\n`;
-  output += `      } else if (container && newModule.render) {\n`;
-  output += `        container.innerHTML = newModule.render();\n`;
   output += `      }\n`;
+  output += `    } else if (newModule.render) {\n`;
+  output += `      container.innerHTML = newModule.render();\n`;
   output += `    }\n`;
   output += `  });\n`;
   output += `}\n`;

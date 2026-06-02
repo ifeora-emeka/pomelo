@@ -42,7 +42,7 @@ pomelo/
 
 ---
 
-## 🛠️ The `.pom` Component Anatomy
+## 🛠️ The `.jsx` Component Anatomy
 
 Pomelo components use the `.pom` extension. They are compiled at build time to produce optimized, reactive client-side modules and server-side render functions.
 
