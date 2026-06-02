@@ -1,14 +1,13 @@
-import { compilePomelo } from "@pomelo/compiler";
-import { logInfo } from "@pomelo/shared";
+import { handleSFCCompilation } from "./transform.js";
 
 export function pomeloVitePlugin() {
   return {
     name: "vite-plugin-pomelo",
     transform(code: string, id: string) {
-      if (id.endsWith(".pom")) {
-        logInfo(`Transforming SFC file: ${id}`);
+      const compiled = handleSFCCompilation(code, id);
+      if (compiled) {
         return {
-          code: compilePomelo(code),
+          code: compiled.code,
           map: null,
         };
       }
@@ -16,3 +15,5 @@ export function pomeloVitePlugin() {
     },
   };
 }
+
+export * from "./transform.js";

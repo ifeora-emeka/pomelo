@@ -7,10 +7,12 @@
     "lint": "eslint \"packages/*/src/**/*.ts\"",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "check-types": "turbo run check-types",
+    "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules packages/*/node_modules apps/*/node_modules",
     "release": "node scripts/release.js"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "eslint": "^9.39.1",
     "prettier": "^3.7.4",
     "turbo": "^2.9.16",
