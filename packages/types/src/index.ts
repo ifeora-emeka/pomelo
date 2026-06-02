@@ -40,3 +40,30 @@ export interface CLIContext {
   command: string;
   args: string[];
 }
+
+export interface RouteRecord {
+  path: string;
+  filePath: string;
+  isDynamic: boolean;
+  isCatchAll: boolean;
+  paramNames: string[];
+  layoutPath: string | null;
+  children: RouteRecord[];
+  depth: number;
+}
+
+export interface RouteManifest {
+  routes: RouteRecord[];
+  layouts: Map<string, string>;
+}
+
+export interface StoreOptions {
+  persist?: boolean;
+  persistKey?: string;
+}
+
+export interface PersistAdapter {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+  remove(key: string): void;
+}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { pomeloVitePlugin } from "./index.js";
+import { pomeloVitePlugin, handleSFCCompilation, generateClientModule } from "./index.js";
 
 const sampleSFC = `
 <View>
@@ -8,17 +8,143 @@ const sampleSFC = `
 </View>
 `;
 
+const fullSFC = `
+<Server>
+  $page(async ({ query }) => { return { title: "Home" }; });
+</Server>
+<Client>
+  const count = $local(0);
+  function increment() { count.set(count.get() + 1); }
+</Client>
+<View>
+  <div class="container">
+    <h1 @click="increment">{{ title }}</h1>
+    <p>Count: {{ count }}</p>
+  </div>
+</View>
+<Style>
+  .container { padding: 16px; }
+</Style>
+`;
+
 test("Vite plugin registers and transforms .pom files", () => {
   const plugin = pomeloVitePlugin();
   assert.strictEqual(plugin.name, "vite-plugin-pomelo");
 
-  // Non-pom file check
   const nonPomResult = plugin.transform("const x = 1;", "src/main.ts");
   assert.strictEqual(nonPomResult, null);
 
-  // Pom file check
   const pomResult = plugin.transform(sampleSFC, "src/components/Test.pom");
   assert.ok(pomResult !== null);
   assert.ok(pomResult.code.includes("export function render("));
   assert.ok(pomResult.code.includes("data-pom-"));
+});
+
+test("Vite plugin generates componentId and css exports for build", () => {
+  const plugin = pomeloVitePlugin();
+  const result = plugin.transform(fullSFC, "src/pages/index.pom");
+  assert.ok(result);
+  assert.ok(result.code.includes("export const componentId"));
+  assert.ok(result.code.includes("export const css"));
+});
+
+test("Vite plugin outputs HMR code in serve mode", () => {
+  const plugin = pomeloVitePlugin();
+  plugin.configResolved({ command: "serve" } as any);
+
+  const result = plugin.transform(fullSFC, "src/pages/index.pom");
+  assert.ok(result);
+  assert.ok(result.code.includes("import.meta.hot"));
+  assert.ok(result.code.includes("import.meta.hot.accept"));
+  assert.ok(result.code.includes("hydrate"));
+  assert.ok(result.code.includes("destroyInstance"));
+  assert.ok(result.code.includes("injectStyle"));
+});
+
+test("Vite plugin injects error overlay on compilation failure", () => {
+  const plugin = pomeloVitePlugin();
+  plugin.configResolved({ command: "serve" } as any);
+
+  const badSFC = `
+<View>
+  <div>
+</View>
+`;
+
+  const result = plugin.transform(badSFC, "src/bad.pom");
+  assert.ok(result);
+  assert.ok(result.code.includes("pomelo-error-overlay"));
+  assert.ok(result.code.includes("Pomelo Compilation Error"));
+});
+
+test("handleSFCCompilation returns null for non-.pom files", () => {
+  const result = handleSFCCompilation("const x = 1;", "main.ts");
+  assert.strictEqual(result, null);
+});
+
+test("handleSFCCompilation compiles .pom file with all blocks", () => {
+  const result = handleSFCCompilation(fullSFC, "pages/index.pom");
+  assert.ok(result);
+  assert.ok(result.code.includes("export function render("));
+  assert.ok(result.code.includes("export function setup("));
+  assert.ok(result.code.includes("export const $serverPage"));
+  assert.ok(result.css);
+  assert.ok(result.css.includes("[data-pom-"));
+});
+
+test("generateClientModule produces self-accepting HMR module", () => {
+  const code = 'export function render() { return "<div>hi</div>"; }';
+  const css = ".box { color: red; }";
+  const output = generateClientModule(code, css, "abc123", "test.pom");
+
+  assert.ok(output.includes('import { hydrate, injectStyle, removeStyle, destroyInstance }'));
+  assert.ok(output.includes("__pom_css__"));
+  assert.ok(output.includes("import.meta.hot.accept"));
+  assert.ok(output.includes("destroyInstance(window.__pom_instance__)"));
+  assert.ok(output.includes('injectStyle(__pom_css__, "abc123")'));
+});
+
+test("generateClientModule works without CSS", () => {
+  const code = 'export function render() { return "<div>hi</div>"; }';
+  const output = generateClientModule(code, undefined, "abc123", "test.pom");
+
+  assert.ok(!output.includes("__pom_css__"));
+  assert.ok(output.includes("export const css = undefined"));
+  assert.ok(output.includes("import.meta.hot.accept"));
+});
+
+test("Vite plugin handleHotUpdate returns modules for .pom files", () => {
+  const plugin = pomeloVitePlugin();
+  const mockModule = { file: "src/pages/index.pom" };
+
+  const result = plugin.handleHotUpdate({
+    file: "src/pages/index.pom",
+    modules: [mockModule],
+  });
+
+  assert.ok(result);
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0], mockModule);
+});
+
+test("Vite plugin handleHotUpdate ignores non-.pom files", () => {
+  const plugin = pomeloVitePlugin();
+
+  const result = plugin.handleHotUpdate({
+    file: "src/main.ts",
+    modules: [{ file: "src/main.ts" }],
+  });
+
+  assert.strictEqual(result, undefined);
+});
+
+test("Vite plugin resolveId handles CSS virtual modules", () => {
+  const plugin = pomeloVitePlugin();
+
+  const resolved = plugin.resolveId("pomelo-css:test.pom");
+  assert.ok(resolved);
+  assert.ok(resolved.startsWith("\0pomelo-css:"));
+
+  const nonVirtual = plugin.resolveId("./main.ts");
+  assert.strictEqual(nonVirtual, null);
 });

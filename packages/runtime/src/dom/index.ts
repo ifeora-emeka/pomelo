@@ -1,9 +1,11 @@
 import { PomeloLogger } from "@pomelo/shared";
-import { $effect } from "../reactivity/index.js";
+import { $effect, $batch } from "../reactivity/index.js";
 
 export interface ComponentInstance {
   mounts: (() => void)[];
   destroys: (() => void)[];
+  container: HTMLElement | null;
+  teardown: () => void;
 }
 
 export let activeInstance: ComponentInstance | null = null;
@@ -25,7 +27,6 @@ export function $destroy(cb: () => void) {
 }
 
 export function mountElement(parent: unknown, html: string): void {
-  PomeloLogger.info("Mounting view component...");
   if (parent && typeof parent === "object" && "innerHTML" in parent) {
     (parent as { innerHTML: string }).innerHTML = html;
   }
@@ -48,7 +49,6 @@ export function morph(oldNode: Node, newNode: Node) {
       return;
     }
 
-    // Sync attributes
     const oldAttrs = Array.from(oldEl.attributes);
     const newAttrs = Array.from(newEl.attributes);
 
@@ -63,14 +63,16 @@ export function morph(oldNode: Node, newNode: Node) {
       }
     }
 
-    // Sync inputs/textareas values
     if (oldEl.tagName === "INPUT" || oldEl.tagName === "TEXTAREA") {
       const o = oldEl as HTMLInputElement | HTMLTextAreaElement;
       const n = newEl as HTMLInputElement | HTMLTextAreaElement;
       if (o.value !== n.value) {
         o.value = n.value;
       }
-      if (o.tagName === "INPUT" && (o as HTMLInputElement).checked !== (n as HTMLInputElement).checked) {
+      if (
+        o.tagName === "INPUT" &&
+        (o as HTMLInputElement).checked !== (n as HTMLInputElement).checked
+      ) {
         (o as HTMLInputElement).checked = (n as HTMLInputElement).checked;
       }
     } else if (oldEl.tagName === "SELECT") {
@@ -81,24 +83,70 @@ export function morph(oldNode: Node, newNode: Node) {
       }
     }
 
-    // Morph children
-    const oldChildren = Array.from(oldEl.childNodes);
-    const newChildren = Array.from(newEl.childNodes);
+    morphChildren(oldEl, newEl);
+  }
+}
 
-    const oldLen = oldChildren.length;
-    const newLen = newChildren.length;
-    const maxLen = Math.max(oldLen, newLen);
+function morphChildren(oldParent: HTMLElement, newParent: HTMLElement) {
+  const oldChildren = Array.from(oldParent.childNodes);
+  const newChildren = Array.from(newParent.childNodes);
 
-    for (let i = 0; i < maxLen; i++) {
-      const oldChild = oldChildren[i];
-      const newChild = newChildren[i];
-      if (oldChild === undefined && newChild !== undefined) {
-        oldEl.appendChild(newChild.cloneNode(true));
-      } else if (newChild === undefined && oldChild !== undefined) {
-        oldEl.removeChild(oldChild);
-      } else if (oldChild !== undefined && newChild !== undefined) {
-        morph(oldChild, newChild);
+  const oldKeyed = new Map<string, Node>();
+  for (const child of oldChildren) {
+    if (child.nodeType === 1) {
+      const key = (child as HTMLElement).getAttribute("data-pom-key");
+      if (key) {
+        oldKeyed.set(key, child);
       }
+    }
+  }
+
+  const newKeyed = new Set<string>();
+  for (const child of newChildren) {
+    if (child.nodeType === 1) {
+      const key = (child as HTMLElement).getAttribute("data-pom-key");
+      if (key) {
+        newKeyed.add(key);
+      }
+    }
+  }
+
+  for (const [key, node] of oldKeyed) {
+    if (!newKeyed.has(key)) {
+      oldParent.removeChild(node);
+    }
+  }
+
+  const maxLen = Math.max(oldChildren.length, newChildren.length);
+  const currentOldChildren = Array.from(oldParent.childNodes);
+
+  for (let i = 0; i < newChildren.length; i++) {
+    const newChild = newChildren[i]!;
+    const oldChild = currentOldChildren[i];
+
+    if (newChild.nodeType === 1) {
+      const newKey = (newChild as HTMLElement).getAttribute("data-pom-key");
+      if (newKey && oldKeyed.has(newKey)) {
+        const existingNode = oldKeyed.get(newKey)!;
+        if (oldChild !== existingNode) {
+          oldParent.insertBefore(existingNode, oldChild || null);
+        }
+        morph(existingNode, newChild);
+        continue;
+      }
+    }
+
+    if (!oldChild) {
+      oldParent.appendChild(newChild.cloneNode(true));
+    } else {
+      morph(oldChild, newChild);
+    }
+  }
+
+  while (oldParent.childNodes.length > newChildren.length) {
+    const last = oldParent.childNodes[oldParent.childNodes.length - 1];
+    if (last) {
+      oldParent.removeChild(last);
     }
   }
 }
@@ -106,7 +154,10 @@ export function morph(oldNode: Node, newNode: Node) {
 export function injectStyle(css: string, componentId: string): void {
   if (typeof document === "undefined") return;
   const styleId = `pom-style-${componentId}`;
-  if (!document.getElementById(styleId)) {
+  const existing = document.getElementById(styleId);
+  if (existing) {
+    existing.textContent = css;
+  } else {
     const styleEl = document.createElement("style");
     styleEl.id = styleId;
     styleEl.textContent = css;
@@ -114,11 +165,37 @@ export function injectStyle(css: string, componentId: string): void {
   }
 }
 
-const eventsToDelegate = ["click", "change", "input", "submit", "focus", "blur", "keydown", "keyup"];
+export function removeStyle(componentId: string): void {
+  if (typeof document === "undefined") return;
+  const styleId = `pom-style-${componentId}`;
+  const existing = document.getElementById(styleId);
+  if (existing) {
+    existing.remove();
+  }
+}
 
-export function setupEventDelegation(container: HTMLElement, stateProxy: any) {
+const eventsToDelegate = [
+  "click",
+  "change",
+  "input",
+  "submit",
+  "focus",
+  "blur",
+  "keydown",
+  "keyup",
+];
+
+export function setupEventDelegation(
+  container: HTMLElement,
+  stateProxy: any,
+): () => void {
+  const controllers: AbortController[] = [];
+
   for (const eventName of eventsToDelegate) {
     const useCapture = eventName === "focus" || eventName === "blur";
+    const controller = new AbortController();
+    controllers.push(controller);
+
     container.addEventListener(
       eventName,
       (event) => {
@@ -128,7 +205,11 @@ export function setupEventDelegation(container: HTMLElement, stateProxy: any) {
           if (target.hasAttribute && target.hasAttribute(attrName)) {
             const expr = target.getAttribute(attrName);
             if (expr) {
-              const fn = new Function("state", "$event", `with(state) { return (${expr}); }`);
+              const fn = new Function(
+                "state",
+                "$event",
+                `with(state) { return (${expr}); }`,
+              );
               const evaluated = fn(stateProxy, event);
               if (typeof evaluated === "function") {
                 evaluated(event);
@@ -139,22 +220,38 @@ export function setupEventDelegation(container: HTMLElement, stateProxy: any) {
           target = target.parentElement;
         }
       },
-      useCapture
+      { capture: useCapture, signal: controller.signal },
     );
   }
+
+  return () => {
+    for (const controller of controllers) {
+      controller.abort();
+    }
+  };
 }
 
 export function hydrate(
   container: HTMLElement,
-  component: { setup: (props?: any) => any; render: (state?: any, slots?: any) => string; css?: string },
-  props: any = {}
+  component: {
+    setup: (props?: any) => any;
+    render: (state?: any, slots?: any) => string;
+    css?: string;
+    componentId?: string;
+  },
+  props: any = {},
 ): ComponentInstance {
-  PomeloLogger.info("Hydrating component...");
+  const componentId = component.componentId || "global";
   if (component.css) {
-    injectStyle(component.css, "global");
+    injectStyle(component.css, componentId);
   }
 
-  const instance: ComponentInstance = { mounts: [], destroys: [] };
+  const instance: ComponentInstance = {
+    mounts: [],
+    destroys: [],
+    container,
+    teardown: () => {},
+  };
   setActiveInstance(instance);
 
   const rawState = component.setup(props);
@@ -177,11 +274,11 @@ export function hydrate(
       }
       target[key] = value;
       return true;
-    }
+    },
   });
 
   setActiveInstance(null);
-  setupEventDelegation(container, stateProxy);
+  const removeEvents = setupEventDelegation(container, stateProxy);
 
   $effect(() => {
     const html = component.render(stateProxy);
@@ -206,5 +303,19 @@ export function hydrate(
   });
 
   instance.mounts.forEach((cb) => cb());
+
+  instance.teardown = () => {
+    instance.destroys.forEach((cb) => cb());
+    removeEvents();
+    if (component.css) {
+      removeStyle(componentId);
+    }
+    container.innerHTML = "";
+  };
+
   return instance;
+}
+
+export function destroyInstance(instance: ComponentInstance): void {
+  instance.teardown();
 }

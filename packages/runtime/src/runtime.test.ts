@@ -7,15 +7,18 @@ import {
   $computed,
   $store,
   $use,
+  $batch,
   $mount,
   $destroy,
   renderToString,
   mountElement,
   morph,
-  hydrate
+  hydrate,
+  destroyInstance,
+  injectStyle,
+  removeStyle,
 } from "./index.js";
 
-// Minimal DOM mocks for Node.js test environment
 class MockNode {
   nodeType: number;
   nodeValue: string | null = null;
@@ -39,11 +42,31 @@ class MockNode {
     this.childNodes.push(child);
   }
 
+  insertBefore(newNode: MockNode, refNode: MockNode | null) {
+    if (!refNode) {
+      this.appendChild(newNode);
+      return;
+    }
+    const idx = this.childNodes.indexOf(refNode);
+    if (idx !== -1) {
+      newNode.parentElement = this;
+      this.childNodes.splice(idx, 0, newNode);
+    } else {
+      this.appendChild(newNode);
+    }
+  }
+
   removeChild(child: MockNode) {
     const idx = this.childNodes.indexOf(child);
     if (idx !== -1) {
       this.childNodes.splice(idx, 1);
       child.parentElement = null;
+    }
+  }
+
+  remove() {
+    if (this.parentElement) {
+      this.parentElement.removeChild(this);
     }
   }
 
@@ -73,12 +96,13 @@ class MockNode {
 class MockElement extends MockNode {
   tagName: string;
   private _attributesMap = new Map<string, string>();
-  listeners = new Map<string, Function[]>();
+  listeners = new Map<string, { cb: Function; controller?: AbortController }[]>();
   private _value: string = "";
   private _innerHTML: string = "";
+  id: string = "";
 
   constructor(tagName: string) {
-    super(1); // ELEMENT_NODE
+    super(1);
     this.tagName = tagName.toUpperCase();
   }
 
@@ -99,26 +123,26 @@ class MockElement extends MockNode {
     this.childNodes = [];
     if (val) {
       if (val.startsWith("<")) {
-        const tagMatch = /<([a-zA-Z0-9_-]+)([^>]*)>(.*)<\/\1>/.exec(val);
+        const tagMatch = /<([a-zA-Z0-9_-]+)([^>]*)>(.*)<\/\1>/s.exec(val);
         if (tagMatch) {
           const tag = tagMatch[1] || "";
           const attrsStr = tagMatch[2] || "";
           const inner = tagMatch[3] || "";
           const child = new MockElement(tag);
           child.innerHTML = inner;
-          const attrs = attrsStr.match(/([a-zA-Z0-9_-]+)="([^"]*)"/g);
+          const attrs = attrsStr.match(/([a-zA-Z0-9_:-]+)="([^"]*)"/g);
           if (attrs) {
             for (const a of attrs) {
-              const parts = a.split("=");
-              const k = parts[0] || "";
-              const v = parts[1] || "";
-              child.setAttribute(k, v.replace(/"/g, ""));
+              const eqIdx = a.indexOf("=");
+              const k = a.slice(0, eqIdx);
+              const v = a.slice(eqIdx + 2, -1);
+              child.setAttribute(k, v);
             }
           }
           this.appendChild(child);
         }
       } else {
-        const text = new MockNode(3); // TEXT_NODE
+        const text = new MockNode(3);
         text.nodeValue = val;
         this.appendChild(text);
       }
@@ -128,7 +152,7 @@ class MockElement extends MockNode {
   get attributes(): any {
     return Array.from(this._attributesMap.entries()).map(([name, value]) => ({
       name,
-      value
+      value,
     }));
   }
 
@@ -148,17 +172,26 @@ class MockElement extends MockNode {
     this._attributesMap.delete(name);
   }
 
-  addEventListener(event: string, cb: Function) {
+  addEventListener(event: string, cb: Function, opts?: any) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
-    this.listeners.get(event)!.push(cb);
+    const entry: { cb: Function; controller?: AbortController } = { cb };
+    if (opts && opts.signal) {
+      entry.controller = undefined;
+      opts.signal.addEventListener("abort", () => {
+        const list = this.listeners.get(event) || [];
+        const idx = list.indexOf(entry);
+        if (idx !== -1) list.splice(idx, 1);
+      });
+    }
+    this.listeners.get(event)!.push(entry);
   }
 
   dispatchEvent(event: { type: string; target: any }) {
     const list = this.listeners.get(event.type) || [];
-    for (const cb of list) {
-      cb(event);
+    for (const entry of list) {
+      entry.cb(event);
     }
     if (this.parentElement instanceof MockElement) {
       this.parentElement.dispatchEvent(event);
@@ -172,6 +205,7 @@ class MockElement extends MockNode {
     }
     copy.value = this.value;
     copy._innerHTML = this._innerHTML;
+    copy.id = this.id;
     if (deep) {
       for (const child of this.childNodes) {
         copy.appendChild(child.cloneNode(deep));
@@ -181,24 +215,27 @@ class MockElement extends MockNode {
   }
 }
 
-// Setup global document mock
+const styleStore = new Map<string, MockElement>();
+
 const mockDocument = {
-  getElementById: (id: string) => null,
+  getElementById: (id: string) => styleStore.get(id) || null,
   createElement: (tag: string) => {
-    if (tag === "style") {
-      const el = new MockElement("style");
-      (el as any).id = "";
-      (el as any).textContent = "";
-      return el;
-    }
     const el = new MockElement(tag);
     return el;
   },
   head: new MockElement("head"),
 };
 
+(mockDocument.head as any).appendChild = function (child: MockElement) {
+  MockNode.prototype.appendChild.call(this, child);
+  if (child.id) {
+    styleStore.set(child.id, child);
+  }
+};
+
 globalThis.document = mockDocument as any;
 globalThis.Node = { TEXT_NODE: 3, ELEMENT_NODE: 1 } as any;
+globalThis.AbortController = AbortController;
 
 test("Reactivity signals collect deps and trigger subscribers", () => {
   const count = $local(10);
@@ -209,7 +246,7 @@ test("Reactivity signals collect deps and trigger subscribers", () => {
   });
 
   assert.strictEqual(count.get(), 10);
-  assert.strictEqual(watchedValue, 10); // Triggered initially on watch setup
+  assert.strictEqual(watchedValue, 10);
 
   count.set(25);
   assert.strictEqual(count.get(), 25);
@@ -240,7 +277,7 @@ test("Reactivity $store creates reactive proxy", () => {
     count: 0,
     double() {
       return this.count * 2;
-    }
+    },
   });
 
   let val = 0;
@@ -252,6 +289,43 @@ test("Reactivity $store creates reactive proxy", () => {
   store.count = 5;
   assert.strictEqual(val, 5);
   assert.strictEqual(store.double(), 10);
+});
+
+test("Reactivity $batch coalesces updates", () => {
+  const count = $local(0);
+  let effectRuns = 0;
+
+  $effect(() => {
+    count.get();
+    effectRuns++;
+  });
+
+  assert.strictEqual(effectRuns, 1);
+
+  $batch(() => {
+    count.set(1);
+    count.set(2);
+    count.set(3);
+  });
+
+  assert.strictEqual(count.get(), 3);
+  assert.strictEqual(effectRuns, 2);
+});
+
+test("Reactivity $watch returns unsubscribe function", () => {
+  const count = $local(0);
+  let watchedValue = 0;
+
+  const unsub = $watch(count, (val) => {
+    watchedValue = val;
+  });
+
+  count.set(5);
+  assert.strictEqual(watchedValue, 5);
+
+  unsub();
+  count.set(10);
+  assert.strictEqual(watchedValue, 5);
 });
 
 test("renderToString returns result of render function", () => {
@@ -301,22 +375,55 @@ test("Component hydration sets up reactivity, event delegation and mounts", () =
     },
     render(state: any) {
       return `<button data-pom-event-click="increment">${state.count}</button>`;
-    }
+    },
   };
 
   const instance = hydrate(mockContainer as any, component);
-  
-  // Verify mount run
+
   const firstChild = mockContainer.childNodes[0] as MockElement;
   assert.ok(firstChild);
   assert.ok(firstChild.childNodes[0]);
   assert.strictEqual(firstChild.childNodes[0].nodeValue, "0");
 
-  // Dispatch click event via event delegation
   const clickEvent = { type: "click", target: firstChild };
   firstChild.dispatchEvent(clickEvent);
 
-  // Assert state updated and morph ran
   assert.ok(firstChild.childNodes[0]);
   assert.strictEqual(firstChild.childNodes[0].nodeValue, "1");
+});
+
+test("Component destroy teardown cleans up listeners and styles", () => {
+  const mockContainer = new MockElement("div");
+  mockContainer.innerHTML = `<p>hello</p>`;
+
+  let destroyed = false;
+  const component = {
+    setup() {
+      $destroy(() => {
+        destroyed = true;
+      });
+      return {};
+    },
+    render() {
+      return `<p>hello</p>`;
+    },
+    css: ".test { color: red; }",
+    componentId: "teardown-test",
+  };
+
+  const instance = hydrate(mockContainer as any, component);
+  assert.strictEqual(destroyed, false);
+
+  destroyInstance(instance);
+  assert.strictEqual(destroyed, true);
+  assert.strictEqual(mockContainer.innerHTML, "");
+});
+
+test("injectStyle creates and removeStyle removes style element", () => {
+  styleStore.clear();
+  injectStyle(".foo { color: blue; }", "inject-test");
+  const styleEl = styleStore.get("pom-style-inject-test");
+  assert.ok(styleEl);
+
+  removeStyle("inject-test");
 });

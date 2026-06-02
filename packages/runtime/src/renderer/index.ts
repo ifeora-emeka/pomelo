@@ -1,6 +1,17 @@
-import { PomeloLogger } from "@pomelo/shared";
+import type { Readable } from "node:stream";
 
 export function renderToString(renderFn: () => string): string {
-  PomeloLogger.info("Rendering component to static HTML string...");
   return renderFn();
+}
+
+export function renderToStream(renderFn: () => string): Readable {
+  const { Readable: ReadableStream } = require("node:stream") as typeof import("node:stream");
+  const html = renderFn();
+  const stream = new ReadableStream({
+    read() {
+      this.push(html);
+      this.push(null);
+    },
+  });
+  return stream;
 }
