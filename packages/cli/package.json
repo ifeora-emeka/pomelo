@@ -1,0 +1,20 @@
+{
+  "name": "@pomelo/cli",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pomelo/types": "workspace:*",
+    "@pomelo/shared": "workspace:*",
+    "@pomelo/parser": "workspace:*",
+    "@pomelo/compiler": "workspace:*",
+    "@pomelo/runtime": "workspace:*",
+    "@pomelo/server": "workspace:*",
+    "@pomelo/vite-plugin": "workspace:*"
+  }
+}
