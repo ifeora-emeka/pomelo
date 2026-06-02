@@ -13,20 +13,20 @@ I would lean into a few core principles for Pomelo:
 The `$` reads better:
 
 ```ts
-$page()
-$guard()
-$store()
-$watch()
-$action()
+$page();
+$guard();
+$store();
+$watch();
+$action();
 ```
 
 than:
 
 ```ts
-_page()
-_guard()
-_store()
-_watch()
+_page();
+_guard();
+_store();
+_watch();
 ```
 
 ---
@@ -39,50 +39,40 @@ _watch()
 import { $store } from "@pomelo/core";
 
 type CartItem = {
-	id: number;
-	name: string;
-	price: number;
-	qty: number;
+  id: number;
+  name: string;
+  price: number;
+  qty: number;
 };
 
 export const cartStore = $store({
-	items: [] as CartItem[],
+  items: [] as CartItem[],
 
-	total() {
-		return this.items.reduce(
-			(sum, item) => sum + item.price * item.qty,
-			0
-		);
-	},
+  total() {
+    return this.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  },
 
-	count() {
-		return this.items.reduce(
-			(sum, item) => sum + item.qty,
-			0
-		);
-	},
+  count() {
+    return this.items.reduce((sum, item) => sum + item.qty, 0);
+  },
 
-	add(product: CartItem) {
-		const existing = this.items.find(
-			i => i.id === product.id
-		);
+  add(product: CartItem) {
+    const existing = this.items.find((i) => i.id === product.id);
 
-		if (existing) {
-			existing.qty++;
-			return;
-		}
+    if (existing) {
+      existing.qty++;
+      return;
+    }
 
-		this.items.push({
-			...product,
-			qty: 1
-		});
-	},
+    this.items.push({
+      ...product,
+      qty: 1,
+    });
+  },
 
-	remove(productId: number) {
-		this.items = this.items.filter(
-			item => item.id !== productId
-		);
-	}
+  remove(productId: number) {
+    this.items = this.items.filter((item) => item.id !== productId);
+  },
 });
 ```
 
@@ -102,108 +92,56 @@ cart.add(product);
 
 ```html
 <Server lang="ts">
-
-$page(async ({ query }) => {
-
-	const products =
-		await ProductService.list({
-			search: query.search
-		});
-
-	return {
-		products
-	};
-});
-
-$meta(() => ({
-	title: "Products",
-	description:
-		"Browse all products in our catalog"
-}));
-
+  $page(async ({ query }) => { const products = await ProductService.list({
+  search: query.search }); return { products }; }); $meta(() => ({ title:
+  "Products", description: "Browse all products in our catalog" }));
 </Server>
 
 <Client lang="ts">
-
-import { cartStore } from "@/stores/cart.store";
-
-const cart = $use(cartStore);
-
-const search = $local("");
-
-const addToCart = (product: Product) => {
-	cart.add(product);
-};
-
-$watch(search, async value => {
-	console.log(value);
-});
-
+  import { cartStore } from "@/stores/cart.store"; const cart = $use(cartStore);
+  const search = $local(""); const addToCart = (product: Product) => {
+  cart.add(product); }; $watch(search, async value => { console.log(value); });
 </Client>
 
 <View>
+  <section>
+    <h1>Products</h1>
 
-<section>
+    <input
+      type="text"
+      :value="search"
+      @input="search = $event.target.value"
+      placeholder="Search products"
+    />
 
-	<h1>Products</h1>
+    <div class="grid">
+      <Each of="products" as="product" key="product.id">
+        <article class="card">
+          <img :src="product.image" :alt="product.name" />
 
-	<input
-		type="text"
-		:value="search"
-		@input="search = $event.target.value"
-		placeholder="Search products"
-	/>
+          <h3>{{ product.name }}</h3>
 
-	<div class="grid">
+          <p>${{ product.price }}</p>
 
-		<Each
-			of="products"
-			as="product"
-			key="product.id"
-		>
-
-			<article class="card">
-
-				<img
-					:src="product.image"
-					:alt="product.name"
-				/>
-
-				<h3>{{ product.name }}</h3>
-
-				<p>${{ product.price }}</p>
-
-				<button
-					@click="addToCart(product)"
-				>
-					Add To Cart
-				</button>
-
-			</article>
-
-		</Each>
-
-	</div>
-
-</section>
-
+          <button @click="addToCart(product)">Add To Cart</button>
+        </article>
+      </Each>
+    </div>
+  </section>
 </View>
 
-<Style scoped>
+<style scoped>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
 
-.grid{
-	display:grid;
-	grid-template-columns:
-	repeat(4,1fr);
-	gap:20px;
-}
-
-.card{
-	border:1px solid #ddd;
-	padding:16px;
-}
-
-</Style>
+  .card {
+    border: 1px solid #ddd;
+    padding: 16px;
+  }
+</style>
 ```
 
 ---
@@ -214,103 +152,50 @@ $watch(search, async value => {
 
 ```html
 <Server lang="ts">
-
-$page(async ({ params }) => {
-
-	const product =
-		await ProductService.getById(
-			params.id
-		);
-
-	if (!product) {
-		$abort(404);
-	}
-
-	return {
-		product
-	};
-});
-
-$meta(({ product }) => ({
-	title: product.name,
-
-	description:
-		product.description,
-
-	image:
-		product.image,
-
-	canonical:
-		`/products/${product.id}`
-}));
-
+  $page(async ({ params }) => { const product = await ProductService.getById(
+  params.id ); if (!product) { $abort(404); } return { product }; }); $meta(({
+  product }) => ({ title: product.name, description: product.description, image:
+  product.image, canonical: `/products/${product.id}` }));
 </Server>
 
 <Client lang="ts">
-
-import { cartStore } from "@/stores/cart.store";
-
-const cart = $use(cartStore);
-
-const quantity = $local(1);
-
-const addToCart = () => {
-
-	cart.add({
-		...product,
-		qty: quantity
-	});
-};
-
+  import { cartStore } from "@/stores/cart.store"; const cart = $use(cartStore);
+  const quantity = $local(1); const addToCart = () => { cart.add({ ...product,
+  qty: quantity }); };
 </Client>
 
 <View>
+  <section>
+    <img :src="product.image" :alt="product.name" />
 
-<section>
+    <h1>{{ product.name }}</h1>
 
-	<img
-		:src="product.image"
-		:alt="product.name"
-	/>
+    <p>{{ product.description }}</p>
 
-	<h1>{{ product.name }}</h1>
+    <h2>${{ product.price }}</h2>
 
-	<p>{{ product.description }}</p>
-
-	<h2>${{ product.price }}</h2>
-
-	<select
-		:value="quantity"
-		@change="
+    <select
+      :value="quantity"
+      @change="
 			quantity =
 			Number($event.target.value)
 		"
-	>
+    >
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+    </select>
 
-		<option value="1">1</option>
-		<option value="2">2</option>
-		<option value="3">3</option>
-
-	</select>
-
-	<button
-		@click="addToCart"
-	>
-		Add To Cart
-	</button>
-
-</section>
-
+    <button @click="addToCart">Add To Cart</button>
+  </section>
 </View>
 
-<Style scoped>
-
-img{
-	width:100%;
-	max-width:500px;
-}
-
-</Style>
+<style scoped>
+  img {
+    width: 100%;
+    max-width: 500px;
+  }
+</style>
 ```
 
 ---
@@ -322,7 +207,7 @@ This is where I would differentiate Pomelo from Next.
 Instead of:
 
 ```ts
-export async function GET()
+export async function GET();
 ```
 
 use actual Express-style syntax.
@@ -330,28 +215,15 @@ use actual Express-style syntax.
 `src/api/products/products.api.ts`
 
 ```ts
-import {
-	$router
-} from "@pomelo/server";
+import { $router } from "@pomelo/server";
 
 const router = $router();
 
-router.get(
-	"/",
-	$productListController
-);
+router.get("/", $productListController);
 
-router.get(
-	"/:id",
-	$productDetailsController
-);
+router.get("/:id", $productDetailsController);
 
-router.post(
-	"/",
-	$auth(),
-	$admin(),
-	$productCreateController
-);
+router.post("/", $auth(), $admin(), $productCreateController);
 
 export default router;
 ```
@@ -361,15 +233,10 @@ Controller:
 ```ts
 // src/api/products/controllers/create.controller.ts
 
-export const productCreateController =
-async (req, res) => {
+export const productCreateController = async (req, res) => {
+  const product = await ProductService.create(req.body);
 
-	const product =
-		await ProductService.create(
-			req.body
-		);
-
-	return res.created(product);
+  return res.created(product);
 };
 ```
 
@@ -379,25 +246,21 @@ Service:
 // src/api/products/services/product.service.ts
 
 export class ProductService {
+  static async create(data) {
+    return prisma.product.create({
+      data,
+    });
+  }
 
-	static async create(data) {
+  static async list() {
+    return prisma.product.findMany();
+  }
 
-		return prisma.product.create({
-			data
-		});
-	}
-
-	static async list() {
-
-		return prisma.product.findMany();
-	}
-
-	static async getById(id) {
-
-		return prisma.product.findUnique({
-			where:{id}
-		});
-	}
+  static async getById(id) {
+    return prisma.product.findUnique({
+      where: { id },
+    });
+  }
 }
 ```
 
@@ -482,29 +345,29 @@ src/
 Server:
 
 ```ts
-$page()
-$meta()
-$guard()
-$layout()
-$redirect()
-$abort()
-$cache()
-$headers()
-$cookies()
-$session()
+$page();
+$meta();
+$guard();
+$layout();
+$redirect();
+$abort();
+$cache();
+$headers();
+$cookies();
+$session();
 ```
 
 Client:
 
 ```ts
-$local()
-$store()
-$use()
-$watch()
-$action()
-$next()
-$mount()
-$destroy()
+$local();
+$store();
+$use();
+$watch();
+$action();
+$next();
+$mount();
+$destroy();
 ```
 
 Rendering:
@@ -513,32 +376,20 @@ Rendering:
 <Each />
 <When />
 <Else />
-<Slot />
+<slot />
 <Portal />
 ```
 
 Events:
 
 ```html
-@click
-@change
-@input
-@submit
-@focus
-@blur
-@keydown
-@keyup
+@click @change @input @submit @focus @blur @keydown @keyup
 ```
 
 Data Binding:
 
 ```html
-:value
-:class
-:style
-:disabled
-:checked
-:selected
+:value :class :style :disabled :checked :selected
 ```
 
 If I were designing Pomelo today, the biggest DX decision would be:
@@ -547,16 +398,16 @@ If I were designing Pomelo today, the biggest DX decision would be:
 <Server />
 <Client />
 <View />
-<Style />
+<style />
 ```
 
 instead of Vue's `<template>` and React's JSX.
 
 Those four blocks immediately tell developers:
 
-* server logic
-* client logic
-* UI
-* styling
+- server logic
+- client logic
+- UI
+- styling
 
 without borrowing React's component model or Vue's naming conventions too heavily, while still feeling familiar enough that a React/Vue developer can become productive in minutes.

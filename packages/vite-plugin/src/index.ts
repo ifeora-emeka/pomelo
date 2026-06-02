@@ -9,10 +9,10 @@ export function pomeloVitePlugin() {
         logInfo(`Transforming SFC file: ${id}`);
         return {
           code: compilePomelo(code),
-          map: null
+          map: null,
         };
       }
       return null;
-    }
+    },
   };
 }

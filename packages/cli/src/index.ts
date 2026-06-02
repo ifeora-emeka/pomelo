@@ -11,7 +11,7 @@ export function runCLI(): void {
   const config: FrameworkConfig = {
     name: "Pomelo App",
     version: "1.0.0",
-    port: 3000
+    port: 3000,
   };
 
   // Test integration of all packages

@@ -9,6 +9,6 @@ export function createLocalState<T>(initialValue: T) {
     },
     set(newValue: T) {
       this.value = newValue;
-    }
+    },
   };
 }

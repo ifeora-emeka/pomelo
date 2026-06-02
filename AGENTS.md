@@ -12,9 +12,9 @@ This repository is a Turborepo monorepo.
 
 Read the following documents before making architectural or framework changes:
 
-* `.agents/architecture.md`
-* `.agents/patterns.md`
-* `.agents/api-design.md`
+- `.agents/architecture.md`
+- `.agents/patterns.md`
+- `.agents/api-design.md`
 
 These documents are the source of truth.
 
@@ -41,19 +41,19 @@ Primary goals:
 
 Do not implement:
 
-* Custom bundler
-* Custom minifier
-* Custom TypeScript compiler
-* Custom JavaScript runtime
-* Custom package manager
+- Custom bundler
+- Custom minifier
+- Custom TypeScript compiler
+- Custom JavaScript runtime
+- Custom package manager
 
 Prefer existing solutions:
 
-* Vite
-* Rollup
-* SWC
-* TypeScript
-* Express
+- Vite
+- Rollup
+- SWC
+- TypeScript
+- Express
 
 ---
 
@@ -61,12 +61,12 @@ Prefer existing solutions:
 
 Important packages:
 
-* `packages/parser`
-* `packages/compiler`
-* `packages/runtime`
-* `packages/server`
-* `packages/vite-plugin`
-* `packages/cli`
+- `packages/parser`
+- `packages/compiler`
+- `packages/runtime`
+- `packages/server`
+- `packages/vite-plugin`
+- `packages/cli`
 
 Dependency direction:
 
@@ -82,24 +82,24 @@ Do not introduce reverse dependencies.
 
 ### Do
 
-* Use TypeScript
-* Prefer explicit types
-* Prefer composition over inheritance
-* Keep functions small
-* Keep files focused
-* Reuse shared utilities
-* Follow existing naming conventions
-* Preserve backwards compatibility when possible
+- Use TypeScript
+- Prefer explicit types
+- Prefer composition over inheritance
+- Keep functions small
+- Keep files focused
+- Reuse shared utilities
+- Follow existing naming conventions
+- Preserve backwards compatibility when possible
 
 ### Don't
 
-* Add code comments
-* Add dependencies without justification
-* Introduce circular dependencies
-* Create framework aliases for existing utilities unless there is clear DX value
-* Use `any` unless unavoidable
-* Refactor unrelated code during feature work
-* Rename public APIs without approval
+- Add code comments
+- Add dependencies without justification
+- Introduce circular dependencies
+- Create framework aliases for existing utilities unless there is clear DX value
+- Use `any` unless unavoidable
+- Refactor unrelated code during feature work
+- Rename public APIs without approval
 
 ---
 
@@ -107,12 +107,12 @@ Do not introduce reverse dependencies.
 
 When adding framework APIs:
 
-* Prefer `$keyword()` naming conventions
-* Server APIs must feel familiar to Express developers
-* Client APIs must be framework-specific and not React clones
-* Avoid React hook naming patterns
-* Avoid unnecessary magic
-* Prefer explicit behavior over implicit behavior
+- Prefer `$keyword()` naming conventions
+- Server APIs must feel familiar to Express developers
+- Client APIs must be framework-specific and not React clones
+- Avoid React hook naming patterns
+- Avoid unnecessary magic
+- Prefer explicit behavior over implicit behavior
 
 ---
 
@@ -120,11 +120,11 @@ When adding framework APIs:
 
 Always consider:
 
-* SSR performance
-* Hydration cost
-* Bundle size
-* Memory usage
-* HMR performance
+- SSR performance
+- Hydration cost
+- Bundle size
+- Memory usage
+- HMR performance
 
 Avoid allocations in hot paths.
 
@@ -134,10 +134,10 @@ Avoid allocations in hot paths.
 
 Before completing work:
 
-* Run linting
-* Run type checking
-* Run affected tests
-* Verify build succeeds
+- Run linting
+- Run type checking
+- Run affected tests
+- Verify build succeeds
 
 Do not claim code works without verification.
 

@@ -8,10 +8,10 @@ Pomelo APIs are built on top of Express, but expose a structured, opinionated la
 
 The API layer must remain:
 
-* Express-compatible underneath
-* Framework-consistent above
-* Explicit in behavior
-* Modular by feature/domain
+- Express-compatible underneath
+- Framework-consistent above
+- Explicit in behavior
+- Modular by feature/domain
 
 ---
 
@@ -79,21 +79,16 @@ Routes are defined using `$router()`.
 
 Supported methods:
 
-* `get`
-* `post`
-* `put`
-* `patch`
-* `delete`
+- `get`
+- `post`
+- `put`
+- `patch`
+- `delete`
 
 Example:
 
 ```ts
-router.post(
-  "/checkout",
-  auth(),
-  validateCheckout,
-  checkoutController
-);
+router.post("/checkout", auth(), validateCheckout, checkoutController);
 ```
 
 ---
@@ -110,7 +105,7 @@ Dynamic parameters follow Express convention:
 Accessed via:
 
 ```ts
-req.params.id
+req.params.id;
 ```
 
 ---
@@ -121,9 +116,9 @@ Controllers are pure request handlers.
 
 ### Rules
 
-* Must not contain business logic
-* Must delegate to services
-* Must return response explicitly
+- Must not contain business logic
+- Must delegate to services
+- Must return response explicitly
 
 ### Example
 
@@ -147,9 +142,9 @@ Services contain business logic.
 
 ### Rules
 
-* No HTTP awareness
-* No Express dependencies
-* Fully reusable
+- No HTTP awareness
+- No Express dependencies
+- Fully reusable
 
 ### Example
 
@@ -157,7 +152,7 @@ Services contain business logic.
 export class ProductService {
   static async getById(id: string) {
     return db.product.findUnique({
-      where: { id }
+      where: { id },
     });
   }
 
@@ -176,21 +171,16 @@ Middleware is composable and explicit.
 ### Built-in middleware pattern
 
 ```ts
-auth()
-admin()
-rateLimit()
-validate(schema)
+auth();
+admin();
+rateLimit();
+validate(schema);
 ```
 
 ### Usage
 
 ```ts
-router.post(
-  "/admin/products",
-  auth(),
-  admin(),
-  createProductController
-);
+router.post("/admin/products", auth(), admin(), createProductController);
 ```
 
 ---
@@ -202,13 +192,13 @@ Auth is middleware-based.
 ### Auth middleware
 
 ```ts
-auth()
+auth();
 ```
 
 Attaches:
 
 ```ts
-req.user
+req.user;
 ```
 
 ---
@@ -216,13 +206,13 @@ req.user
 ### Role-based access
 
 ```ts
-admin()
+admin();
 ```
 
 or:
 
 ```ts
-roles("admin", "manager")
+roles("admin", "manager");
 ```
 
 ---
@@ -234,20 +224,20 @@ All responses should use Pomelo response helpers:
 ### Standard responses
 
 ```ts
-res.ok(data)
-res.created(data)
-res.updated(data)
-res.deleted()
+res.ok(data);
+res.created(data);
+res.updated(data);
+res.deleted();
 ```
 
 ### Error responses
 
 ```ts
-res.badRequest(message)
-res.unauthorized()
-res.forbidden()
-res.notFound()
-res.serverError()
+res.badRequest(message);
+res.unauthorized();
+res.forbidden();
+res.notFound();
+res.serverError();
 ```
 
 ---
@@ -259,18 +249,14 @@ Validation runs before controller execution.
 ### Example
 
 ```ts
-router.post(
-  "/",
-  validate(CreateProductSchema),
-  createProductController
-);
+router.post("/", validate(CreateProductSchema), createProductController);
 ```
 
 Validation must:
 
-* Run before controller
-* Throw structured errors
-* Never be embedded inside controllers
+- Run before controller
+- Throw structured errors
+- Never be embedded inside controllers
 
 ---
 
@@ -284,8 +270,8 @@ Do not use try/catch inside controllers unless absolutely necessary.
 
 Instead:
 
-* Throw domain errors
-* Let global error handler process them
+- Throw domain errors
+- Let global error handler process them
 
 Example:
 
@@ -309,8 +295,7 @@ src/api/v2/products
 Or:
 
 ```ts
-/app/api/v1
-/app/api/v2
+/app/aip / v1 / app / api / v2;
 ```
 
 Only one version is active by default.
@@ -366,20 +351,20 @@ Client
 
 ## Security Rules
 
-* Never trust client input
-* Always validate request bodies
-* Always sanitize query params
-* Never expose internal errors to clients
-* Never leak stack traces in production
+- Never trust client input
+- Always validate request bodies
+- Always sanitize query params
+- Never expose internal errors to clients
+- Never leak stack traces in production
 
 ---
 
 ## Performance Rules
 
-* Avoid heavy logic in middleware
-* Cache expensive service calls where appropriate
-* Prefer pagination over full dataset returns
-* Avoid N+1 queries in services
+- Avoid heavy logic in middleware
+- Cache expensive service calls where appropriate
+- Prefer pagination over full dataset returns
+- Avoid N+1 queries in services
 
 ---
 
@@ -387,15 +372,15 @@ Client
 
 Allowed:
 
-* services → db
-* controllers → services
-* routes → controllers + middleware
+- services → db
+- controllers → services
+- routes → controllers + middleware
 
 Not allowed:
 
-* services → controllers
-* middleware → services (except auth context enrichment)
-* compiler/runtime → api layer
+- services → controllers
+- middleware → services (except auth context enrichment)
+- compiler/runtime → api layer
 
 ---
 
@@ -403,11 +388,11 @@ Not allowed:
 
 Pomelo APIs should feel:
 
-* predictable
-* explicit
-* structured like Express
-* scalable like NestJS
-* lightweight like Fastify
+- predictable
+- explicit
+- structured like Express
+- scalable like NestJS
+- lightweight like Fastify
 
 But never overly abstracted.
 
@@ -417,8 +402,8 @@ But never overly abstracted.
 
 Planned API enhancements:
 
-* RPC-style internal calls
-* GraphQL adapter layer
-* WebSocket API module
-* Background job API layer
-* Event-driven API hooks
+- RPC-style internal calls
+- GraphQL adapter layer
+- WebSocket API module
+- Background job API layer
+- Event-driven API hooks

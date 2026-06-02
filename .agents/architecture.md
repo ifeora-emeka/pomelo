@@ -231,8 +231,7 @@ src/
 Usage:
 
 ```ts
-import { createServer }
-from "@pomelo/server";
+import { createServer } from "@pomelo/server";
 ```
 
 ---

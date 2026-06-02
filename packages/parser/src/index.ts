@@ -5,6 +5,6 @@ export function parsePomelo(source: string): PomeloAST {
   logInfo("Parsing source code...");
   return {
     type: "PomeloRoot",
-    content: source.trim()
+    content: source.trim(),
   };
 }
