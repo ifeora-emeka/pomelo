@@ -8,7 +8,7 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "check-types": "tsc --noEmit",
-    "test": "node --test dist/**/*.test.js"
+    "test": "NODE_ENV=test node --test dist/**/*.test.js"
   },
   "dependencies": {
     "@pomelo/types": "workspace:*",

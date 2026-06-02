@@ -1,23 +1,30 @@
 import type { FrameworkConfig } from "@pomelo/types";
-import { FRAMEWORK_NAME } from "./constants.js";
+import {
+  FRAMEWORK_NAME,
+  COLOR_RESET,
+  COLOR_MAGENTA,
+  COLOR_GREEN,
+  COLOR_YELLOW,
+  COLOR_RED,
+} from "./constants.js";
 
 export class PomeloLogger {
-  private static prefix = `\x1b[35m[${FRAMEWORK_NAME}]\x1b[0m`;
+  private static prefix = `${COLOR_MAGENTA}[${FRAMEWORK_NAME}]${COLOR_RESET}`;
 
   static info(message: string): string {
-    const formatted = `${this.prefix} \x1b[32mINFO:\x1b[0m ${message}`;
+    const formatted = `${this.prefix} ${COLOR_GREEN}INFO:${COLOR_RESET} ${message}`;
     console.log(formatted);
     return formatted;
   }
 
   static warn(message: string): string {
-    const formatted = `${this.prefix} \x1b[33mWARN:\x1b[0m ${message}`;
+    const formatted = `${this.prefix} ${COLOR_YELLOW}WARN:${COLOR_RESET} ${message}`;
     console.warn(formatted);
     return formatted;
   }
 
   static error(message: string): string {
-    const formatted = `${this.prefix} \x1b[31mERROR:\x1b[0m ${message}`;
+    const formatted = `${this.prefix} ${COLOR_RED}ERROR:${COLOR_RESET} ${message}`;
     console.error(formatted);
     return formatted;
   }

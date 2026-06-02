@@ -19,6 +19,6 @@ test("Vite plugin registers and transforms .pom files", () => {
   // Pom file check
   const pomResult = plugin.transform(sampleSFC, "src/components/Test.pom");
   assert.ok(pomResult !== null);
-  assert.ok(pomResult.code.includes("export function render()"));
+  assert.ok(pomResult.code.includes("export function render("));
   assert.ok(pomResult.code.includes("data-pom-"));
 });

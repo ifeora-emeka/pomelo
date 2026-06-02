@@ -3,6 +3,7 @@ import {
   BLOCK_CLIENT,
   BLOCK_VIEW,
   BLOCK_STYLE,
+  BLOCKS,
 } from "@pomelo/shared";
 import { parseAttributes } from "./parser.js";
 
@@ -18,7 +19,10 @@ export interface Token {
 
 export function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
-  const regex = /<(Server|Client|View|Style)([^>]*?)>([\s\S]*?)<\/\1>/g;
+  const regex = new RegExp(
+    `<(${BLOCKS.join("|")})([^>]*?)>([\\s\\S]*?)<\\/\\1>`,
+    "g",
+  );
   let match;
   while ((match = regex.exec(source)) !== null) {
     const type = match[1] as Token["type"];

@@ -13,6 +13,20 @@ export const BLOCKS: readonly string[] = [
   BLOCK_STYLE,
 ];
 
+export const TAG_EACH = "Each";
+export const TAG_WHEN = "When";
+export const TAG_ELSE = "Else";
+export const TAG_SLOT = "slot";
+export const TAG_PORTAL = "Portal";
+
+export const VIEW_TAGS: readonly string[] = [
+  TAG_EACH,
+  TAG_WHEN,
+  TAG_ELSE,
+  TAG_SLOT,
+  TAG_PORTAL,
+];
+
 export const VOID_TAGS: readonly string[] = [
   "img",
   "input",
@@ -28,13 +42,39 @@ export const VOID_TAGS: readonly string[] = [
   "wbr",
 ];
 
-export const TAG_EACH = "Each";
-
 export const NODE_TEXT = "Text";
 export const NODE_ELEMENT = "Element";
 export const NODE_ROOT = "Root";
 
 export const SFC_EXTENSION = ".pom";
 
+export const SCOPED_CSS_PREFIX = "data-pom-";
+
 export const ATTR_EACH_OF = "of";
 export const ATTR_EACH_AS = "as";
+
+export const KW_SERVER_PAGE = "$page";
+export const KW_SERVER_META = "$meta";
+export const KW_SERVER_GUARD = "$guard";
+export const KW_SERVER_LAYOUT = "$layout";
+export const KW_SERVER_REDIRECT = "$redirect";
+export const KW_SERVER_ABORT = "$abort";
+export const KW_SERVER_CACHE = "$cache";
+export const KW_SERVER_HEADERS = "$headers";
+export const KW_SERVER_COOKIES = "$cookies";
+export const KW_SERVER_SESSION = "$session";
+
+export const KW_CLIENT_LOCAL = "$local";
+export const KW_CLIENT_STORE = "$store";
+export const KW_CLIENT_USE = "$use";
+export const KW_CLIENT_WATCH = "$watch";
+export const KW_CLIENT_ACTION = "$action";
+export const KW_CLIENT_NEXT = "$next";
+export const KW_CLIENT_MOUNT = "$mount";
+export const KW_CLIENT_DESTROY = "$destroy";
+
+export const COLOR_RESET = "\x1b[0m";
+export const COLOR_MAGENTA = "\x1b[35m";
+export const COLOR_GREEN = "\x1b[32m";
+export const COLOR_YELLOW = "\x1b[33m";
+export const COLOR_RED = "\x1b[31m";

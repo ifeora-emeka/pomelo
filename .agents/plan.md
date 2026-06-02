@@ -16,26 +16,26 @@ Set up monorepo and enforce strict boundaries.
 
 ## Tasks
 
-- Initialize Turborepo workspace
-- Configure pnpm workspaces
-- Setup TypeScript base config
-- Setup ESLint + Prettier
-- Setup path aliases (`@pomelo/*`)
-- Create package skeletons:
-  - parser
-  - compiler
-  - runtime
-  - server
-  - vite-plugin
-  - cli
-  - shared
-  - types
+- [x] Initialize Turborepo workspace
+- [x] Configure pnpm workspaces
+- [x] Setup TypeScript base config
+- [x] Setup ESLint + Prettier
+- [x] Setup path aliases (`@pomelo/*`)
+- [x] Create package skeletons:
+  - [x] parser
+  - [x] compiler
+  - [x] runtime
+  - [x] server
+  - [x] vite-plugin
+  - [x] cli
+  - [x] shared
+  - [x] types
 
 ## Exit Criteria
 
-- All packages build successfully
-- TypeScript imports resolve across workspace
-- Turbo pipeline runs (`build`, `dev`, `lint`)
+- [x] All packages build successfully
+- [x] TypeScript imports resolve across workspace
+- [x] Turbo pipeline runs (`build`, `dev`, `lint`)
 
 ---
 
@@ -47,26 +47,26 @@ Define `.pom` syntax parsing rules and AST structure.
 
 ## Tasks
 
-- Design `.pom` grammar
-  - `<Server>`
-  - `<Client>`
-  - `<View>`
-  - `<Style>`
+- [x] Design `.pom` grammar
+  - [x] `<Server>`
+  - [x] `<Client>`
+  - [x] `<View>`
+  - [x] `<Style>`
 
-- Build lexer
-- Build HTML-like parser
-- Define AST types in `@pomelo/types`
-- Parse:
-  - attributes
-  - directives (`@click`, `:class`)
-  - loops (`<Each>`)
+- [x] Build lexer
+- [x] Build HTML-like parser
+- [x] Define AST types in `@pomelo/types`
+- [x] Parse:
+  - [x] attributes
+  - [x] directives (`@click`, `:class`)
+  - [x] loops (`<Each>`)
 
-- Validate syntax errors with meaningful messages
+- [x] Validate syntax errors with meaningful messages
 
 ## Exit Criteria
 
-- `.pom` file can be parsed into AST
-- AST is deterministic and serializable
+- [x] `.pom` file can be parsed into AST
+- [x] AST is deterministic and serializable
 
 ---
 

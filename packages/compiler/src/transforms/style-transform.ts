@@ -1,4 +1,5 @@
 import type { PomeloASTNode } from "@pomelo/types";
+import { SCOPED_CSS_PREFIX } from "@pomelo/shared";
 
 export function transformStyle(
   node: PomeloASTNode,
@@ -13,7 +14,7 @@ export function transformStyle(
     ) {
       return match;
     }
-    return `${selector}[data-pom-${componentId}]`;
+    return `${selector}[${SCOPED_CSS_PREFIX}${componentId}]`;
   });
   return content;
 }

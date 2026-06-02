@@ -11,7 +11,12 @@
     "test": "node --test dist/**/*.test.js"
   },
   "dependencies": {
+    "@pomelo/shared": "workspace:*",
     "@pomelo/types": "workspace:*",
-    "@pomelo/shared": "workspace:*"
+    "@pomelo/compiler": "workspace:*",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6"
   }
 }

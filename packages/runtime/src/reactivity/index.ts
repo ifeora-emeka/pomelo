@@ -46,3 +46,51 @@ export function $watch<T>(state: ReactiveState<T>, cb: (val: T) => void): void {
   effectFn(); // Invoke immediately to collect deps and set initial value
   activeEffect = null;
 }
+
+export function $effect(cb: () => void): void {
+  const effectFn = () => {
+    activeEffect = effectFn;
+    try {
+      cb();
+    } finally {
+      activeEffect = null;
+    }
+  };
+  effectFn();
+}
+
+export function $computed<T>(fn: () => T): ReactiveState<T> {
+  const signal = new Signal<T>(undefined as any);
+  $effect(() => {
+    signal.value = fn();
+  });
+  return signal;
+}
+
+export function $store<T extends object>(initialObj: T): T {
+  const subscribers = new Set<() => void>();
+  return new Proxy(initialObj, {
+    get(target, key, receiver) {
+      if (activeEffect) {
+        subscribers.add(activeEffect);
+      }
+      const val = Reflect.get(target, key, receiver);
+      if (typeof val === "function") {
+        return val.bind(receiver);
+      }
+      return val;
+    },
+    set(target, key, value, receiver) {
+      const oldVal = Reflect.get(target, key, receiver);
+      if (oldVal !== value) {
+        Reflect.set(target, key, value, receiver);
+        subscribers.forEach((sub) => sub());
+      }
+      return true;
+    }
+  });
+}
+
+export function $use<T>(store: T): T {
+  return store;
+}
