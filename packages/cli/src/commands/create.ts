@@ -43,6 +43,9 @@ export function executeCreateCommand(args: string[]): boolean {
             "@pomelo/runtime": "workspace:*",
             "@pomelo/server": "workspace:*",
           },
+          devDependencies: {
+            "@pomelo/cli": "workspace:*"
+          }
         },
         null,
         2

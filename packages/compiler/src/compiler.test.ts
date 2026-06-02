@@ -71,7 +71,7 @@ test("Compiler compiles client block setup and returns", () => {
   // Top-level imports
   assert.ok(result.code.startsWith('import { cartStore } from "@/stores/cart";'));
   // setup function structure
-  assert.ok(result.code.includes("export function setup(props: any = {}) {"));
+  assert.ok(result.code.includes("export function setup(props = {}) {"));
   assert.ok(result.code.includes("return { cart, count, visible, increment };"));
 });
 

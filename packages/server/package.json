@@ -14,7 +14,8 @@
     "@pomelo/shared": "workspace:*",
     "@pomelo/types": "workspace:*",
     "@pomelo/compiler": "workspace:*",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "typescript": "^5.0.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6"

@@ -2,8 +2,9 @@ import type { Request, Response, NextFunction } from "express";
 import express from "express";
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { compile } from "@pomelo/compiler";
-import { PomeloLogger, formatFrameworkName } from "@pomelo/shared";
+import { PomeloLogger, formatFrameworkName, rewriteRelativeImports } from "@pomelo/shared";
 import type { FrameworkConfig } from "@pomelo/types";
 import { PomeloError } from "./errors.js";
 import { scanRoutes, sortRoutesBySpecificity } from "./route-scanner.js";
@@ -92,7 +93,7 @@ function generateHydrationScript(
   stateJSON: string,
 ): string {
   return `<script type="module">
-import { hydrate } from "/@pomelo/runtime";
+import { hydrate } from "/@pomelo/runtime/index.js";
 import * as component from "/@pomelo/pages${routePath === "/" ? "/index" : routePath}.pom";
 const container = document.getElementById("app");
 const serverState = ${stateJSON};
@@ -107,7 +108,7 @@ if (container && component.setup) {
 </script>`;
 }
 
-export async function handleSSR(req: Request, res: Response, component: any) {
+export async function handleSSR(req: Request, res: Response, component: any, cacheFileName?: string) {
   try {
     const ctx = {
       req,
@@ -135,7 +136,23 @@ export async function handleSSR(req: Request, res: Response, component: any) {
       return;
     }
 
-    const htmlContent = component.render ? component.render(state) : "";
+    if (component.setup) {
+      const clientSetupState = component.setup(state) || {};
+      state = { ...state, ...clientSetupState };
+    }
+
+    const renderState = new Proxy(state, {
+      get(target, key) {
+        if (key === "state") return target;
+        const val = Reflect.get(target, key);
+        if (val && typeof val === "object" && typeof val.get === "function") {
+          return val.get();
+        }
+        return val;
+      }
+    });
+
+    const htmlContent = component.render ? component.render(renderState) : "";
 
     let metaHTML = "";
     if (component.$serverMeta) {
@@ -151,10 +168,11 @@ export async function handleSSR(req: Request, res: Response, component: any) {
     }
 
     const routePath = req.route?.path || req.path;
+    const resolvedCacheFileName = cacheFileName || (routePath === "/" ? "index.pom.js" : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}.pom.js`);
     const componentId = component.componentId || "app";
     const stateJSON = JSON.stringify(state);
     const hydrationScript = component.setup
-      ? generateHydrationScript(routePath, componentId, stateJSON)
+      ? generateHydrationScript(resolvedCacheFileName, componentId, stateJSON)
       : "";
 
     const fullHTML = `<!DOCTYPE html>
@@ -221,7 +239,23 @@ export async function handleSSRStream(
       return;
     }
 
-    const htmlContent = component.render ? component.render(state) : "";
+    if (component.setup) {
+      const clientSetupState = component.setup(state) || {};
+      state = { ...state, ...clientSetupState };
+    }
+
+    const renderState = new Proxy(state, {
+      get(target, key) {
+        if (key === "state") return target;
+        const val = Reflect.get(target, key);
+        if (val && typeof val === "object" && typeof val.get === "function") {
+          return val.get();
+        }
+        return val;
+      }
+    });
+
+    const htmlContent = component.render ? component.render(renderState) : "";
 
     let metaHTML = "";
     if (component.$serverMeta) {
@@ -282,7 +316,8 @@ export function registerFileSystemRoutes(
       cacheDir,
       relative.replace(/[\/\\]/g, "_") + ".js",
     );
-    fs.writeFileSync(cacheFile, compiled.code);
+    const rewroteCode = rewriteRelativeImports(compiled.code, route.filePath, cacheFile);
+    fs.writeFileSync(cacheFile, rewroteCode);
 
     const layoutCacheFiles: string[] = [];
     for (const layoutPath of route.layoutPaths) {
@@ -293,7 +328,8 @@ export function registerFileSystemRoutes(
         cacheDir,
         "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
       );
-      fs.writeFileSync(layoutCacheFile, layoutCompiled.code);
+      const layoutRewroteCode = rewriteRelativeImports(layoutCompiled.code, layoutPath, layoutCacheFile);
+      fs.writeFileSync(layoutCacheFile, layoutRewroteCode);
       layoutCacheFiles.push(layoutCacheFile);
     }
 
@@ -302,7 +338,8 @@ export function registerFileSystemRoutes(
         if (process.env.NODE_ENV === "development" || process.env.POMELO_ENV === "development") {
           const content = fs.readFileSync(route.filePath, "utf-8");
           const compiled = compile(content, route.path);
-          fs.writeFileSync(cacheFile, compiled.code);
+          const devRewroteCode = rewriteRelativeImports(compiled.code, route.filePath, cacheFile);
+          fs.writeFileSync(cacheFile, devRewroteCode);
 
           for (const layoutPath of route.layoutPaths) {
             const layoutRelative = path.relative(pagesDir, layoutPath);
@@ -312,7 +349,8 @@ export function registerFileSystemRoutes(
               cacheDir,
               "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
             );
-            fs.writeFileSync(layoutCacheFile, layoutCompiled.code);
+            const devLayoutRewroteCode = rewriteRelativeImports(layoutCompiled.code, layoutPath, layoutCacheFile);
+            fs.writeFileSync(layoutCacheFile, devLayoutRewroteCode);
           }
         }
 
@@ -323,10 +361,11 @@ export function registerFileSystemRoutes(
           layouts.push(layout);
         }
 
+        const cacheFileName = path.basename(cacheFile);
         if (layouts.length > 0) {
-          await handleSSRWithLayouts(req, res, component, layouts);
+          await handleSSRWithLayouts(req, res, component, layouts, cacheFileName);
         } else {
-          await handleSSR(req, res, component);
+          await handleSSR(req, res, component, cacheFileName);
         }
       } catch (err) {
         next(err);
@@ -342,6 +381,7 @@ export async function handleSSRWithLayouts(
   res: Response,
   component: any,
   layouts: any[],
+  cacheFileName?: string,
 ) {
   try {
     const ctx = {
@@ -406,14 +446,44 @@ export async function handleSSRWithLayouts(
 
     const metaHTML = renderMetadataHTML(mergedMeta);
 
-    const pageContent = component.render ? component.render(state) : "";
+    if (component.setup) {
+      const clientSetupState = component.setup(state) || {};
+      state = { ...state, ...clientSetupState };
+    }
+
+    const renderState = new Proxy(state, {
+      get(target, key) {
+        if (key === "state") return target;
+        const val = Reflect.get(target, key);
+        if (val && typeof val === "object" && typeof val.get === "function") {
+          return val.get();
+        }
+        return val;
+      }
+    });
+
+    const pageContent = component.render ? component.render(renderState) : "";
 
     let htmlContent = pageContent;
     for (let i = layouts.length - 1; i >= 0; i--) {
       const layout = layouts[i];
-      const layoutState = layoutStates[i] || {};
+      let layoutState = layoutStates[i] || {};
+      if (layout.setup) {
+        const clientSetupState = layout.setup(layoutState) || {};
+        layoutState = { ...layoutState, ...clientSetupState };
+      }
+      const layoutRenderState = new Proxy(layoutState, {
+        get(target, key) {
+          if (key === "state") return target;
+          const val = Reflect.get(target, key);
+          if (val && typeof val === "object" && typeof val.get === "function") {
+            return val.get();
+          }
+          return val;
+        }
+      });
       htmlContent = layout.render
-        ? layout.render(layoutState, {
+        ? layout.render(layoutRenderState, {
             default: () => htmlContent,
           })
         : htmlContent;
@@ -430,10 +500,11 @@ export async function handleSSRWithLayouts(
     }
 
     const routePath = req.route?.path || req.path;
+    const resolvedCacheFileName = cacheFileName || (routePath === "/" ? "index.pom.js" : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}.pom.js`);
     const componentId = component.componentId || "app";
     const stateJSON = JSON.stringify(state);
     const hydrationScript = component.setup
-      ? generateHydrationScript(routePath, componentId, stateJSON)
+      ? generateHydrationScript(resolvedCacheFileName, componentId, stateJSON)
       : "";
 
     const fullHTML = `<!DOCTYPE html>
@@ -481,6 +552,78 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(responseHelpersMiddleware);
+
+  // Serve @pomelo/runtime client-side files
+  try {
+    const runtimePkgPath = require.resolve("@pomelo/runtime/package.json");
+    const runtimeDir = path.dirname(runtimePkgPath);
+    app.use("/@pomelo/runtime", express.static(path.join(runtimeDir, "dist")));
+  } catch (err) {
+    let resolved = false;
+    const pathsToTry = [
+      path.join(__dirname, "../../../runtime"),
+      path.join(process.cwd(), "packages/runtime"),
+      path.join(process.cwd(), "../runtime"),
+    ];
+    for (const p of pathsToTry) {
+      if (fs.existsSync(path.join(p, "package.json"))) {
+        app.use("/@pomelo/runtime", express.static(path.join(p, "dist")));
+        resolved = true;
+        break;
+      }
+    }
+    if (!resolved) {
+      PomeloLogger.warn("Could not resolve @pomelo/runtime path for static serving: " + String(err));
+    }
+  }
+
+  // Serve compiled cache files
+  app.use("/.pomelo-cache", (req, res, next) => {
+    const cleanPath = req.path.replace(/^\//, "");
+    const cacheFile = path.join(process.cwd(), ".pomelo-cache", cleanPath);
+    if (fs.existsSync(cacheFile)) {
+      res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+      res.send(fs.readFileSync(cacheFile, "utf-8"));
+    } else {
+      res.status(404).send("Not found");
+    }
+  });
+
+  // On-the-fly TypeScript compilation middleware for dev mode
+  app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      return next();
+    }
+    const parsedPath = path.parse(req.path);
+    if (parsedPath.ext !== ".js") {
+      return next();
+    }
+
+    const tsFilePath = path.join(process.cwd(), req.path.replace(/\.js$/, ".ts"));
+    if (fs.existsSync(tsFilePath)) {
+      try {
+        const sourceCode = fs.readFileSync(tsFilePath, "utf-8");
+        const transpiled = ts.transpileModule(sourceCode, {
+          compilerOptions: {
+            module: ts.ModuleKind.ESNext,
+            target: ts.ScriptTarget.ES2022,
+            isolatedModules: true,
+          }
+        });
+        res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+        res.send(transpiled.outputText);
+        return;
+      } catch (err) {
+        PomeloLogger.error(`On-the-fly TS compilation failed for ${tsFilePath}: ` + String(err));
+        res.status(500).send("Compilation error: " + String(err));
+        return;
+      }
+    }
+    next();
+  });
+
+  // Serve other project root files statically (e.g. assets, static resources)
+  app.use(express.static(process.cwd()));
 
   // CORS Configuration
   if (config.cors) {

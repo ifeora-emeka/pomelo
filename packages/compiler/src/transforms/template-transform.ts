@@ -269,5 +269,5 @@ export function transformTemplate(
   }
 
   const content = compileChildren(node.children || []);
-  return `export function render(state: any = {}, slots: any = {}) {\n${deconstruct}  return \`${content}\`;\n}\n`;
+  return `export function render(state = {}, slots = {}) {\n${deconstruct}  return \`${content}\`;\n}\n`;
 }

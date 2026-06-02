@@ -32,7 +32,7 @@ export function transformClient(node: PomeloASTNode): string {
   }
 
   const returnObject = Array.from(declaredNames).join(", ");
-  const setupFunction = `export function setup(props: any = {}) {\n${cleanContent.trim()}\n  return { ${returnObject} };\n}`;
+  const setupFunction = `export function setup(props = {}) {\n${cleanContent.trim()}\n  return { ${returnObject} };\n}`;
 
   const header = imports.length > 0 ? imports.join("\n") + "\n\n" : "";
   return `${header}// === Client Block ===\n${setupFunction}\n`;

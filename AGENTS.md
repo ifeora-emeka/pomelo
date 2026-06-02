@@ -90,6 +90,7 @@ Do not introduce reverse dependencies.
 - Reuse shared utilities
 - Follow existing naming conventions
 - Preserve backwards compatibility when possible
+- Always create test pomelo project in a temp dir which should be ignored by git. This way it is tested and ran in isolation.
 
 ### Don't
 

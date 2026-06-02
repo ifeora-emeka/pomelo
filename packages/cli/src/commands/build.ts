@@ -1,4 +1,4 @@
-import { PomeloLogger } from "@pomelo/shared";
+import { PomeloLogger, rewriteRelativeImports } from "@pomelo/shared";
 import { scanRoutes } from "@pomelo/server";
 import { compile } from "@pomelo/compiler";
 import fs from "node:fs";
@@ -32,7 +32,8 @@ export function executeBuildCommand(args: string[]): boolean {
         cacheDir,
         relative.replace(/[\/\\]/g, "_") + ".js",
       );
-      fs.writeFileSync(cacheFile, compiled.code);
+      const rewroteCode = rewriteRelativeImports(compiled.code, route.filePath, cacheFile);
+      fs.writeFileSync(cacheFile, rewroteCode);
       if (compiled.css) {
         combinedCSS += compiled.css + "\n";
       }
@@ -45,7 +46,8 @@ export function executeBuildCommand(args: string[]): boolean {
           cacheDir,
           "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
         );
-        fs.writeFileSync(layoutCacheFile, layoutCompiled.code);
+        const layoutRewroteCode = rewriteRelativeImports(layoutCompiled.code, layoutPath, layoutCacheFile);
+        fs.writeFileSync(layoutCacheFile, layoutRewroteCode);
         if (layoutCompiled.css) {
           combinedCSS += layoutCompiled.css + "\n";
         }
