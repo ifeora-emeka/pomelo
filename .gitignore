@@ -33,6 +33,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Temp test projects
+temp/
+
 # Misc
 .DS_Store
 *.pem

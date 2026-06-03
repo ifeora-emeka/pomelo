@@ -135,12 +135,8 @@ export function transformTemplate(
     collectIdentifiers(child, identifiers);
   }
 
-  const deconstruct =
-    identifiers.size > 0
-      ? `  const { ${Array.from(identifiers).join(", ")} } = state;\n`
-      : "";
 
-  function compileNode(n: PomeloASTNode, lastWhen: string): { html: string; nextWhen: string } {
+  function compileNode(n: PomeloASTNode, lastWhen: string, activeLoopVars: string[]): { html: string; nextWhen: string } {
     if (n.type === NODE_TEXT) {
       const html = n.content.replace(
         /\{\{([\s\S]*?)\}\}/g,
@@ -152,10 +148,31 @@ export function transformTemplate(
     if (n.type === NODE_ELEMENT) {
       const tagName = n.tagName!;
 
+      const isComponent = tagName && tagName.charAt(0) === tagName.charAt(0).toUpperCase() && tagName !== TAG_EACH && tagName !== TAG_WHEN && tagName !== TAG_ELSE;
+      if (isComponent) {
+        const propsPairs: string[] = [];
+        if (n.attributes) {
+          for (const [key, value] of Object.entries(n.attributes)) {
+            if (key.startsWith(":")) {
+              propsPairs.push(`${key.slice(1)}: ${value}`);
+            } else if (key.startsWith("@")) {
+              propsPairs.push(`${key.slice(1)}: ${value}`);
+            } else {
+              propsPairs.push(`${key}: ${JSON.stringify(value)}`);
+            }
+          }
+        }
+        const propsObj = `{ ${propsPairs.join(", ")} }`;
+        return {
+          html: `\${typeof ${tagName} !== "undefined" && ${tagName}.render ? ${tagName}.render(${propsObj}) : ""}`,
+          nextWhen: ""
+        };
+      }
+
       if (tagName === TAG_EACH) {
         const ofAttr = n.attributes?.["of"];
-        const asAttr = n.attributes?.["as"];
-        const childHTML = compileChildren(n.children || []);
+        const asAttr = n.attributes?.["as"] || "item";
+        const childHTML = compileChildren(n.children || [], [...activeLoopVars, asAttr]);
         return {
           html: `\${(${ofAttr} || []).map((${asAttr}) => \`${childHTML}\`).join("")}`,
           nextWhen: ""
@@ -164,7 +181,7 @@ export function transformTemplate(
 
       if (tagName === TAG_WHEN) {
         const cond = n.attributes?.["condition"] || "true";
-        const childHTML = compileChildren(n.children || []);
+        const childHTML = compileChildren(n.children || [], activeLoopVars);
         return {
           html: `\${${cond} ? \`${childHTML}\` : ""}`,
           nextWhen: cond
@@ -173,7 +190,7 @@ export function transformTemplate(
 
       if (tagName === TAG_ELSE) {
         const cond = lastWhen ? `!(${lastWhen})` : "true";
-        const childHTML = compileChildren(n.children || []);
+        const childHTML = compileChildren(n.children || [], activeLoopVars);
         return {
           html: `\${${cond} ? \`${childHTML}\` : ""}`,
           nextWhen: ""
@@ -211,6 +228,16 @@ export function transformTemplate(
           } else if (key.startsWith("@")) {
             const eventName = key.slice(1);
             attributes.push(`data-pom-event-${eventName}="${value}"`);
+            
+            // Serialize any active loop variables used in this event handler
+            for (const loopVar of activeLoopVars) {
+              const rx = new RegExp(`\\b${loopVar}\\b`);
+              if (rx.test(value)) {
+                attributes.push(
+                  `data-pom-loop-item-${loopVar}="\${JSON.stringify(${loopVar}).replace(/\\"/g, '&quot;')}"`
+                );
+              }
+            }
           } else if (key.startsWith(":")) {
             const propName = key.slice(1);
             attributes.push(`data-pom-bind-${propName}="${value}"`);
@@ -247,7 +274,7 @@ export function transformTemplate(
         };
       }
 
-      const childHTML = compileChildren(n.children || []);
+      const childHTML = compileChildren(n.children || [], activeLoopVars);
       return {
         html: `<${tagName}${attrsStr}>${childHTML}</${tagName}>`,
         nextWhen: ""
@@ -257,17 +284,57 @@ export function transformTemplate(
     return { html: "", nextWhen: lastWhen };
   }
 
-  function compileChildren(children: PomeloASTNode[]): string {
+  function compileChildren(children: PomeloASTNode[], activeLoopVars: string[]): string {
     let html = "";
     let currentWhen = "";
     for (const child of children) {
-      const res = compileNode(child, currentWhen);
+      const res = compileNode(child, currentWhen, activeLoopVars);
       html += res.html;
       currentWhen = res.nextWhen;
     }
     return html;
   }
 
-  const content = compileChildren(node.children || []);
-  return `export function render(state = {}, slots = {}) {\n${deconstruct}  return \`${content}\`;\n}\n`;
+  const loopVars = new Set<string>();
+  function findLoopVars(n: PomeloASTNode) {
+    if (n.type === NODE_ELEMENT) {
+      if (n.tagName === TAG_EACH) {
+        const asAttr = n.attributes?.["as"];
+        if (asAttr) {
+          loopVars.add(asAttr);
+        }
+      }
+      for (const child of n.children || []) {
+        findLoopVars(child);
+      }
+    }
+  }
+  for (const child of node.children || []) {
+    findLoopVars(child);
+  }
+  for (const lv of loopVars) {
+    identifiers.delete(lv);
+  }
+  for (const id of identifiers) {
+    if (id && id[0] === id[0].toUpperCase()) {
+      identifiers.delete(id);
+    }
+  }
+
+  const deconstruct =
+    identifiers.size > 0
+      ? `  const { ${Array.from(identifiers).join(", ")} } = state;\n`
+      : "";
+
+  const content = compileChildren(node.children || [], []);
+  return `export function render(state = {}, slots = {}) {
+  if (typeof document !== "undefined" && typeof css !== "undefined" && css && !document.getElementById("pom-style-${componentId}")) {
+    const styleEl = document.createElement("style");
+    styleEl.id = "pom-style-${componentId}";
+    styleEl.textContent = css;
+    document.head.appendChild(styleEl);
+  }
+${deconstruct}  return \`${content}\`;
+}
+`;
 }

@@ -207,12 +207,52 @@ export function setupEventDelegation(
           if (target.hasAttribute && target.hasAttribute(attrName)) {
             const expr = target.getAttribute(attrName);
             if (expr) {
+              const loopVars: Record<string, any> = {};
+              let current: HTMLElement | null = target;
+              while (current && current !== container.parentElement) {
+                if (current.attributes) {
+                  for (const attr of Array.from(current.attributes)) {
+                    if (attr.name.startsWith("data-pom-loop-item-")) {
+                      const varName = attr.name.slice("data-pom-loop-item-".length);
+                      if (!(varName in loopVars)) {
+                        try {
+                          loopVars[varName] = JSON.parse(attr.value);
+                        } catch (e) {
+                          // Ignore
+                        }
+                      }
+                    }
+                  }
+                }
+                current = current.parentElement;
+              }
+
+              const eventState = new Proxy(loopVars, {
+                has(target, key) {
+                  return key in target || key === "state" || Reflect.has(stateProxy, key);
+                },
+                get(target, key) {
+                  if (key === "state") return stateProxy;
+                  if (key in target) {
+                    return target[key as string];
+                  }
+                  return Reflect.get(stateProxy, key);
+                },
+                set(target, key, value) {
+                  if (key in target) {
+                    target[key as string] = value;
+                    return true;
+                  }
+                  return Reflect.set(stateProxy, key, value);
+                }
+              });
+
               const fn = new Function(
                 "state",
                 "$event",
                 `with(state) { return (${expr}); }`,
               );
-              const evaluated = fn(stateProxy, event);
+              const evaluated = fn(eventState, event);
               if (typeof evaluated === "function") {
                 evaluated(event);
               }
@@ -258,7 +298,7 @@ export function hydrate(
   };
   setActiveInstance(instance);
 
-  const rawState = component.setup(props);
+  const rawState = { ...props, ...(component.setup ? component.setup(props) : {}) };
   instance.state = rawState;
 
   const stateProxy = new Proxy(rawState, {

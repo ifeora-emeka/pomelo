@@ -27,19 +27,6 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
-  apps/my-test-app:
-    dependencies:
-      '@pomelo/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
-      '@pomelo/server':
-        specifier: workspace:*
-        version: link:../../packages/server
-    devDependencies:
-      '@pomelo/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-
   packages/cli:
     dependencies:
       '@pomelo/compiler':
@@ -144,6 +131,9 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.2
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -170,6 +160,32 @@ importers:
       '@pomelo/types':
         specifier: workspace:*
         version: link:../types
+
+  temp/temp-ecommerce-app:
+    dependencies:
+      '@pomelo/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@pomelo/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+    devDependencies:
+      '@pomelo/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+
+  temp/test-app:
+    dependencies:
+      '@pomelo/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@pomelo/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+    devDependencies:
+      '@pomelo/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
 
 packages:
 

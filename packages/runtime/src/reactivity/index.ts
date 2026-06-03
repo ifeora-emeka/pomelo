@@ -140,7 +140,10 @@ export function $computed<T>(fn: () => T): ReactiveState<T> {
 
 export function $store<T extends object>(initialObj: T, options?: StoreOptions): T {
   const subscribers = new Set<() => void>();
-  const state = { ...initialObj };
+  const state = Object.create(
+    Object.getPrototypeOf(initialObj),
+    Object.getOwnPropertyDescriptors(initialObj)
+  );
   const persistKey = options?.persistKey || "pomelo-store";
 
   if (options?.persist && typeof window !== "undefined" && window.localStorage) {

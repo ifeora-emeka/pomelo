@@ -7,9 +7,12 @@ export function executeCreateCommand(args: string[]): boolean {
   const targetDir = path.resolve(process.cwd(), appName);
 
   const templateIdx = args.indexOf("--template");
-  let template = "default";
+  let template = "ecommerce";
   if (templateIdx !== -1 && args[templateIdx + 1]) {
     template = args[templateIdx + 1]!;
+  }
+  if (template === "default") {
+    template = "ecommerce";
   }
 
   PomeloLogger.info(`Scaffolding new Pomelo project in ${targetDir} with template '${template}'...`);
@@ -53,13 +56,14 @@ export function executeCreateCommand(args: string[]): boolean {
     );
 
     if (template === "ecommerce") {
-      // 1. Store
       fs.writeFileSync(
         path.join(targetDir, "src/stores/cart.ts"),
         `import { $store } from "@pomelo/runtime";
 
 export const useCartStore = $store({
-  items: [] as Array<{ id: string; name: string; price: number; qty: number }>,
+  items: (typeof window !== "undefined" && localStorage.getItem("pomelo_cart"))
+    ? JSON.parse(localStorage.getItem("pomelo_cart") || "[]")
+    : [] as Array<{ id: string; name: string; price: number; qty: number }>,
   get total() {
     return this.items.reduce((sum, item) => sum + item.price * item.qty, 0);
   },
@@ -73,82 +77,690 @@ export const useCartStore = $store({
     } else {
       this.items.push({ ...item, qty: 1 });
     }
+    if (typeof window !== "undefined") {
+      localStorage.setItem("pomelo_cart", JSON.stringify(this.items));
+    }
+  },
+  removeItem(id: string) {
+    const idx = this.items.findIndex((i) => i.id === id);
+    if (idx !== -1) {
+      const item = this.items[idx];
+      if (item.qty > 1) {
+        item.qty--;
+      } else {
+        this.items.splice(idx, 1);
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pomelo_cart", JSON.stringify(this.items));
+      }
+    }
+  },
+  getQuantity(id: string) {
+    const item = this.items.find((i) => i.id === id);
+    return item ? item.qty : 0;
   },
   clear() {
     this.items = [];
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("pomelo_cart");
+    }
   }
 });
 `
       );
 
-      // 2. API Route
-      fs.mkdirSync(path.join(targetDir, "src/pages/api"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/services"), { recursive: true });
+      fs.writeFileSync(
+        path.join(targetDir, "src/services/product.service.ts"),
+        `export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  image: string;
+  category: string;
+  rating: number;
+}
+
+export class ProductService {
+  private products: Product[] = [
+    {
+      id: "1",
+      name: "Ultra-wide 4K Monitor",
+      price: 449,
+      description: "Experience stunning clarity with our 34-inch ultra-wide curved 4K monitor. Perfect for gaming and productivity.",
+      image: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=500&auto=format&fit=crop&q=60",
+      category: "Electronics",
+      rating: 4.8
+    },
+    {
+      id: "2",
+      name: "Premium Wireless Headset",
+      price: 149,
+      description: "Lossless audio quality with active noise cancellation and up to 40 hours of battery life.",
+      image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=60",
+      category: "Audio",
+      rating: 4.6
+    },
+    {
+      id: "3",
+      name: "Mechanical Gaming Keyboard",
+      price: 99,
+      description: "Tactile blue switches, per-key RGB backlighting, and solid aluminum frame for ultimate durability.",
+      image: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&auto=format&fit=crop&q=60",
+      category: "Peripherals",
+      rating: 4.7
+    },
+    {
+      id: "4",
+      name: "Ergonomic Office Chair",
+      price: 249,
+      description: "High-back mesh chair with adjustable lumbar support, 3D armrests, and dynamic reclining function.",
+      image: "https://images.unsplash.com/photo-1505797149-43b0069ec26b?w=500&auto=format&fit=crop&q=60",
+      category: "Furniture",
+      rating: 4.5
+    }
+  ];
+
+  getAllProducts(): Product[] {
+    return this.products;
+  }
+
+  getProductById(id: string): Product | undefined {
+    return this.products.find(p => p.id === id);
+  }
+}
+`
+      );
+
+      fs.mkdirSync(path.join(targetDir, "src/controllers"), { recursive: true });
+      fs.writeFileSync(
+        path.join(targetDir, "src/controllers/product.controller.ts"),
+        `import { ProductService } from "../services/product.service.js";
+
+const productService = new ProductService();
+
+export class ProductController {
+  static getProducts(req: any, res: any) {
+    const products = productService.getAllProducts();
+    res.ok(products);
+  }
+
+  static getProduct(req: any, res: any) {
+    const { id } = req.params;
+    const product = productService.getProductById(id);
+    if (!product) {
+      res.notFound(\`Product with ID \\\${id} not found\`);
+    } else {
+      res.ok(product);
+    }
+      // 3. API Route (List)
       fs.writeFileSync(
         path.join(targetDir, "src/pages/api/products.pom"),
         `<Server>
+  import { ProductController } from "../../controllers/product.controller.js";
+
   $page(async ({ req, res }) => {
-    res.ok([
-      { id: "1", name: "Premium Wireless Headset", price: 149 },
-      { id: "2", name: "Mechanical Gaming Keyboard", price: 99 },
-      { id: "3", name: "Ultra-wide 4K Monitor", price: 449 }
-    ]);
+    ProductController.getProducts(req, res);
   });
 </Server>
 `
       );
 
-      // 3. Home page
+      // 4. API Route (Details)
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/index.pom"),
+        path.join(targetDir, "src/pages/api/products/[id].pom"),
+        `<Server>
+  import { ProductController } from "../../../controllers/product.controller.js";
+
+  $page(async ({ req, res }) => {
+    ProductController.getProduct(req, res);
+  });
+</Server>
+`
+      );
+
+      // 5. ProductCard Component
+      fs.writeFileSync(
+        path.join(targetDir, "src/components/ProductCard.pom"),
+        `<Client>
+  import { useCartStore } from "../stores/cart.js";
+  const cart = useCartStore;
+</Client>
+
+<View>
+  <div class="product-card">
+    <div class="image-wrapper">
+      <img :src="product.image" :alt="product.name" class="product-image" />
+    </div>
+    <div class="card-content">
+      <span class="category-badge">{{ product.category }}</span>
+      <h3><a :href="'/products/' + product.id" class="product-link">{{ product.name }}</a></h3>
+      <div class="price-row">
+        <span class="price">\${{ product.price }}</span>
+        <button class="add-button" @click="cart.addItem(product)">
+          <When condition="cart.getQuantity(product.id) > 0">
+            Added ({{ cart.getQuantity(product.id) }})
+          </When>
+          <Else>
+            Add to Cart
+          </Else>
+        </button>
+      </div>
+    </div>
+  </div>
+</View>
+
+<Style scoped>
+  .product-card {
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid #334155;
+    border-radius: 20px;
+    overflow: hidden;
+    transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+    backdrop-filter: blur(12px);
+  }
+  .product-card:hover {
+    transform: translateY(-5px);
+    border-color: #475569;
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+  }
+  .image-wrapper {
+    height: 220px;
+    overflow: hidden;
+    background-color: #1e293b;
+    border-bottom: 1px solid #334155;
+  }
+  .product-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
+  .product-card:hover .product-image {
+    transform: scale(1.05);
+  }
+  .card-content {
+    padding: 1.5rem;
+  }
+  .category-badge {
+    display: inline-block;
+    background-color: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+  }
+  .card-content h3 {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .product-link {
+    color: #f8fafc;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .product-link:hover {
+    color: #38bdf8;
+  }
+  .price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .price {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #38bdf8;
+  }
+  .add-button {
+    background: #1e293b;
+    color: #f8fafc;
+    border: 1px solid #475569;
+    padding: 0.5rem 1.25rem;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+  }
+  .add-button:hover {
+    background: #0284c7;
+    border-color: #0284c7;
+  }
+</Style>
+`
+      );
+
+      // 6. ProductInfo Component
+      fs.writeFileSync(
+        path.join(targetDir, "src/components/ProductInfo.pom"),
+        `<View>
+  <div class="product-info-wrapper">
+    <span class="category-badge">{{ product.category }}</span>
+    <h1 class="product-title">{{ product.name }}</h1>
+    <div class="rating-row">
+      <span class="stars">★</span> {{ product.rating }} / 5.0 Rating
+    </div>
+    <p class="product-price">\${{ product.price }}</p>
+    <p class="product-description">{{ product.description }}</p>
+  </div>
+</View>
+
+<Style scoped>
+  .category-badge {
+    display: inline-block;
+    background-color: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
+  }
+  .product-title {
+    font-size: 2.5rem;
+    font-weight: 900;
+    margin: 0 0 1rem;
+    background: linear-gradient(to right, #f8fafc, #cbd5e1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .rating-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+    margin-bottom: 1.5rem;
+  }
+  .stars {
+    color: #f59e0b;
+    font-size: 1.25rem;
+  }
+  .product-price {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: #38bdf8;
+    margin: 0 0 1.5rem;
+  }
+  .product-description {
+    color: #94a3b8;
+    line-height: 1.75;
+    margin: 0 0 2rem;
+    font-size: 1.1rem;
+  }
+</Style>
+`
+      );
+
+      // 7. QuantitySelector Component
+      fs.writeFileSync(
+        path.join(targetDir, "src/components/QuantitySelector.pom"),
+        `<View>
+  <div class="quantity-selector">
+    <button class="qty-btn" @click="onDecrement()">-</button>
+    <span class="qty-display">{{ quantity }}</span>
+    <button class="qty-btn" @click="onIncrement()">+</button>
+  </div>
+</View>
+
+<Style scoped>
+  .quantity-selector {
+    display: flex;
+    align-items: center;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    background: #1e293b;
+    padding: 0.25rem;
+  }
+  .qty-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.25rem;
+    font-weight: 700;
+    width: 2.5rem;
+    height: 2.5rem;
+    cursor: pointer;
+    transition: color 0.2s, background-color 0.2s;
+    border-radius: 8px;
+  }
+  .qty-btn:hover {
+    color: #f8fafc;
+    background-color: #334155;
+  }
+  .qty-display {
+    font-size: 1.1rem;
+    font-weight: 700;
+    width: 3rem;
+    text-align: center;
+    color: #f8fafc;
+  }
+</Style>
+`
+      );
+
+      // 8. Root Layout
+      fs.writeFileSync(
+        path.join(targetDir, "src/pages/layout.pom"),
         `<Server>
   $page(async () => {
     return {
-      storeName: "Pomelo E-Commerce Store"
+      storeName: "Pomelo Elite Tech Store"
     };
   });
 </Server>
 
 <Client>
   import { useCartStore } from "../stores/cart.js";
-  import { $local } from "@pomelo/runtime";
-
-  const products = $local([
-    { id: "1", name: "Premium Wireless Headset", price: 149 },
-    { id: "2", name: "Mechanical Gaming Keyboard", price: 99 },
-    { id: "3", name: "Ultra-wide 4K Monitor", price: 449 }
-  ]);
-
   const cart = useCartStore;
 </Client>
 
 <View>
-  <div class="app">
+  <div class="container">
     <header class="header">
-      <h1>{{ storeName }}</h1>
-      <div class="cart-badge">🛒 Cart ({{ cart.count }}) - \${{ cart.total }}</div>
+      <div class="logo-section">
+        <a href="/" class="logo">{{ storeName }}</a>
+      </div>
+      <div class="cart-status">
+        🛒 Cart ({{ cart.count }}) - \${{ cart.total }}
+      </div>
     </header>
+    <slot />
+  </div>
+</View>
+
+<Style>
+  body {
+    margin: 0;
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: #0f172a;
+    color: #f8fafc;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #334155;
+    margin-bottom: 2rem;
+  }
+  .logo {
+    font-size: 1.75rem;
+    font-weight: 800;
+    text-decoration: none;
+    background: linear-gradient(to right, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .cart-status {
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+  }
+</Style>
+`
+      );
+
+      // 9. Root Page
+      fs.writeFileSync(
+        path.join(targetDir, "src/pages/page.pom"),
+        `<Server>
+  import { ProductService } from "../services/product.service.js";
+
+  const productService = new ProductService();
+
+  $page(async () => {
+    const products = productService.getAllProducts();
+    return {
+      products
+    };
+  });
+
+  $meta(() => {
+    return {
+      title: "Pomelo Elite Tech Store - Home of Premium Tech",
+      description: "Discover our premium tech product catalog. Shop wireless headsets, mechanical keyboards, ultra-wide 4K monitors, and ergonomic furniture."
+    };
+  });
+</Server>
+
+<Client>
+  import ProductCard from "../components/ProductCard.pom";
+</Client>
+
+<View>
+  <div>
+    <div class="hero">
+      <h2 class="hero-title">Elevate Your Setup</h2>
+      <p class="hero-subtitle">High-performance tools meticulously crafted for creators, developers, and gamers.</p>
+    </div>
 
     <main class="grid">
       <Each of="products" as="p">
-        <div class="product-card">
-          <h3>{{ p.name }}</h3>
-          <p class="price">\${{ p.price }}</p>
-          <button @click="cart.addItem(p)">Add to Cart</button>
-        </div>
+        <ProductCard :product="p" />
       </Each>
     </main>
   </div>
 </View>
 
 <Style>
-  .app { font-family: system-ui, sans-serif; padding: 2rem; max-width: 1000px; margin: 0 auto; }
-  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 1rem; }
-  .cart-badge { background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 9999px; font-weight: bold; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
-  .product-card { border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-  .price { font-size: 1.25rem; font-weight: bold; color: #3b82f6; margin: 0.5rem 0 1rem; }
-  button { background: #3b82f6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600; }
-  button:hover { background: #2563eb; }
+  .hero {
+    text-align: center;
+    padding: 4rem 1rem;
+    background: radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+    margin-bottom: 3rem;
+  }
+  .hero-title {
+    font-size: 3.5rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+    background: linear-gradient(to right, #f8fafc, #cbd5e1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero-subtitle {
+    font-size: 1.25rem;
+    color: #94a3b8;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 2rem;
+  }
+</Style>
+`
+      );
+
+      // 10. Product Details Layout
+      fs.writeFileSync(
+        path.join(targetDir, "src/pages/products/[id]/layout.pom"),
+        `<View>
+  <div class="details-layout">
+    <div class="back-link-container">
+      <a href="/" class="back-link">← Back to Store</a>
+    </div>
+    <slot />
+  </div>
+</View>
+
+<Style>
+  .details-layout {
+    width: 100%;
+  }
+  .back-link-container {
+    margin-bottom: 2rem;
+  }
+  .back-link {
+    color: #38bdf8;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s ease;
+  }
+  .back-link:hover {
+    color: #7dd3fc;
+  }
+</Style>
+`
+      );
+
+      // 11. Product Details Page
+      fs.writeFileSync(
+        path.join(targetDir, "src/pages/products/[id]/page.pom"),
+        `<Server>
+  import { ProductService } from "../../../services/product.service.js";
+
+  const productService = new ProductService();
+
+  $page(async ({ params }) => {
+    const product = productService.getProductById(params.id);
+    if (!product) {
+      $abort(404, "Product not found");
+    }
+    return {
+      product
+    };
+  });
+
+  $meta((state) => {
+    return {
+      title: state.product ? state.product.name + " | Pomelo Store" : "Product Not Found",
+      description: state.product ? state.product.description : "View our premium product details."
+    };
+  });
+</Server>
+
+<Client>
+  import { useCartStore } from "../../../stores/cart.js";
+  import { $local } from "@pomelo/runtime";
+  import ProductInfo from "../../../components/ProductInfo.pom";
+  import QuantitySelector from "../../../components/QuantitySelector.pom";
+
+  const cart = useCartStore;
+  
+  const quantity = $local(1);
+
+  function increment() {
+    quantity.set(quantity.get() + 1);
+  }
+
+  function decrement() {
+    if (quantity.get() > 1) {
+      quantity.set(quantity.get() - 1);
+    }
+  }
+
+  function handleAddToCart(product) {
+    Array.from({ length: quantity.get() }).forEach(() => {
+      cart.addItem(product);
+    });
+    quantity.set(1);
+  }
+</Client>
+
+<View>
+  <main class="product-detail">
+    <div class="product-image-container">
+      <img :src="product.image" :alt="product.name" class="product-image" />
+    </div>
+    <div class="product-info">
+      <ProductInfo :product="product" />
+
+      <div class="add-to-cart-section">
+        <QuantitySelector :quantity="quantity" :onIncrement="increment" :onDecrement="decrement" />
+        <button class="add-btn" @click="handleAddToCart(product)">
+          <When condition="cart.getQuantity(product.id) > 0">
+            Added ({{ cart.getQuantity(product.id) }} in Cart)
+          </When>
+          <Else>
+            Add to Cart
+          </Else>
+        </button>
+      </div>
+    </div>
+  </main>
+</View>
+
+<Style>
+  .product-detail {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: start;
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid #334155;
+    border-radius: 24px;
+    padding: 3rem;
+    backdrop-filter: blur(12px);
+  }
+  .product-image-container {
+    border-radius: 16px;
+    overflow: hidden;
+    background: #1e293b;
+    border: 1px solid #334155;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  }
+  .product-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
+  }
+  .product-info {
+    display: flex;
+    flex-direction: column;
+  }
+  .add-to-cart-section {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+  .add-btn {
+    flex: 1;
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+  }
+  .add-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(2, 132, 199, 0.4);
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  }
+  .add-btn:active {
+    transform: translateY(0);
+  }
+  @media (max-width: 768px) {
+    .product-detail {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      padding: 1.5rem;
+    }
+  }
 </Style>
 `
       );
