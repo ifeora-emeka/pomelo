@@ -11,6 +11,38 @@ import { scanRoutes, sortRoutesBySpecificity } from "./route-scanner.js";
 import { mergeMetadata, renderMetadataHTML } from "./metadata.js";
 import { signToken, verifyToken } from "./auth.js";
 
+function resolvePackageToAbsolute(packageName: string): string | null {
+  try {
+    const pkgJsonPath = require.resolve(`${packageName}/package.json`);
+    return path.dirname(pkgJsonPath);
+  } catch {
+    return null;
+  }
+}
+
+function rewriteBareModuleImports(code: string): string {
+  const pomPackages = ["@pomelo/runtime", "@pomelo/shared", "@pomelo/types"];
+  let result = code;
+  for (const pkg of pomPackages) {
+    const pkgDir = resolvePackageToAbsolute(pkg);
+    if (!pkgDir) continue;
+    try {
+      const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf-8")) as Record<string, any>;
+      const exports = pkgJson["exports"] as Record<string, any> | undefined;
+      const mainEntry = (exports?.["."]?.["import"] ?? exports?.["."]?.["default"] ?? pkgJson["main"] ?? "dist/index.js") as string;
+      const absEntry = `file://${path.join(pkgDir, mainEntry).replace(/\\/g, "/")}`;
+      result = result.replace(
+        new RegExp(`(from\\s+['"])${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(['"])`, "g"),
+        `$1${absEntry}$2`
+      );
+    } catch {
+      // Ignore packages that can't be resolved
+    }
+  }
+  return result;
+}
+
+
 declare global {
   namespace Express {
     interface Response {
@@ -381,9 +413,8 @@ function compileTypeScriptDeps(cacheFile: string, cacheDir: string, visited: Set
         const depCacheName = "dep_" + relative.replace(/[\/\\]/g, "_").replace(/\.ts$/, ".js");
         const depCacheFile = path.join(cacheDir, depCacheName);
         
-        // Rewrite imports inside the transpiled dependency to be relative to the cache directory
         const rewroteOutput = rewriteRelativeImports(transpiled.outputText, absoluteTsPath, depCacheFile);
-        fs.writeFileSync(depCacheFile, rewroteOutput);
+        fs.writeFileSync(depCacheFile, rewriteBareModuleImports(rewroteOutput));
 
         compileTypeScriptDeps(depCacheFile, cacheDir, visited);
 
@@ -403,6 +434,55 @@ function compileTypeScriptDeps(cacheFile: string, cacheDir: string, visited: Set
     fs.writeFileSync(cacheFile, content);
   }
 }
+
+function compilePomDeps(cacheFile: string, cacheDir: string, projectRoot: string, visited: Set<string> = new Set()): void {
+  if (visited.has(cacheFile)) return;
+  visited.add(cacheFile);
+
+  let content = fs.readFileSync(cacheFile, "utf-8");
+  const pomImportRegex = /import\s+(\w+)\s+from\s+['"]([^'"]+\.pom)['"]/g;
+  let match;
+  const rewrites = new Map<string, string>();
+
+  while ((match = pomImportRegex.exec(content)) !== null) {
+    const importName = match[1]!;
+    const importPath = match[2]!;
+
+    let absolutePomPath: string;
+    if (path.isAbsolute(importPath)) {
+      absolutePomPath = importPath;
+    } else {
+      absolutePomPath = path.resolve(path.dirname(cacheFile), importPath);
+      if (!fs.existsSync(absolutePomPath)) {
+        absolutePomPath = path.resolve(projectRoot, importPath.replace(/^\.\.\//, ""));
+      }
+    }
+
+    if (fs.existsSync(absolutePomPath)) {
+      const pomSource = fs.readFileSync(absolutePomPath, "utf-8");
+      const compiled = compile(pomSource, importName);
+      const relative = path.relative(projectRoot, absolutePomPath);
+      const compCacheName = "comp_" + relative.replace(/[\/\\]/g, "_").replace(/\.pom$/, ".js");
+      const compCacheFile = path.join(cacheDir, compCacheName);
+      const rewroteCode = rewriteRelativeImports(compiled.code, absolutePomPath, compCacheFile);
+      fs.writeFileSync(compCacheFile, rewriteBareModuleImports(rewroteCode));
+      compileTypeScriptDeps(compCacheFile, cacheDir, new Set());
+      compilePomDeps(compCacheFile, cacheDir, projectRoot, visited);
+
+      const newRelPath = "./" + path.relative(path.dirname(cacheFile), compCacheFile).replace(/\\/g, "/");
+      rewrites.set(`import ${importName} from '${importPath}'`, `import * as ${importName} from '${newRelPath}'`);
+      rewrites.set(`import ${importName} from "${importPath}"`, `import * as ${importName} from "${newRelPath}"`);
+    }
+  }
+
+  if (rewrites.size > 0) {
+    for (const [oldImport, newImport] of rewrites) {
+      content = content.replace(oldImport, newImport);
+    }
+    fs.writeFileSync(cacheFile, content);
+  }
+}
+
 
 export function registerFileSystemRoutes(
   app: express.Express,
@@ -431,8 +511,9 @@ export function registerFileSystemRoutes(
     const importPath = route.path === "/" ? "/index.pom" : `${route.path}.pom`;
     routeCacheMap.set(importPath, cacheFile);
     const rewroteCode = rewriteRelativeImports(compiled.code, route.filePath, cacheFile);
-    fs.writeFileSync(cacheFile, rewroteCode);
+    fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteCode));
     compileTypeScriptDeps(cacheFile, cacheDir);
+    compilePomDeps(cacheFile, cacheDir, process.cwd());
 
     const layoutCacheFiles: string[] = [];
     for (const layoutPath of route.layoutPaths) {
@@ -444,8 +525,9 @@ export function registerFileSystemRoutes(
         "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
       );
       const layoutRewroteCode = rewriteRelativeImports(layoutCompiled.code, layoutPath, layoutCacheFile);
-      fs.writeFileSync(layoutCacheFile, layoutRewroteCode);
+      fs.writeFileSync(layoutCacheFile, rewriteBareModuleImports(layoutRewroteCode));
       compileTypeScriptDeps(layoutCacheFile, cacheDir);
+      compilePomDeps(layoutCacheFile, cacheDir, process.cwd());
       layoutCacheFiles.push(layoutCacheFile);
     }
 
@@ -455,8 +537,9 @@ export function registerFileSystemRoutes(
           const content = fs.readFileSync(route.filePath, "utf-8");
           const compiled = compile(content, route.path);
           const devRewroteCode = rewriteRelativeImports(compiled.code, route.filePath, cacheFile);
-          fs.writeFileSync(cacheFile, devRewroteCode);
+          fs.writeFileSync(cacheFile, rewriteBareModuleImports(devRewroteCode));
           compileTypeScriptDeps(cacheFile, cacheDir);
+          compilePomDeps(cacheFile, cacheDir, process.cwd());
 
           for (const layoutPath of route.layoutPaths) {
             const layoutRelative = path.relative(pagesDir, layoutPath);
@@ -467,8 +550,9 @@ export function registerFileSystemRoutes(
               "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
             );
             const devLayoutRewroteCode = rewriteRelativeImports(layoutCompiled.code, layoutPath, layoutCacheFile);
-            fs.writeFileSync(layoutCacheFile, devLayoutRewroteCode);
+            fs.writeFileSync(layoutCacheFile, rewriteBareModuleImports(devLayoutRewroteCode));
             compileTypeScriptDeps(layoutCacheFile, cacheDir);
+            compilePomDeps(layoutCacheFile, cacheDir, process.cwd());
           }
         }
 

@@ -194,11 +194,17 @@ export class ProductController {
     } else {
       res.ok(product);
     }
+  }
+}
+`
+      );
+
       // 3. API Route (List)
+      fs.mkdirSync(path.join(targetDir, "src/pages/api/products"), { recursive: true });
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/api/products.pom"),
+        path.join(targetDir, "src/pages/api/products/page.pom"),
         `<Server>
-  import { ProductController } from "../../controllers/product.controller.js";
+  import { ProductController } from "../../../controllers/product.controller.js";
 
   $page(async ({ req, res }) => {
     ProductController.getProducts(req, res);
@@ -208,10 +214,11 @@ export class ProductController {
       );
 
       // 4. API Route (Details)
+      fs.mkdirSync(path.join(targetDir, "src/pages/api/products/[id]"), { recursive: true });
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/api/products/[id].pom"),
+        path.join(targetDir, "src/pages/api/products/[id]/page.pom"),
         `<Server>
-  import { ProductController } from "../../../controllers/product.controller.js";
+  import { ProductController } from "../../../../controllers/product.controller.js";
 
   $page(async ({ req, res }) => {
     ProductController.getProduct(req, res);
@@ -223,12 +230,7 @@ export class ProductController {
       // 5. ProductCard Component
       fs.writeFileSync(
         path.join(targetDir, "src/components/ProductCard.pom"),
-        `<Client>
-  import { useCartStore } from "../stores/cart.js";
-  const cart = useCartStore;
-</Client>
-
-<View>
+        `<View>
   <div class="product-card">
     <div class="image-wrapper">
       <img :src="product.image" :alt="product.name" class="product-image" />
@@ -238,9 +240,9 @@ export class ProductController {
       <h3><a :href="'/products/' + product.id" class="product-link">{{ product.name }}</a></h3>
       <div class="price-row">
         <span class="price">\${{ product.price }}</span>
-        <button class="add-button" @click="cart.addItem(product)">
-          <When condition="cart.getQuantity(product.id) > 0">
-            Added ({{ cart.getQuantity(product.id) }})
+        <button class="add-button" @click="addToCart(product)">
+          <When condition="inCart">
+            Added ({{ cartCount }})
           </When>
           <Else>
             Add to Cart
@@ -404,9 +406,9 @@ export class ProductController {
         path.join(targetDir, "src/components/QuantitySelector.pom"),
         `<View>
   <div class="quantity-selector">
-    <button class="qty-btn" @click="onDecrement()">-</button>
+    <button class="qty-btn" @click="decrement()">-</button>
     <span class="qty-display">{{ quantity }}</span>
-    <button class="qty-btn" @click="onIncrement()">+</button>
+    <button class="qty-btn" @click="increment()">+</button>
   </div>
 </View>
 
@@ -540,7 +542,14 @@ export class ProductController {
 </Server>
 
 <Client>
+  import { useCartStore } from "../stores/cart.js";
   import ProductCard from "../components/ProductCard.pom";
+
+  const cart = useCartStore;
+
+  function addToCart(product) {
+    cart.addItem(product);
+  }
 </Client>
 
 <View>
@@ -551,8 +560,13 @@ export class ProductController {
     </div>
 
     <main class="grid">
-      <Each of="products" as="p">
-        <ProductCard :product="p" />
+      <Each of="products" as="product">
+        <ProductCard
+          :product="product"
+          :inCart="cart.getQuantity(product.id) > 0"
+          :cartCount="cart.getQuantity(product.id)"
+          :addToCart="addToCart"
+        />
       </Each>
     </main>
   </div>
@@ -590,6 +604,7 @@ export class ProductController {
       );
 
       // 10. Product Details Layout
+      fs.mkdirSync(path.join(targetDir, "src/pages/products/[id]"), { recursive: true });
       fs.writeFileSync(
         path.join(targetDir, "src/pages/products/[id]/layout.pom"),
         `<View>
@@ -684,7 +699,7 @@ export class ProductController {
       <ProductInfo :product="product" />
 
       <div class="add-to-cart-section">
-        <QuantitySelector :quantity="quantity" :onIncrement="increment" :onDecrement="decrement" />
+        <QuantitySelector :quantity="quantity" />
         <button class="add-btn" @click="handleAddToCart(product)">
           <When condition="cart.getQuantity(product.id) > 0">
             Added ({{ cart.getQuantity(product.id) }} in Cart)
@@ -786,9 +801,9 @@ export const useUserStore = $store({
       );
 
       // 2. API Route
-      fs.mkdirSync(path.join(targetDir, "src/pages/api"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/pages/api/subscription"), { recursive: true });
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/api/subscription.pom"),
+        path.join(targetDir, "src/pages/api/subscription/page.pom"),
         `<Server>
   $page(async ({ req, res }) => {
     res.ok({ status: "active", plan: "Pro Plan", price: 29 });
@@ -882,9 +897,9 @@ export const useBlogStore = $store({
       );
 
       // 2. API Route
-      fs.mkdirSync(path.join(targetDir, "src/pages/api"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/pages/api/posts"), { recursive: true });
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/api/posts.pom"),
+        path.join(targetDir, "src/pages/api/posts/page.pom"),
         `<Server>
   $page(async ({ req, res }) => {
     res.ok([
@@ -949,9 +964,9 @@ export const useBlogStore = $store({
       );
 
       // 4. Dynamic post detail page
-      fs.mkdirSync(path.join(targetDir, "src/pages/posts"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/pages/posts/[id]"), { recursive: true });
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/posts/[id].pom"),
+        path.join(targetDir, "src/pages/posts/[id]/page.pom"),
         `<Server>
   $page(async ({ params }) => {
     const posts = [

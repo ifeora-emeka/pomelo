@@ -141,6 +141,7 @@ export function scanRoutes(pagesDir: string): RouteRecord[] {
 
       if (!entry.name.endsWith(SFC_EXTENSION)) continue;
       if (entry.name === LAYOUT_FILENAME) continue;
+      if (entry.name !== "page.pom" && entry.name !== "index.pom") continue;
 
       const relativePath = path.relative(pagesDir, fullPath);
       const routePath = fileToRoutePath(relativePath);

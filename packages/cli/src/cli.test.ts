@@ -54,8 +54,8 @@ test("CLI create command scaffolds ecommerce template structure", () => {
   });
   assert.ok(createSuccess);
   assert.ok(fs.existsSync(path.join(testAppPath, "src/stores/cart.ts")));
-  assert.ok(fs.existsSync(path.join(testAppPath, "src/pages/api/products.pom")));
-  assert.ok(fs.existsSync(path.join(testAppPath, "src/pages/index.pom")));
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/pages/api/products/page.pom")));
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/pages/page.pom")));
 
   fs.rmSync(testAppPath, { recursive: true, force: true });
 });
@@ -73,7 +73,7 @@ test("CLI generate command scaffolds pages, components, api, and stores", () => 
   try {
     const pageSuccess = handleCLI({ command: "generate", args: ["page", "profile"] });
     assert.ok(pageSuccess);
-    assert.ok(fs.existsSync(path.join(tempDir, "src/pages/profile.pom")));
+    assert.ok(fs.existsSync(path.join(tempDir, "src/pages/profile/page.pom")));
 
     const componentSuccess = handleCLI({ command: "g", args: ["component", "Button"] });
     assert.ok(componentSuccess);
@@ -81,7 +81,7 @@ test("CLI generate command scaffolds pages, components, api, and stores", () => 
 
     const apiSuccess = handleCLI({ command: "generate", args: ["api", "users"] });
     assert.ok(apiSuccess);
-    assert.ok(fs.existsSync(path.join(tempDir, "src/pages/api/users.pom")));
+    assert.ok(fs.existsSync(path.join(tempDir, "src/pages/api/users/page.pom")));
 
     const storeSuccess = handleCLI({ command: "generate", args: ["store", "cart"] });
     assert.ok(storeSuccess);

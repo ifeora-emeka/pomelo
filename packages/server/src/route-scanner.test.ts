@@ -14,10 +14,10 @@ function createMockPages() {
 
   const files = [
     "index.pom",
-    "about.pom",
+    "about/page.pom",
     "blog/index.pom",
-    "blog/[id].pom",
-    "blog/[...catchall].pom",
+    "blog/[id]/page.pom",
+    "blog/[...catchall]/page.pom",
     "layout.pom",
     "blog/layout.pom"
   ];

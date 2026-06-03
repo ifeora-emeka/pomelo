@@ -14,13 +14,13 @@ export function executeGenerateCommand(args: string[]): boolean {
   const projectRoot = process.cwd();
 
   if (type === "page") {
-    const pagesDir = path.join(projectRoot, "src/pages");
-    if (!fs.existsSync(pagesDir)) {
-      fs.mkdirSync(pagesDir, { recursive: true });
+    const pageDir = path.join(projectRoot, "src/pages", name);
+    if (!fs.existsSync(pageDir)) {
+      fs.mkdirSync(pageDir, { recursive: true });
     }
-    const pagePath = path.join(pagesDir, `${name}.pom`);
+    const pagePath = path.join(pageDir, "page.pom");
     if (fs.existsSync(pagePath)) {
-      PomeloLogger.warn(`Page ${name}.pom already exists!`);
+      PomeloLogger.warn(`Page src/pages/${name}/page.pom already exists!`);
       return false;
     }
     fs.writeFileSync(
@@ -36,7 +36,7 @@ export function executeGenerateCommand(args: string[]): boolean {
 </View>
 `
     );
-    PomeloLogger.info(`Generated page: src/pages/${name}.pom`);
+    PomeloLogger.info(`Generated page: src/pages/${name}/page.pom`);
     return true;
   }
 
@@ -68,17 +68,13 @@ export function executeGenerateCommand(args: string[]): boolean {
   }
 
   if (type === "api") {
-    const pagesDir = path.join(projectRoot, "src/pages");
-    if (!fs.existsSync(pagesDir)) {
-      fs.mkdirSync(pagesDir, { recursive: true });
+    const apiRouteDir = path.join(projectRoot, "src/pages", "api", name);
+    if (!fs.existsSync(apiRouteDir)) {
+      fs.mkdirSync(apiRouteDir, { recursive: true });
     }
-    const apiDir = path.join(pagesDir, "api");
-    if (!fs.existsSync(apiDir)) {
-      fs.mkdirSync(apiDir, { recursive: true });
-    }
-    const apiPath = path.join(apiDir, `${name}.pom`);
+    const apiPath = path.join(apiRouteDir, "page.pom");
     if (fs.existsSync(apiPath)) {
-      PomeloLogger.warn(`API route api/${name}.pom already exists!`);
+      PomeloLogger.warn(`API route src/pages/api/${name}/page.pom already exists!`);
       return false;
     }
     fs.writeFileSync(
@@ -92,7 +88,7 @@ export function executeGenerateCommand(args: string[]): boolean {
 </Server>
 `
     );
-    PomeloLogger.info(`Generated API route: src/pages/api/${name}.pom`);
+    PomeloLogger.info(`Generated API route: src/pages/api/${name}/page.pom`);
     return true;
   }
 

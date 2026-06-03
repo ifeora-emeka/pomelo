@@ -162,9 +162,9 @@ export function transformTemplate(
             }
           }
         }
-        const propsObj = `{ ${propsPairs.join(", ")} }`;
+        const propsObj = propsPairs.length > 0 ? `{ ${propsPairs.join(", ")} }` : `{}`;
         return {
-          html: `\${typeof ${tagName} !== "undefined" && ${tagName}.render ? ${tagName}.render(${propsObj}) : ""}`,
+          html: `\${typeof ${tagName} !== "undefined" && ${tagName}.render ? _renderComponent(${tagName}, ${propsObj}) : ""}`,
           nextWhen: ""
         };
       }
@@ -316,7 +316,8 @@ export function transformTemplate(
     identifiers.delete(lv);
   }
   for (const id of identifiers) {
-    if (id && id[0] === id[0].toUpperCase()) {
+    const first = id?.[0];
+    if (first && first === first.toUpperCase()) {
       identifiers.delete(id);
     }
   }
@@ -328,6 +329,17 @@ export function transformTemplate(
 
   const content = compileChildren(node.children || [], []);
   return `export function render(state = {}, slots = {}) {
+  function _unwrapSignal(v) {
+    return (v !== null && v !== undefined && typeof v === "object" && typeof v.get === "function") ? v.get() : v;
+  }
+  function _renderComponent(C, props) {
+    if (!C || !C.render) return "";
+    var unwrappedProps = {};
+    for (var _k in props) { unwrappedProps[_k] = typeof props[_k] === "function" ? props[_k] : _unwrapSignal(props[_k]); }
+    var _s = C.setup ? Object.assign({}, C.setup(unwrappedProps), unwrappedProps) : unwrappedProps;
+    var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-pom-loop-item-' + e[0] + '="' + JSON.stringify(e[1]).replace(/"/g, '&quot;') + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
+    return '<span data-pom-component style="display:contents"' + (_a ? ' ' + _a : '') + '>' + C.render(_s) + '</span>';
+  }
   if (typeof document !== "undefined" && typeof css !== "undefined" && css && !document.getElementById("pom-style-${componentId}")) {
     const styleEl = document.createElement("style");
     styleEl.id = "pom-style-${componentId}";
