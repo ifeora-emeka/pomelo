@@ -19,9 +19,17 @@ export function handleCLI(context: CLIContext): boolean {
     return executeCreateCommand(context.args);
   } else if (context.command === "generate" || context.command === "g") {
     return executeGenerateCommand(context.args);
-  } else if (context.command === "help" || context.command === "--help" || context.command === "-h") {
+  } else if (
+    context.command === "help" ||
+    context.command === "--help" ||
+    context.command === "-h"
+  ) {
     return executeHelpCommand(context.args);
-  } else if (context.command === "version" || context.command === "--version" || context.command === "-v") {
+  } else if (
+    context.command === "version" ||
+    context.command === "--version" ||
+    context.command === "-v"
+  ) {
     console.log("0.1.0");
     return true;
   } else {

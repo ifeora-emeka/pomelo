@@ -119,7 +119,7 @@ test("handleSSR processes component, runs hooks, and generates HTML response", a
   assert.ok(bodyHTML.includes("<!DOCTYPE html>"));
   assert.ok(bodyHTML.includes("<h1>Hello SSR</h1>"));
   assert.ok(bodyHTML.includes("<title>Page Title</title>"));
-  assert.ok(bodyHTML.includes("<style>.h1 { color: red; }</style>"));
+  assert.ok(bodyHTML.includes(".h1 { color: red; }"));
 });
 
 test("handleSSR injects hydration script when component has setup function", async () => {
@@ -132,7 +132,12 @@ test("handleSSR injects hydration script when component has setup function", asy
     },
   };
 
-  const req = { params: {}, query: {}, path: "/test", route: { path: "/test" } } as any;
+  const req = {
+    params: {},
+    query: {},
+    path: "/test",
+    route: { path: "/test" },
+  } as any;
   let bodyHTML = "";
 
   const res = {
@@ -523,7 +528,10 @@ test("Server integrates CORS and Authentication endpoints", async () => {
         {
           id: "credentials",
           async authorize(credentials: Record<string, string>) {
-            if (credentials.username === "admin" && credentials.password === "secret") {
+            if (
+              credentials.username === "admin" &&
+              credentials.password === "secret"
+            ) {
               return { id: "admin-id", name: "Admin User", roles: ["admin"] };
             }
             return null;
@@ -546,8 +554,14 @@ test("Server integrates CORS and Authentication endpoints", async () => {
       },
     });
     assert.strictEqual(corsRes.status, 204);
-    assert.strictEqual(corsRes.headers.get("Access-Control-Allow-Origin"), "http://localhost:3000");
-    assert.strictEqual(corsRes.headers.get("Access-Control-Allow-Credentials"), "true");
+    assert.strictEqual(
+      corsRes.headers.get("Access-Control-Allow-Origin"),
+      "http://localhost:3000",
+    );
+    assert.strictEqual(
+      corsRes.headers.get("Access-Control-Allow-Credentials"),
+      "true",
+    );
 
     // 2. Test initial session is null
     const sessRes = await fetch("http://localhost:4050/api/auth/session");
@@ -566,14 +580,17 @@ test("Server integrates CORS and Authentication endpoints", async () => {
     assert.strictEqual(signinFailRes.status, 401);
 
     // 4. Test signin with valid credentials
-    const signinSuccessRes = await fetch("http://localhost:4050/api/auth/signin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: "credentials",
-        credentials: { username: "admin", password: "secret" },
-      }),
-    });
+    const signinSuccessRes = await fetch(
+      "http://localhost:4050/api/auth/signin",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "credentials",
+          credentials: { username: "admin", password: "secret" },
+        }),
+      },
+    );
     assert.strictEqual(signinSuccessRes.status, 200);
     const signinSuccessData = await signinSuccessRes.json();
     assert.strictEqual(signinSuccessData.user.id, "admin-id");
@@ -587,11 +604,14 @@ test("Server integrates CORS and Authentication endpoints", async () => {
     const cookieValue = cookieHeader.split(";")[0] || "";
 
     // 5. Test active session with the cookie
-    const activeSessRes = await fetch("http://localhost:4050/api/auth/session", {
-      headers: {
-        Cookie: cookieValue,
+    const activeSessRes = await fetch(
+      "http://localhost:4050/api/auth/session",
+      {
+        headers: {
+          Cookie: cookieValue,
+        },
       },
-    });
+    );
     const activeSessData = await activeSessRes.json();
     assert.ok(activeSessData.user);
     assert.strictEqual(activeSessData.user.id, "admin-id");

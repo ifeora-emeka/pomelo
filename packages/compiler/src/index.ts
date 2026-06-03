@@ -42,7 +42,9 @@ export function compile(source: string, filename: string): CompilerResult {
     }
   }
 
-  const cssExport = cssCode ? `export const css = ${JSON.stringify(cssCode)};` : "";
+  const cssExport = cssCode
+    ? `export const css = ${JSON.stringify(cssCode)};`
+    : "";
   const idExport = `export const componentId = ${JSON.stringify(componentId)};`;
   const finalCode = [serverCode, clientCode, templateCode, cssExport, idExport]
     .filter(Boolean)

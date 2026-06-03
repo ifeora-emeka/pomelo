@@ -5,7 +5,7 @@ import type { RouteRecord, RouteManifest } from "@pomelo/types";
 
 const LAYOUT_FILENAME = "layout.pom";
 
-function extractParams(segment: string): {
+export function extractParams(segment: string): {
   isDynamic: boolean;
   isCatchAll: boolean;
   paramName: string;
@@ -81,16 +81,15 @@ function findLayoutInDir(dir: string): string | null {
   return null;
 }
 
-function resolveLayoutChain(
-  filePath: string,
-  pagesDir: string,
-): string[] {
+function resolveLayoutChain(filePath: string, pagesDir: string): string[] {
   const layouts: string[] = [];
   let currentDir = path.dirname(filePath);
 
   while (true) {
     const relative = path.relative(pagesDir, currentDir);
-    const isInside = currentDir === pagesDir || (!relative.startsWith("..") && !path.isAbsolute(relative));
+    const isInside =
+      currentDir === pagesDir ||
+      (!relative.startsWith("..") && !path.isAbsolute(relative));
     if (!isInside) {
       break;
     }

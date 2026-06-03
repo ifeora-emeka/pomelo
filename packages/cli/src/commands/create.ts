@@ -15,7 +15,9 @@ export function executeCreateCommand(args: string[]): boolean {
     template = "ecommerce";
   }
 
-  PomeloLogger.info(`Scaffolding new Pomelo project in ${targetDir} with template '${template}'...`);
+  PomeloLogger.info(
+    `Scaffolding new Pomelo project in ${targetDir} with template '${template}'...`,
+  );
 
   if (fs.existsSync(targetDir)) {
     PomeloLogger.warn(`Directory ${appName} already exists!`);
@@ -47,12 +49,12 @@ export function executeCreateCommand(args: string[]): boolean {
             "@pomelo/server": "workspace:*",
           },
           devDependencies: {
-            "@pomelo/cli": "workspace:*"
-          }
+            "@pomelo/cli": "workspace:*",
+          },
         },
         null,
-        2
-      )
+        2,
+      ),
     );
 
     if (template === "ecommerce") {
@@ -106,12 +108,14 @@ export const useCartStore = $store({
     }
   }
 });
-`
+`,
       );
 
-      fs.mkdirSync(path.join(targetDir, "src/services"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/api/products/services"), {
+        recursive: true,
+      });
       fs.writeFileSync(
-        path.join(targetDir, "src/services/product.service.ts"),
+        path.join(targetDir, "src/api/products/services/product.service.ts"),
         `export interface Product {
   id: string;
   name: string;
@@ -170,12 +174,17 @@ export class ProductService {
     return this.products.find(p => p.id === id);
   }
 }
-`
+`,
       );
 
-      fs.mkdirSync(path.join(targetDir, "src/controllers"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/api/products/controllers"), {
+        recursive: true,
+      });
       fs.writeFileSync(
-        path.join(targetDir, "src/controllers/product.controller.ts"),
+        path.join(
+          targetDir,
+          "src/api/products/controllers/product.controller.ts",
+        ),
         `import { ProductService } from "../services/product.service.js";
 
 const productService = new ProductService();
@@ -196,35 +205,25 @@ export class ProductController {
     }
   }
 }
-`
+`,
       );
 
-      // 3. API Route (List)
-      fs.mkdirSync(path.join(targetDir, "src/pages/api/products"), { recursive: true });
+      // 3. API Route
+      fs.mkdirSync(path.join(targetDir, "src/api/products"), {
+        recursive: true,
+      });
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/api/products/page.pom"),
-        `<Server>
-  import { ProductController } from "../../../controllers/product.controller.js";
+        path.join(targetDir, "src/api/products/products.api.ts"),
+        `import { $router } from "@pomelo/server";
+import { ProductController } from "./controllers/product.controller.js";
 
-  $page(async ({ req, res }) => {
-    ProductController.getProducts(req, res);
-  });
-</Server>
-`
-      );
+const router = $router();
 
-      // 4. API Route (Details)
-      fs.mkdirSync(path.join(targetDir, "src/pages/api/products/[id]"), { recursive: true });
-      fs.writeFileSync(
-        path.join(targetDir, "src/pages/api/products/[id]/page.pom"),
-        `<Server>
-  import { ProductController } from "../../../../controllers/product.controller.js";
+router.get("/", ProductController.getProducts);
+router.get("/:id", ProductController.getProduct);
 
-  $page(async ({ req, res }) => {
-    ProductController.getProduct(req, res);
-  });
-</Server>
-`
+export default router;
+`,
       );
 
       // 5. ProductCard Component
@@ -335,7 +334,7 @@ export class ProductController {
     border-color: #0284c7;
   }
 </Style>
-`
+`,
       );
 
       // 6. ProductInfo Component
@@ -398,7 +397,7 @@ export class ProductController {
     font-size: 1.1rem;
   }
 </Style>
-`
+`,
       );
 
       // 7. QuantitySelector Component
@@ -445,7 +444,7 @@ export class ProductController {
     color: #f8fafc;
   }
 </Style>
-`
+`,
       );
 
       // 8. Root Layout
@@ -474,7 +473,7 @@ export class ProductController {
         🛒 Cart ({{ cart.count }}) - \${{ cart.total }}
       </div>
     </header>
-    <slot />
+    <Slot />
   </div>
 </View>
 
@@ -515,14 +514,14 @@ export class ProductController {
     box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
   }
 </Style>
-`
+`,
       );
 
       // 9. Root Page
       fs.writeFileSync(
         path.join(targetDir, "src/pages/page.pom"),
         `<Server>
-  import { ProductService } from "../services/product.service.js";
+  import { ProductService } from "../api/products/services/product.service.js";
 
   const productService = new ProductService();
 
@@ -600,11 +599,13 @@ export class ProductController {
     gap: 2rem;
   }
 </Style>
-`
+`,
       );
 
       // 10. Product Details Layout
-      fs.mkdirSync(path.join(targetDir, "src/pages/products/[id]"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/pages/products/[id]"), {
+        recursive: true,
+      });
       fs.writeFileSync(
         path.join(targetDir, "src/pages/products/[id]/layout.pom"),
         `<View>
@@ -612,7 +613,7 @@ export class ProductController {
     <div class="back-link-container">
       <a href="/" class="back-link">← Back to Store</a>
     </div>
-    <slot />
+    <Slot />
   </div>
 </View>
 
@@ -633,14 +634,14 @@ export class ProductController {
     color: #7dd3fc;
   }
 </Style>
-`
+`,
       );
 
       // 11. Product Details Page
       fs.writeFileSync(
         path.join(targetDir, "src/pages/products/[id]/page.pom"),
         `<Server>
-  import { ProductService } from "../../../services/product.service.js";
+  import { ProductService } from "../../../api/products/services/product.service.js";
 
   const productService = new ProductService();
 
@@ -777,7 +778,7 @@ export class ProductController {
     }
   }
 </Style>
-`
+`,
       );
     } else if (template === "SaaS" || template === "saas") {
       // 1. Store
@@ -797,19 +798,25 @@ export const useUserStore = $store({
     this.plan = "Pro Plan";
   }
 });
-`
+`,
       );
 
       // 2. API Route
-      fs.mkdirSync(path.join(targetDir, "src/pages/api/subscription"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/api/subscription"), {
+        recursive: true,
+      });
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/api/subscription/page.pom"),
-        `<Server>
-  $page(async ({ req, res }) => {
-    res.ok({ status: "active", plan: "Pro Plan", price: 29 });
-  });
-</Server>
-`
+        path.join(targetDir, "src/api/subscription/subscription.api.ts"),
+        `import { $router } from "@pomelo/server";
+
+const router = $router();
+
+router.get("/", (req, res) => {
+  res.ok({ status: "active", plan: "Pro Plan", price: 29 });
+});
+
+export default router;
+`,
       );
 
       // 3. Home page
@@ -876,7 +883,7 @@ export const useUserStore = $store({
   .upgrade-btn:hover { background: #059669; }
   .success-msg { color: #10b981; font-weight: bold; }
 </Style>
-`
+`,
       );
     } else if (template === "blog") {
       // 1. Store
@@ -893,22 +900,26 @@ export const useBlogStore = $store({
     this.likes[id]++;
   }
 });
-`
+`,
       );
 
       // 2. API Route
-      fs.mkdirSync(path.join(targetDir, "src/pages/api/posts"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/api/posts"), { recursive: true });
       fs.writeFileSync(
-        path.join(targetDir, "src/pages/api/posts/page.pom"),
-        `<Server>
-  $page(async ({ req, res }) => {
-    res.ok([
-      { id: "1", title: "Getting Started with Pomelo", summary: "Learn the fundamentals of the fast, Express-friendly monorepo framework." },
-      { id: "2", title: "Why Reactivity Matters", summary: "Deep-dive into proxies and signals in web application performance." }
-    ]);
-  });
-</Server>
-`
+        path.join(targetDir, "src/api/posts/posts.api.ts"),
+        `import { $router } from "@pomelo/server";
+
+const router = $router();
+
+router.get("/", (req, res) => {
+  res.ok([
+    { id: "1", title: "Getting Started with Pomelo", summary: "Learn the fundamentals of the fast, Express-friendly monorepo framework." },
+    { id: "2", title: "Why Reactivity Matters", summary: "Deep-dive into proxies and signals in web application performance." }
+  ]);
+});
+
+export default router;
+`,
       );
 
       // 3. Home page
@@ -960,11 +971,13 @@ export const useBlogStore = $store({
   button { background: #f3f4f6; border: 1px solid #e5e7eb; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
   button:hover { background: #e5e7eb; }
 </Style>
-`
+`,
       );
 
       // 4. Dynamic post detail page
-      fs.mkdirSync(path.join(targetDir, "src/pages/posts/[id]"), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, "src/pages/posts/[id]"), {
+        recursive: true,
+      });
       fs.writeFileSync(
         path.join(targetDir, "src/pages/posts/[id]/page.pom"),
         `<Server>
@@ -992,7 +1005,7 @@ export const useBlogStore = $store({
   .content { font-size: 1.125rem; line-height: 1.75; color: #333; margin-top: 1.5rem; }
   a { color: #3b82f6; text-decoration: none; }
 </Style>
-`
+`,
       );
     } else {
       // Default template
@@ -1024,7 +1037,7 @@ export const useBlogStore = $store({
     text-align: center;
   }
 </Style>
-`
+`,
       );
     }
 

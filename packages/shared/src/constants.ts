@@ -16,7 +16,7 @@ export const BLOCKS: readonly string[] = [
 export const TAG_EACH = "Each";
 export const TAG_WHEN = "When";
 export const TAG_ELSE = "Else";
-export const TAG_SLOT = "slot";
+export const TAG_SLOT = "Slot";
 export const TAG_PORTAL = "Portal";
 
 export const VIEW_TAGS: readonly string[] = [

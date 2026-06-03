@@ -213,7 +213,9 @@ export function setupEventDelegation(
                 if (current.attributes) {
                   for (const attr of Array.from(current.attributes)) {
                     if (attr.name.startsWith("data-pom-loop-item-")) {
-                      const varName = attr.name.slice("data-pom-loop-item-".length);
+                      const varName = attr.name.slice(
+                        "data-pom-loop-item-".length,
+                      );
                       if (!(varName in loopVars)) {
                         try {
                           loopVars[varName] = JSON.parse(attr.value);
@@ -229,7 +231,11 @@ export function setupEventDelegation(
 
               const eventState = new Proxy(loopVars, {
                 has(target, key) {
-                  return key in target || key === "state" || Reflect.has(stateProxy, key);
+                  return (
+                    key in target ||
+                    key === "state" ||
+                    Reflect.has(stateProxy, key)
+                  );
                 },
                 get(target, key) {
                   if (key === "state") return stateProxy;
@@ -244,7 +250,7 @@ export function setupEventDelegation(
                     return true;
                   }
                   return Reflect.set(stateProxy, key, value);
-                }
+                },
               });
 
               const fn = new Function(
@@ -298,7 +304,10 @@ export function hydrate(
   };
   setActiveInstance(instance);
 
-  const rawState = { ...props, ...(component.setup ? component.setup(props) : {}) };
+  const rawState = {
+    ...props,
+    ...(component.setup ? component.setup(props) : {}),
+  };
   instance.state = rawState;
 
   const stateProxy = new Proxy(rawState, {

@@ -5,7 +5,10 @@ export interface AuthState {
   isLoggedIn: boolean;
   loading: boolean;
   error: string | null;
-  signIn(providerId: string, credentials: Record<string, string>): Promise<any | null>;
+  signIn(
+    providerId: string,
+    credentials: Record<string, string>,
+  ): Promise<any | null>;
   signOut(): Promise<void>;
   fetchSession(): Promise<any | null>;
 }
@@ -75,7 +78,7 @@ export const authStore = $store<AuthState>({
     } finally {
       this.loading = false;
     }
-  }
+  },
 });
 
 if (typeof window !== "undefined") {

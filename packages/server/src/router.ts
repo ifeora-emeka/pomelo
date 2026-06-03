@@ -14,6 +14,26 @@ export class Router {
     this.addRoute("POST", path, handler);
   }
 
+  put(path: string, handler: Handler) {
+    this.addRoute("PUT", path, handler);
+  }
+
+  delete(path: string, handler: Handler) {
+    this.addRoute("DELETE", path, handler);
+  }
+
+  patch(path: string, handler: Handler) {
+    this.addRoute("PATCH", path, handler);
+  }
+
+  options(path: string, handler: Handler) {
+    this.addRoute("OPTIONS", path, handler);
+  }
+
+  head(path: string, handler: Handler) {
+    this.addRoute("HEAD", path, handler);
+  }
+
   private addRoute(method: string, path: string, handler: Handler) {
     if (!this.routes[method]) {
       this.routes[method] = {};
@@ -22,11 +42,37 @@ export class Router {
   }
 
   handle(method: string, path: string, req: any, res: any): boolean {
-    const handler = this.routes[method]?.[path];
-    if (handler) {
-      handler(req, res);
+    const methodRoutes = this.routes[method];
+    if (!methodRoutes) return false;
+
+    // First try exact match
+    const exactHandler = methodRoutes[path];
+    if (exactHandler) {
+      exactHandler(req, res);
       return true;
     }
+
+    // Try pattern matching (e.g. /:id)
+    for (const [pattern, handler] of Object.entries(methodRoutes)) {
+      if (pattern.includes(":")) {
+        const paramNames: string[] = [];
+        const regexStr = pattern.replace(/:([a-zA-Z0-9_]+)/g, (_, name) => {
+          paramNames.push(name);
+          return "([^/]+)";
+        });
+        const regex = new RegExp(`^${regexStr}$`);
+        const match = regex.exec(path);
+        if (match) {
+          req.params = req.params || {};
+          for (let i = 0; i < paramNames.length; i++) {
+            req.params[paramNames[i]!] = decodeURIComponent(match[i + 1]!);
+          }
+          handler(req, res);
+          return true;
+        }
+      }
+    }
+
     return false;
   }
 }

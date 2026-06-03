@@ -98,7 +98,10 @@ export function $local<T>(initialValue: T): ReactiveState<T> {
   return new Signal(initialValue);
 }
 
-export function $watch<T>(state: ReactiveState<T>, cb: (val: T) => void): () => void {
+export function $watch<T>(
+  state: ReactiveState<T>,
+  cb: (val: T) => void,
+): () => void {
   const signal = state as Signal<T>;
   const effectFn = () => {
     cb(signal.value);
@@ -138,15 +141,22 @@ export function $computed<T>(fn: () => T): ReactiveState<T> {
   return signal;
 }
 
-export function $store<T extends object>(initialObj: T, options?: StoreOptions): T {
+export function $store<T extends object>(
+  initialObj: T,
+  options?: StoreOptions,
+): T {
   const subscribers = new Set<() => void>();
   const state = Object.create(
     Object.getPrototypeOf(initialObj),
-    Object.getOwnPropertyDescriptors(initialObj)
+    Object.getOwnPropertyDescriptors(initialObj),
   );
   const persistKey = options?.persistKey || "pomelo-store";
 
-  if (options?.persist && typeof window !== "undefined" && window.localStorage) {
+  if (
+    options?.persist &&
+    typeof window !== "undefined" &&
+    window.localStorage
+  ) {
     try {
       const saved = window.localStorage.getItem(persistKey);
       if (saved) {
@@ -158,7 +168,11 @@ export function $store<T extends object>(initialObj: T, options?: StoreOptions):
   }
 
   const notifyChange = () => {
-    if (options?.persist && typeof window !== "undefined" && window.localStorage) {
+    if (
+      options?.persist &&
+      typeof window !== "undefined" &&
+      window.localStorage
+    ) {
       try {
         window.localStorage.setItem(persistKey, JSON.stringify(state));
       } catch (e) {

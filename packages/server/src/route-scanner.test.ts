@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
-import { scanRoutes, sortRoutesBySpecificity, buildManifest } from "./route-scanner.js";
+import {
+  scanRoutes,
+  sortRoutesBySpecificity,
+  buildManifest,
+} from "./route-scanner.js";
 
 const tmpDir = path.join(process.cwd(), ".test-pages");
 
@@ -19,7 +23,7 @@ function createMockPages() {
     "blog/[id]/page.pom",
     "blog/[...catchall]/page.pom",
     "layout.pom",
-    "blog/layout.pom"
+    "blog/layout.pom",
   ];
 
   for (const file of files) {
@@ -57,13 +61,15 @@ test("Route scanner resolves layout chains", () => {
 
   const homeRoute = routes.find((r) => r.path === "/");
   assert.ok(homeRoute);
-  assert.deepStrictEqual(homeRoute.layoutPaths, [path.join(tmpDir, "layout.pom")]);
+  assert.deepStrictEqual(homeRoute.layoutPaths, [
+    path.join(tmpDir, "layout.pom"),
+  ]);
 
   const blogRoute = routes.find((r) => r.path === "/blog/:id");
   assert.ok(blogRoute);
   assert.deepStrictEqual(blogRoute.layoutPaths, [
     path.join(tmpDir, "layout.pom"),
-    path.join(tmpDir, "blog/layout.pom")
+    path.join(tmpDir, "blog/layout.pom"),
   ]);
 
   cleanupMockPages();
@@ -74,11 +80,11 @@ test("Route sorting prioritizes static over dynamic over catchall", () => {
     { path: "/blog/:catchall(*)", isDynamic: true, isCatchAll: true },
     { path: "/blog/:id", isDynamic: true, isCatchAll: false },
     { path: "/blog/new", isDynamic: false, isCatchAll: false },
-    { path: "/about", isDynamic: false, isCatchAll: false }
+    { path: "/about", isDynamic: false, isCatchAll: false },
   ] as any[];
 
   const sorted = sortRoutesBySpecificity(routes);
-  
+
   assert.strictEqual(sorted[0]!.path, "/about");
   assert.strictEqual(sorted[1]!.path, "/blog/new");
   assert.strictEqual(sorted[2]!.path, "/blog/:id");
@@ -88,7 +94,7 @@ test("Route sorting prioritizes static over dynamic over catchall", () => {
 test("Route sorting handles segment-by-segment specificity", () => {
   const routes = [
     { path: "/blog/:id/:commentId", isDynamic: true, isCatchAll: false },
-    { path: "/blog/:id/comments", isDynamic: true, isCatchAll: false }
+    { path: "/blog/:id/comments", isDynamic: true, isCatchAll: false },
   ] as any[];
 
   const sorted = sortRoutesBySpecificity(routes);

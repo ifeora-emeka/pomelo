@@ -16,7 +16,7 @@ const mockLocalStorage = {
     for (const key of Object.keys(mockStorage)) {
       delete mockStorage[key];
     }
-  }
+  },
 };
 
 globalThis.window = {
@@ -24,7 +24,7 @@ globalThis.window = {
   dispatchEvent: (event: any) => {
     eventsDispatched.push(event);
     return true;
-  }
+  },
 } as any;
 
 const eventsDispatched: any[] = [];
@@ -36,12 +36,12 @@ test("Store persistence options correctly save and load from localStorage", () =
   // Create store with persistence
   const cart = $store(
     { items: [] as string[] },
-    { persist: true, persistKey: "my-cart" }
+    { persist: true, persistKey: "my-cart" },
   );
 
   // Update store state
   cart.items.push("apple");
-  
+
   // Verify it was persisted to localStorage
   const saved = mockLocalStorage.getItem("my-cart");
   assert.ok(saved);
@@ -50,11 +50,13 @@ test("Store persistence options correctly save and load from localStorage", () =
   // Create a second store instance with same key
   const secondCart = $store(
     { items: [] as string[] },
-    { persist: true, persistKey: "my-cart" }
+    { persist: true, persistKey: "my-cart" },
   );
 
   // It should restore the saved state
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(secondCart.items)), ["apple"]);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(secondCart.items)), [
+    "apple",
+  ]);
 });
 
 test("Reactivity updates emit pomelo:devtools custom events on window", () => {
@@ -67,7 +69,7 @@ test("Reactivity updates emit pomelo:devtools custom events on window", () => {
   assert.deepStrictEqual(eventsDispatched[0].detail, {
     type: "store",
     name: "test-store",
-    state: { value: 1 }
+    state: { value: 1 },
   });
 
   // Emit store updates
@@ -77,6 +79,6 @@ test("Reactivity updates emit pomelo:devtools custom events on window", () => {
   assert.deepStrictEqual(eventsDispatched[0].detail, {
     type: "store",
     name: "test-store",
-    state: { value: 42 }
+    state: { value: 42 },
   });
 });

@@ -4,10 +4,18 @@ import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { compile } from "@pomelo/compiler";
-import { PomeloLogger, formatFrameworkName, rewriteRelativeImports } from "@pomelo/shared";
+import {
+  PomeloLogger,
+  formatFrameworkName,
+  rewriteRelativeImports,
+} from "@pomelo/shared";
 import type { FrameworkConfig } from "@pomelo/types";
 import { PomeloError } from "./errors.js";
-import { scanRoutes, sortRoutesBySpecificity } from "./route-scanner.js";
+import {
+  scanRoutes,
+  sortRoutesBySpecificity,
+  extractParams,
+} from "./route-scanner.js";
 import { mergeMetadata, renderMetadataHTML } from "./metadata.js";
 import { signToken, verifyToken } from "./auth.js";
 
@@ -27,13 +35,21 @@ function rewriteBareModuleImports(code: string): string {
     const pkgDir = resolvePackageToAbsolute(pkg);
     if (!pkgDir) continue;
     try {
-      const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf-8")) as Record<string, any>;
+      const pkgJson = JSON.parse(
+        fs.readFileSync(path.join(pkgDir, "package.json"), "utf-8"),
+      ) as Record<string, any>;
       const exports = pkgJson["exports"] as Record<string, any> | undefined;
-      const mainEntry = (exports?.["."]?.["import"] ?? exports?.["."]?.["default"] ?? pkgJson["main"] ?? "dist/index.js") as string;
+      const mainEntry = (exports?.["."]?.["import"] ??
+        exports?.["."]?.["default"] ??
+        pkgJson["main"] ??
+        "dist/index.js") as string;
       const absEntry = `file://${path.join(pkgDir, mainEntry).replace(/\\/g, "/")}`;
       result = result.replace(
-        new RegExp(`(from\\s+['"])${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(['"])`, "g"),
-        `$1${absEntry}$2`
+        new RegExp(
+          `(from\\s+['"])${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(['"])`,
+          "g",
+        ),
+        `$1${absEntry}$2`,
       );
     } catch {
       // Ignore packages that can't be resolved
@@ -41,7 +57,6 @@ function rewriteBareModuleImports(code: string): string {
   }
   return result;
 }
-
 
 declare global {
   namespace Express {
@@ -150,7 +165,9 @@ function generateHydrationScriptWithLayouts(
   const imports: string[] = [];
   imports.push(`import * as component from "/@pomelo/pages/${cacheFileName}";`);
   for (let i = 0; i < layoutCacheFileNames.length; i++) {
-    imports.push(`import * as layout_${i} from "/@pomelo/pages/${layoutCacheFileNames[i]}";`);
+    imports.push(
+      `import * as layout_${i} from "/@pomelo/pages/${layoutCacheFileNames[i]}";`,
+    );
   }
 
   return `<script type="module">
@@ -198,7 +215,12 @@ if (container) {
 </script>`;
 }
 
-export async function handleSSR(req: Request, res: Response, component: any, cacheFileName?: string) {
+export async function handleSSR(
+  req: Request,
+  res: Response,
+  component: any,
+  cacheFileName?: string,
+) {
   try {
     const ctx = {
       req,
@@ -239,7 +261,7 @@ export async function handleSSR(req: Request, res: Response, component: any, cac
           return val.get();
         }
         return val;
-      }
+      },
     });
 
     const htmlContent = component.render ? component.render(renderState) : "";
@@ -258,7 +280,11 @@ export async function handleSSR(req: Request, res: Response, component: any, cac
     }
 
     const routePath = req.route?.path || req.path;
-    const resolvedCacheFileName = cacheFileName || (routePath === "/" ? "index.pom.js" : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}.pom.js`);
+    const resolvedCacheFileName =
+      cacheFileName ||
+      (routePath === "/"
+        ? "index.pom.js"
+        : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}.pom.js`);
     const componentId = component.componentId || "app";
     const stateJSON = JSON.stringify(state);
     const hydrationScript = component.setup
@@ -342,7 +368,7 @@ export async function handleSSRStream(
           return val.get();
         }
         return val;
-      }
+      },
     });
 
     const htmlContent = component.render ? component.render(renderState) : "";
@@ -363,7 +389,9 @@ export async function handleSSRStream(
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Transfer-Encoding", "chunked");
 
-    res.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${metaHTML}${styleHTML}</head><body><div id="app">`);
+    res.write(
+      `<!DOCTYPE html><html><head><meta charset="utf-8">${metaHTML}${styleHTML}</head><body><div id="app">`,
+    );
     res.write(htmlContent);
     res.write(`</div></body></html>`);
     res.end();
@@ -375,8 +403,7 @@ export async function handleSSRStream(
       return;
     }
     PomeloLogger.error(
-      "SSR Stream Error: " +
-        (err instanceof Error ? err.stack : String(err)),
+      "SSR Stream Error: " + (err instanceof Error ? err.stack : String(err)),
     );
     if (!res.headersSent) {
       res.serverError(err.message);
@@ -384,7 +411,11 @@ export async function handleSSRStream(
   }
 }
 
-function compileTypeScriptDeps(cacheFile: string, cacheDir: string, visited: Set<string> = new Set()): void {
+function compileTypeScriptDeps(
+  cacheFile: string,
+  cacheDir: string,
+  visited: Set<string> = new Set(),
+): void {
   if (visited.has(cacheFile)) return;
   visited.add(cacheFile);
 
@@ -410,15 +441,24 @@ function compileTypeScriptDeps(cacheFile: string, cacheDir: string, visited: Set
 
         const projectRoot = path.dirname(cacheDir);
         const relative = path.relative(projectRoot, absoluteTsPath);
-        const depCacheName = "dep_" + relative.replace(/[\/\\]/g, "_").replace(/\.ts$/, ".js");
+        const depCacheName =
+          "dep_" + relative.replace(/[\/\\]/g, "_").replace(/\.ts$/, ".js");
         const depCacheFile = path.join(cacheDir, depCacheName);
-        
-        const rewroteOutput = rewriteRelativeImports(transpiled.outputText, absoluteTsPath, depCacheFile);
+
+        const rewroteOutput = rewriteRelativeImports(
+          transpiled.outputText,
+          absoluteTsPath,
+          depCacheFile,
+        );
         fs.writeFileSync(depCacheFile, rewriteBareModuleImports(rewroteOutput));
 
         compileTypeScriptDeps(depCacheFile, cacheDir, visited);
 
-        const newRelPath = "./" + path.relative(path.dirname(cacheFile), depCacheFile).replace(/\\/g, "/");
+        const newRelPath =
+          "./" +
+          path
+            .relative(path.dirname(cacheFile), depCacheFile)
+            .replace(/\\/g, "/");
         rewrites.set(importPath, newRelPath);
       }
     }
@@ -427,7 +467,10 @@ function compileTypeScriptDeps(cacheFile: string, cacheDir: string, visited: Set
   if (rewrites.size > 0) {
     for (const [oldPath, newPath] of rewrites) {
       content = content.replace(
-        new RegExp(`from\\s+['"]${oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}['"]`, "g"),
+        new RegExp(
+          `from\\s+['"]${oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}['"]`,
+          "g",
+        ),
         `from "${newPath}"`,
       );
     }
@@ -435,7 +478,12 @@ function compileTypeScriptDeps(cacheFile: string, cacheDir: string, visited: Set
   }
 }
 
-function compilePomDeps(cacheFile: string, cacheDir: string, projectRoot: string, visited: Set<string> = new Set()): void {
+function compilePomDeps(
+  cacheFile: string,
+  cacheDir: string,
+  projectRoot: string,
+  visited: Set<string> = new Set(),
+): void {
   if (visited.has(cacheFile)) return;
   visited.add(cacheFile);
 
@@ -454,7 +502,10 @@ function compilePomDeps(cacheFile: string, cacheDir: string, projectRoot: string
     } else {
       absolutePomPath = path.resolve(path.dirname(cacheFile), importPath);
       if (!fs.existsSync(absolutePomPath)) {
-        absolutePomPath = path.resolve(projectRoot, importPath.replace(/^\.\.\//, ""));
+        absolutePomPath = path.resolve(
+          projectRoot,
+          importPath.replace(/^\.\.\//, ""),
+        );
       }
     }
 
@@ -462,16 +513,31 @@ function compilePomDeps(cacheFile: string, cacheDir: string, projectRoot: string
       const pomSource = fs.readFileSync(absolutePomPath, "utf-8");
       const compiled = compile(pomSource, importName);
       const relative = path.relative(projectRoot, absolutePomPath);
-      const compCacheName = "comp_" + relative.replace(/[\/\\]/g, "_").replace(/\.pom$/, ".js");
+      const compCacheName =
+        "comp_" + relative.replace(/[\/\\]/g, "_").replace(/\.pom$/, ".js");
       const compCacheFile = path.join(cacheDir, compCacheName);
-      const rewroteCode = rewriteRelativeImports(compiled.code, absolutePomPath, compCacheFile);
+      const rewroteCode = rewriteRelativeImports(
+        compiled.code,
+        absolutePomPath,
+        compCacheFile,
+      );
       fs.writeFileSync(compCacheFile, rewriteBareModuleImports(rewroteCode));
       compileTypeScriptDeps(compCacheFile, cacheDir, new Set());
       compilePomDeps(compCacheFile, cacheDir, projectRoot, visited);
 
-      const newRelPath = "./" + path.relative(path.dirname(cacheFile), compCacheFile).replace(/\\/g, "/");
-      rewrites.set(`import ${importName} from '${importPath}'`, `import * as ${importName} from '${newRelPath}'`);
-      rewrites.set(`import ${importName} from "${importPath}"`, `import * as ${importName} from "${newRelPath}"`);
+      const newRelPath =
+        "./" +
+        path
+          .relative(path.dirname(cacheFile), compCacheFile)
+          .replace(/\\/g, "/");
+      rewrites.set(
+        `import ${importName} from '${importPath}'`,
+        `import * as ${importName} from '${newRelPath}'`,
+      );
+      rewrites.set(
+        `import ${importName} from "${importPath}"`,
+        `import * as ${importName} from "${newRelPath}"`,
+      );
     }
   }
 
@@ -482,7 +548,6 @@ function compilePomDeps(cacheFile: string, cacheDir: string, projectRoot: string
     fs.writeFileSync(cacheFile, content);
   }
 }
-
 
 export function registerFileSystemRoutes(
   app: express.Express,
@@ -510,7 +575,11 @@ export function registerFileSystemRoutes(
     );
     const importPath = route.path === "/" ? "/index.pom" : `${route.path}.pom`;
     routeCacheMap.set(importPath, cacheFile);
-    const rewroteCode = rewriteRelativeImports(compiled.code, route.filePath, cacheFile);
+    const rewroteCode = rewriteRelativeImports(
+      compiled.code,
+      route.filePath,
+      cacheFile,
+    );
     fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteCode));
     compileTypeScriptDeps(cacheFile, cacheDir);
     compilePomDeps(cacheFile, cacheDir, process.cwd());
@@ -524,8 +593,15 @@ export function registerFileSystemRoutes(
         cacheDir,
         "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
       );
-      const layoutRewroteCode = rewriteRelativeImports(layoutCompiled.code, layoutPath, layoutCacheFile);
-      fs.writeFileSync(layoutCacheFile, rewriteBareModuleImports(layoutRewroteCode));
+      const layoutRewroteCode = rewriteRelativeImports(
+        layoutCompiled.code,
+        layoutPath,
+        layoutCacheFile,
+      );
+      fs.writeFileSync(
+        layoutCacheFile,
+        rewriteBareModuleImports(layoutRewroteCode),
+      );
       compileTypeScriptDeps(layoutCacheFile, cacheDir);
       compilePomDeps(layoutCacheFile, cacheDir, process.cwd());
       layoutCacheFiles.push(layoutCacheFile);
@@ -533,10 +609,17 @@ export function registerFileSystemRoutes(
 
     app.get(route.path, async (req, res, next) => {
       try {
-        if (process.env.NODE_ENV === "development" || process.env.POMELO_ENV === "development") {
+        if (
+          process.env.NODE_ENV === "development" ||
+          process.env.POMELO_ENV === "development"
+        ) {
           const content = fs.readFileSync(route.filePath, "utf-8");
           const compiled = compile(content, route.path);
-          const devRewroteCode = rewriteRelativeImports(compiled.code, route.filePath, cacheFile);
+          const devRewroteCode = rewriteRelativeImports(
+            compiled.code,
+            route.filePath,
+            cacheFile,
+          );
           fs.writeFileSync(cacheFile, rewriteBareModuleImports(devRewroteCode));
           compileTypeScriptDeps(cacheFile, cacheDir);
           compilePomDeps(cacheFile, cacheDir, process.cwd());
@@ -549,8 +632,15 @@ export function registerFileSystemRoutes(
               cacheDir,
               "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
             );
-            const devLayoutRewroteCode = rewriteRelativeImports(layoutCompiled.code, layoutPath, layoutCacheFile);
-            fs.writeFileSync(layoutCacheFile, rewriteBareModuleImports(devLayoutRewroteCode));
+            const devLayoutRewroteCode = rewriteRelativeImports(
+              layoutCompiled.code,
+              layoutPath,
+              layoutCacheFile,
+            );
+            fs.writeFileSync(
+              layoutCacheFile,
+              rewriteBareModuleImports(devLayoutRewroteCode),
+            );
             compileTypeScriptDeps(layoutCacheFile, cacheDir);
             compilePomDeps(layoutCacheFile, cacheDir, process.cwd());
           }
@@ -559,7 +649,9 @@ export function registerFileSystemRoutes(
         const component = await import(`file://${cacheFile}?t=${Date.now()}`);
         const layouts: any[] = [];
         for (const layoutCacheFile of layoutCacheFiles) {
-          const layout = await import(`file://${layoutCacheFile}?t=${Date.now()}`);
+          const layout = await import(
+            `file://${layoutCacheFile}?t=${Date.now()}`
+          );
           layouts.push(layout);
         }
 
@@ -583,6 +675,210 @@ export function registerFileSystemRoutes(
 
     PomeloLogger.info(`Registered route: ${route.path} → ${relative}`);
   }
+}
+
+export function apiFileToRoutePath(relativePath: string): string {
+  const parts = relativePath.replace(/\\/g, "/").split("/");
+  const segments: string[] = [];
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]!;
+    const isLast = i === parts.length - 1;
+
+    if (isLast) {
+      const name = part
+        .replace(/\.api\.(ts|js)$/, "")
+        .replace(/\.(ts|js)$/, "");
+      if (name === "route" || name === "index") {
+        continue;
+      }
+      const parent = parts[i - 1];
+      if (parent && name === parent) {
+        continue;
+      }
+      const { expressSegment } = extractParams(name);
+      segments.push(expressSegment);
+    } else {
+      const { expressSegment } = extractParams(part);
+      segments.push(expressSegment);
+    }
+  }
+
+  const routePath = "/api/" + segments.join("/");
+  return routePath.replace(/\/+/g, "/").replace(/\/$/, "") || "/api";
+}
+
+export function compileAPIRoutes(apiDir: string, cacheDir: string) {
+  if (!fs.existsSync(apiDir)) return;
+
+  function scanApi(dir: string) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scanApi(fullPath);
+        continue;
+      }
+
+      const isApiFile =
+        entry.name.endsWith(".api.ts") ||
+        entry.name.endsWith(".api.js") ||
+        entry.name === "route.ts" ||
+        entry.name === "route.js" ||
+        (entry.name === "index.ts" && dir !== apiDir);
+      if (!isApiFile) continue;
+
+      const relative = path.relative(apiDir, fullPath);
+      const tsSource = fs.readFileSync(fullPath, "utf-8");
+
+      let transpiledCode = tsSource;
+      if (fullPath.endsWith(".ts")) {
+        const transpiled = ts.transpileModule(tsSource, {
+          compilerOptions: {
+            module: ts.ModuleKind.ESNext,
+            target: ts.ScriptTarget.ES2022,
+          },
+        });
+        transpiledCode = transpiled.outputText;
+      }
+
+      const cacheFileName =
+        "api_" + relative.replace(/[\/\\]/g, "_").replace(/\.(ts|js)$/, ".js");
+      const cacheFile = path.join(cacheDir, cacheFileName);
+
+      const rewroteOutput = rewriteRelativeImports(
+        transpiledCode,
+        fullPath,
+        cacheFile,
+      );
+      fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteOutput));
+
+      compileTypeScriptDeps(cacheFile, cacheDir);
+      compilePomDeps(cacheFile, cacheDir, process.cwd());
+
+      const routePrefix = apiFileToRoutePath(relative);
+      PomeloLogger.info(
+        `Compiled API route: ${routePrefix} → .pomelo-cache/${cacheFileName}`,
+      );
+    }
+  }
+
+  scanApi(apiDir);
+}
+
+export function registerAPIRoutes(app: express.Express, apiDir: string) {
+  if (!fs.existsSync(apiDir)) return;
+
+  const cacheDir = path.join(process.cwd(), ".pomelo-cache");
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+
+  function scanApi(dir: string) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scanApi(fullPath);
+        continue;
+      }
+
+      const isApiFile =
+        entry.name.endsWith(".api.ts") ||
+        entry.name.endsWith(".api.js") ||
+        entry.name === "route.ts" ||
+        entry.name === "route.js" ||
+        (entry.name === "index.ts" && dir !== apiDir);
+      if (!isApiFile) continue;
+
+      const relative = path.relative(apiDir, fullPath);
+      const tsSource = fs.readFileSync(fullPath, "utf-8");
+
+      let transpiledCode = tsSource;
+      if (fullPath.endsWith(".ts")) {
+        const transpiled = ts.transpileModule(tsSource, {
+          compilerOptions: {
+            module: ts.ModuleKind.ESNext,
+            target: ts.ScriptTarget.ES2022,
+          },
+        });
+        transpiledCode = transpiled.outputText;
+      }
+
+      const cacheFileName =
+        "api_" + relative.replace(/[\/\\]/g, "_").replace(/\.(ts|js)$/, ".js");
+      const cacheFile = path.join(cacheDir, cacheFileName);
+
+      const rewroteOutput = rewriteRelativeImports(
+        transpiledCode,
+        fullPath,
+        cacheFile,
+      );
+      fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteOutput));
+
+      compileTypeScriptDeps(cacheFile, cacheDir);
+      compilePomDeps(cacheFile, cacheDir, process.cwd());
+
+      const routePrefix = apiFileToRoutePath(relative);
+
+      app.use(
+        routePrefix,
+        async (req: Request, res: Response, next: NextFunction) => {
+          try {
+            if (
+              process.env.NODE_ENV === "development" ||
+              process.env.POMELO_ENV === "development"
+            ) {
+              const freshTsSource = fs.readFileSync(fullPath, "utf-8");
+              let freshTranspiledCode = freshTsSource;
+              if (fullPath.endsWith(".ts")) {
+                const freshTranspiled = ts.transpileModule(freshTsSource, {
+                  compilerOptions: {
+                    module: ts.ModuleKind.ESNext,
+                    target: ts.ScriptTarget.ES2022,
+                  },
+                });
+                freshTranspiledCode = freshTranspiled.outputText;
+              }
+              const freshRewrote = rewriteRelativeImports(
+                freshTranspiledCode,
+                fullPath,
+                cacheFile,
+              );
+              fs.writeFileSync(
+                cacheFile,
+                rewriteBareModuleImports(freshRewrote),
+              );
+              compileTypeScriptDeps(cacheFile, cacheDir);
+              compilePomDeps(cacheFile, cacheDir, process.cwd());
+            }
+
+            const apiModule = await import(
+              `file://${cacheFile}?t=${Date.now()}`
+            );
+            const router = apiModule.default || apiModule;
+
+            if (router && typeof router.handle === "function" && !router.use) {
+              const handled = router.handle(req.method, req.path, req, res);
+              if (!handled) {
+                next();
+              }
+            } else if (typeof router === "function") {
+              router(req, res, next);
+            } else {
+              next();
+            }
+          } catch (err) {
+            next(err);
+          }
+        },
+      );
+
+      PomeloLogger.info(`Registered API route: ${routePrefix} → ${relative}`);
+    }
+  }
+
+  scanApi(apiDir);
 }
 
 export async function handleSSRWithLayouts(
@@ -627,7 +923,9 @@ export async function handleSSRWithLayouts(
     let mergedMeta = {};
 
     for (const layout of layouts) {
-      const layoutState = layout.$serverPage ? (await layout.$serverPage(ctx)) || {} : {};
+      const layoutState = layout.$serverPage
+        ? (await layout.$serverPage(ctx)) || {}
+        : {};
       layoutStates.push(layoutState);
 
       if (layout.$serverMeta) {
@@ -638,7 +936,9 @@ export async function handleSSRWithLayouts(
       }
     }
 
-    let state = component.$serverPage ? (await component.$serverPage(ctx)) || {} : {};
+    let state = component.$serverPage
+      ? (await component.$serverPage(ctx)) || {}
+      : {};
     if (component.$serverMeta) {
       const pageMeta = await component.$serverMeta(state);
       if (pageMeta) {
@@ -665,7 +965,7 @@ export async function handleSSRWithLayouts(
           return val.get();
         }
         return val;
-      }
+      },
     });
 
     const pageContent = component.render ? component.render(renderState) : "";
@@ -686,7 +986,7 @@ export async function handleSSRWithLayouts(
             return val.get();
           }
           return val;
-        }
+        },
       });
       htmlContent = layout.render
         ? layout.render(layoutRenderState, {
@@ -707,19 +1007,23 @@ export async function handleSSRWithLayouts(
     }
 
     const routePath = req.route?.path || req.path;
-    const resolvedCacheFileName = cacheFileName || (routePath === "/" ? "index.pom.js" : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}.pom.js`);
+    const resolvedCacheFileName =
+      cacheFileName ||
+      (routePath === "/"
+        ? "index.pom.js"
+        : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}.pom.js`);
     const componentId = component.componentId || "app";
     const stateJSON = JSON.stringify(state);
 
     let hydrationScript = "";
     if (layouts.length > 0) {
-      const layoutStatesJSON = layoutStates.map(s => JSON.stringify(s));
+      const layoutStatesJSON = layoutStates.map((s) => JSON.stringify(s));
       hydrationScript = generateHydrationScriptWithLayouts(
         resolvedCacheFileName,
         componentId,
         stateJSON,
         layoutCacheFileNames,
-        layoutStatesJSON
+        layoutStatesJSON,
       );
     } else {
       hydrationScript = component.setup
@@ -767,7 +1071,7 @@ export interface ServerInstance {
 function rewriteBrowserImports(content: string): string {
   return content.replace(
     /(\b(?:import|export)\s+[\s\S]*?\s+from\s+['"]|import\s+['"])@pomelo\/runtime(['"])/g,
-    "$1/@pomelo/runtime/index.js$2"
+    "$1/@pomelo/runtime/index.js$2",
   );
 }
 
@@ -785,7 +1089,9 @@ export function createServer(config: FrameworkConfig): ServerInstance {
 
   // Serve @pomelo/runtime client-side files
   try {
-    const runtimePkgPath = require.resolve("@pomelo/runtime/package.json", { paths: [process.cwd()] });
+    const runtimePkgPath = require.resolve("@pomelo/runtime/package.json", {
+      paths: [process.cwd()],
+    });
     const runtimeDir = path.dirname(runtimePkgPath);
     app.use("/@pomelo/runtime", express.static(path.join(runtimeDir, "dist")));
   } catch (err) {
@@ -803,7 +1109,10 @@ export function createServer(config: FrameworkConfig): ServerInstance {
       }
     }
     if (!resolved) {
-      PomeloLogger.warn("Could not resolve @pomelo/runtime path for static serving: " + String(err));
+      PomeloLogger.warn(
+        "Could not resolve @pomelo/runtime path for static serving: " +
+          String(err),
+      );
     }
   }
 
@@ -855,7 +1164,10 @@ export function createServer(config: FrameworkConfig): ServerInstance {
       return next();
     }
 
-    const tsFilePath = path.join(process.cwd(), req.path.replace(/\.js$/, ".ts"));
+    const tsFilePath = path.join(
+      process.cwd(),
+      req.path.replace(/\.js$/, ".ts"),
+    );
     if (fs.existsSync(tsFilePath)) {
       try {
         const sourceCode = fs.readFileSync(tsFilePath, "utf-8");
@@ -864,13 +1176,15 @@ export function createServer(config: FrameworkConfig): ServerInstance {
             module: ts.ModuleKind.ESNext,
             target: ts.ScriptTarget.ES2022,
             isolatedModules: true,
-          }
+          },
         });
         res.setHeader("Content-Type", "application/javascript; charset=utf-8");
         res.send(rewriteBrowserImports(transpiled.outputText));
         return;
       } catch (err) {
-        PomeloLogger.error(`On-the-fly TS compilation failed for ${tsFilePath}: ` + String(err));
+        PomeloLogger.error(
+          `On-the-fly TS compilation failed for ${tsFilePath}: ` + String(err),
+        );
         res.status(500).send("Compilation error: " + String(err));
         return;
       }
@@ -900,11 +1214,20 @@ export function createServer(config: FrameworkConfig): ServerInstance {
         res.setHeader("Access-Control-Allow-Credentials", "true");
       }
       if (corsOptions.methods) {
-        res.setHeader("Access-Control-Allow-Methods", corsOptions.methods.join(", "));
+        res.setHeader(
+          "Access-Control-Allow-Methods",
+          corsOptions.methods.join(", "),
+        );
       } else {
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+        res.setHeader(
+          "Access-Control-Allow-Methods",
+          "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+        );
       }
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, X-Requested-With",
+      );
 
       if (req.method === "OPTIONS") {
         res.status(204).end();
@@ -978,7 +1301,9 @@ export function createServer(config: FrameworkConfig): ServerInstance {
         const token = signToken(user, authOptions.secret);
         res.cookie(cookieName, token, {
           httpOnly: true,
-          secure: config.env === "production" || process.env.NODE_ENV === "production",
+          secure:
+            config.env === "production" ||
+            process.env.NODE_ENV === "production",
           path: "/",
           domain: authOptions.cookieDomain,
           maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
@@ -994,7 +1319,8 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     app.post("/api/auth/signout", (req: Request, res: Response) => {
       res.clearCookie(cookieName, {
         httpOnly: true,
-        secure: config.env === "production" || process.env.NODE_ENV === "production",
+        secure:
+          config.env === "production" || process.env.NODE_ENV === "production",
         path: "/",
         domain: authOptions.cookieDomain,
       });
@@ -1004,12 +1330,10 @@ export function createServer(config: FrameworkConfig): ServerInstance {
 
   const isDev = config.env === "development" || !config.env;
   if (isDev) {
-    app.use(
-      (req: Request, _res: Response, next: NextFunction) => {
-        PomeloLogger.info(`${req.method} ${req.url}`);
-        next();
-      },
-    );
+    app.use((req: Request, _res: Response, next: NextFunction) => {
+      PomeloLogger.info(`${req.method} ${req.url}`);
+      next();
+    });
   }
 
   return {

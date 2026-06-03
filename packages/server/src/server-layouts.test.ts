@@ -26,7 +26,12 @@ test("handleSSRWithLayouts nests layouts from outermost to innermost", async () 
     css: "h1 { margin: 0; }",
   };
 
-  const req = { params: {}, query: {}, path: "/blog/post-1", route: { path: "/blog/:id" } } as any;
+  const req = {
+    params: {},
+    query: {},
+    path: "/blog/post-1",
+    route: { path: "/blog/:id" },
+  } as any;
   let statusVal = 0;
   let bodyHTML = "";
 
@@ -45,10 +50,14 @@ test("handleSSRWithLayouts nests layouts from outermost to innermost", async () 
   await handleSSRWithLayouts(req, res, postPage, [rootLayout, blogLayout]);
 
   assert.strictEqual(statusVal, 200);
-  assert.ok(bodyHTML.includes('<div id="root"><section id="blog"><h1>My Post</h1></section></div>'));
-  assert.ok(bodyHTML.includes("<style>h1 { margin: 0; }</style>"));
-  assert.ok(bodyHTML.includes("<style>#root { background: black; }</style>"));
-  assert.ok(bodyHTML.includes("<style>#blog { color: white; }</style>"));
+  assert.ok(
+    bodyHTML.includes(
+      '<div id="root"><section id="blog"><h1>My Post</h1></section></div>',
+    ),
+  );
+  assert.ok(bodyHTML.includes("h1 { margin: 0; }"));
+  assert.ok(bodyHTML.includes("#root { background: black; }"));
+  assert.ok(bodyHTML.includes("#blog { color: white; }"));
 });
 
 test("handleSSRWithLayouts runs layout $serverPage hooks and combines states", async () => {
@@ -72,7 +81,9 @@ test("handleSSRWithLayouts runs layout $serverPage hooks and combines states", a
   let bodyHTML = "";
 
   const res = {
-    status() { return this; },
+    status() {
+      return this;
+    },
     send(html: string) {
       bodyHTML = html;
       return this;

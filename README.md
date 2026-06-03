@@ -192,3 +192,40 @@ Ensure you have Node.js (>= 18) and `pnpm` installed.
   ```bash
   pnpm format
   ```
+
+---
+
+## 🍊 Testing and Running in Isolation
+
+For framework developers, always test features in isolation by scaffolding a test project inside the `temp/` directory (which is ignored by Git):
+
+1. **Build the framework**:
+
+   ```bash
+   pnpm build
+   ```
+
+2. **Scaffold a new project in the `temp/` directory**:
+
+   ```bash
+   node packages/cli/dist/bin.js create temp/my-test-app --template ecommerce
+   ```
+
+3. **Navigate to the project**:
+
+   ```bash
+   cd temp/my-test-app
+   ```
+
+4. **Install dependencies** (which resolves workspace packages locally):
+
+   ```bash
+   pnpm install
+   ```
+
+5. **Start the development server**:
+   ```bash
+   pnpm dev
+   ```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser to verify it.

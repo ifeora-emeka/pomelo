@@ -1,6 +1,10 @@
 import path from "node:path";
 
-export function rewriteRelativeImports(code: string, originalFilePath: string, cacheFilePath: string): string {
+export function rewriteRelativeImports(
+  code: string,
+  originalFilePath: string,
+  cacheFilePath: string,
+): string {
   const originalDir = path.dirname(originalFilePath);
   const cacheDir = path.dirname(cacheFilePath);
 
@@ -13,6 +17,6 @@ export function rewriteRelativeImports(code: string, originalFilePath: string, c
         relativePath = "./" + relativePath;
       }
       return `${prefix}${relativePath}${suffix}`;
-    }
+    },
   );
 }

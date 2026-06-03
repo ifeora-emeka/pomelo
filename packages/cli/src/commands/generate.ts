@@ -34,7 +34,7 @@ export function executeGenerateCommand(args: string[]): boolean {
 <View>
   <h1>{{ title }}</h1>
 </View>
-`
+`,
     );
     PomeloLogger.info(`Generated page: src/pages/${name}/page.pom`);
     return true;
@@ -58,37 +58,43 @@ export function executeGenerateCommand(args: string[]): boolean {
 
 <View>
   <div class="comp-${name.toLowerCase()}">
-    <slot />
+    <Slot />
   </div>
 </View>
-`
+`,
     );
     PomeloLogger.info(`Generated component: src/components/${name}.pom`);
     return true;
   }
 
   if (type === "api") {
-    const apiRouteDir = path.join(projectRoot, "src/pages", "api", name);
+    const apiRouteDir = path.join(projectRoot, "src/api", name);
     if (!fs.existsSync(apiRouteDir)) {
       fs.mkdirSync(apiRouteDir, { recursive: true });
     }
-    const apiPath = path.join(apiRouteDir, "page.pom");
+    const apiPath = path.join(apiRouteDir, `${name}.api.ts`);
     if (fs.existsSync(apiPath)) {
-      PomeloLogger.warn(`API route src/pages/api/${name}/page.pom already exists!`);
+      PomeloLogger.warn(
+        `API route src/api/${name}/${name}.api.ts already exists!`,
+      );
       return false;
     }
     fs.writeFileSync(
       apiPath,
-      `<Server>
-  $page(async ({ req, res }) => {
-    res.ok({
-      message: "Hello from ${name} API endpoint!"
-    });
+      `import { $router } from "@pomelo/server";
+
+const router = $router();
+
+router.get("/", (req, res) => {
+  res.ok({
+    message: "Hello from ${name} API endpoint!"
   });
-</Server>
-`
+});
+
+export default router;
+`,
     );
-    PomeloLogger.info(`Generated API route: src/pages/api/${name}/page.pom`);
+    PomeloLogger.info(`Generated API route: src/api/${name}/${name}.api.ts`);
     return true;
   }
 
@@ -117,7 +123,7 @@ export const use${storePascal}Store = $store(
     persistKey: "pomelo-${name.toLowerCase()}-store",
   }
 );
-`
+`,
     );
     PomeloLogger.info(`Generated store: src/stores/${name}.ts`);
     return true;

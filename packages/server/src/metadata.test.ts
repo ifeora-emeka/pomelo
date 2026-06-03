@@ -79,7 +79,7 @@ test("mergeMetadata deduplicates meta and link arrays correctly", () => {
   };
 
   const merged = mergeMetadata(parent, child);
-  
+
   // Theme color should be overridden to red; locale and author should be preserved
   assert.deepStrictEqual(merged.meta, [
     { name: "theme-color", content: "red" },
@@ -110,7 +110,9 @@ test("renderMetadataHTML produces accurate HTML output", () => {
       card: "summary_large_image",
     },
     meta: [{ name: "robots", content: "noindex" }],
-    links: [{ rel: "alternate", hreflang: "es", href: "https://example.com/es" }],
+    links: [
+      { rel: "alternate", hreflang: "es", href: "https://example.com/es" },
+    ],
   };
 
   const html = renderMetadataHTML(meta);
@@ -118,10 +120,20 @@ test("renderMetadataHTML produces accurate HTML output", () => {
   assert.ok(html.includes("<title>SEO Title</title>"));
   assert.ok(html.includes('<meta name="description" content="SEO Desc">'));
   assert.ok(html.includes('<link rel="canonical" href="https://example.com">'));
-  assert.ok(html.includes('<meta name="viewport" content="width=device-width, initial-scale=1">'));
+  assert.ok(
+    html.includes(
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    ),
+  );
   assert.ok(html.includes('<meta property="og:title" content="OG Title">'));
   assert.ok(html.includes('<meta property="og:type" content="article">'));
-  assert.ok(html.includes('<meta name="twitter:card" content="summary_large_image">'));
+  assert.ok(
+    html.includes('<meta name="twitter:card" content="summary_large_image">'),
+  );
   assert.ok(html.includes('<meta name="robots" content="noindex">'));
-  assert.ok(html.includes('<link rel="alternate" hreflang="es" href="https://example.com/es">'));
+  assert.ok(
+    html.includes(
+      '<link rel="alternate" hreflang="es" href="https://example.com/es">',
+    ),
+  );
 });

@@ -1,5 +1,5 @@
 import { PomeloLogger, rewriteRelativeImports } from "@pomelo/shared";
-import { scanRoutes } from "@pomelo/server";
+import { scanRoutes, compileAPIRoutes } from "@pomelo/server";
 import { compile } from "@pomelo/compiler";
 import fs from "node:fs";
 import path from "node:path";
@@ -11,7 +11,9 @@ export function executeBuildCommand(args: string[]): boolean {
   const cacheDir = path.join(process.cwd(), ".pomelo-cache");
 
   if (!fs.existsSync(pagesDir)) {
-    PomeloLogger.warn(`Pages directory ${pagesDir} does not exist. Nothing to build.`);
+    PomeloLogger.warn(
+      `Pages directory ${pagesDir} does not exist. Nothing to build.`,
+    );
     return true;
   }
 
@@ -32,7 +34,11 @@ export function executeBuildCommand(args: string[]): boolean {
         cacheDir,
         relative.replace(/[\/\\]/g, "_") + ".js",
       );
-      const rewroteCode = rewriteRelativeImports(compiled.code, route.filePath, cacheFile);
+      const rewroteCode = rewriteRelativeImports(
+        compiled.code,
+        route.filePath,
+        cacheFile,
+      );
       fs.writeFileSync(cacheFile, rewroteCode);
       if (compiled.css) {
         combinedCSS += compiled.css + "\n";
@@ -46,13 +52,20 @@ export function executeBuildCommand(args: string[]): boolean {
           cacheDir,
           "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
         );
-        const layoutRewroteCode = rewriteRelativeImports(layoutCompiled.code, layoutPath, layoutCacheFile);
+        const layoutRewroteCode = rewriteRelativeImports(
+          layoutCompiled.code,
+          layoutPath,
+          layoutCacheFile,
+        );
         fs.writeFileSync(layoutCacheFile, layoutRewroteCode);
         if (layoutCompiled.css) {
           combinedCSS += layoutCompiled.css + "\n";
         }
       }
     }
+
+    const apiDir = path.join(process.cwd(), "src/api");
+    compileAPIRoutes(apiDir, cacheDir);
 
     if (combinedCSS) {
       fs.writeFileSync(path.join(cacheDir, "bundle.css"), combinedCSS);

@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert";
-import { pomeloVitePlugin, handleSFCCompilation, generateClientModule } from "./index.js";
+import {
+  pomeloVitePlugin,
+  handleSFCCompilation,
+  generateClientModule,
+} from "./index.js";
 
 const sampleSFC = `
 <View>
@@ -100,7 +104,11 @@ test("generateClientModule produces self-accepting HMR module", () => {
   const css = ".box { color: red; }";
   const output = generateClientModule(code, css, "abc123", "test.pom");
 
-  assert.ok(output.includes('import { hydrate, injectStyle, removeStyle, destroyInstance }'));
+  assert.ok(
+    output.includes(
+      "import { hydrate, injectStyle, removeStyle, destroyInstance }",
+    ),
+  );
   assert.ok(output.includes("__pom_css__"));
   assert.ok(output.includes("import.meta.hot.accept"));
   assert.ok(output.includes("__pom_setup_hash__"));
@@ -119,7 +127,8 @@ test("generateClientModule works without CSS", () => {
 });
 
 test("generateClientModule HMR uses hotUpdate for template-only changes", () => {
-  const code = 'export function setup() { return {}; }\n// === Template Block ===\nexport function render() { return "<div>hi</div>"; }';
+  const code =
+    'export function setup() { return {}; }\n// === Template Block ===\nexport function render() { return "<div>hi</div>"; }';
   const output = generateClientModule(code, undefined, "abc123", "test.pom");
 
   assert.ok(output.includes("setupUnchanged && prevInst.hotUpdate"));

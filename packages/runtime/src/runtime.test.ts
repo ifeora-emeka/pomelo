@@ -96,7 +96,10 @@ class MockNode {
 class MockElement extends MockNode {
   tagName: string;
   private _attributesMap = new Map<string, string>();
-  listeners = new Map<string, { cb: Function; controller?: AbortController }[]>();
+  listeners = new Map<
+    string,
+    { cb: Function; controller?: AbortController }[]
+  >();
   private _value: string = "";
   private _innerHTML: string = "";
   id: string = "";

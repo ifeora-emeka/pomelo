@@ -9,8 +9,8 @@ if (isTypeScriptSource && !process.env.POMELO_CLI_RESPAWNED) {
     ["--import", "tsx", process.argv[1]!, ...process.argv.slice(2)],
     {
       stdio: "inherit",
-      env: { ...process.env, POMELO_CLI_RESPAWNED: "true" }
-    }
+      env: { ...process.env, POMELO_CLI_RESPAWNED: "true" },
+    },
   );
   child.on("exit", (code) => {
     process.exit(code ?? 0);

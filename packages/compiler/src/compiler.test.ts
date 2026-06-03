@@ -69,10 +69,16 @@ test("Compiler compiles client block setup and returns", () => {
   `;
   const result = compile(clientSFC, "pages/client.pom");
   // Top-level imports
-  assert.ok(result.code.startsWith('import { cartStore } from "@/stores/cart";'));
+  assert.ok(
+    result.code.startsWith('import { cartStore } from "@/stores/cart";'),
+  );
   // setup function structure
   assert.ok(result.code.includes("export function setup(props = {}) {"));
-  assert.ok(result.code.includes("return { cart, count, visible, increment };"));
+  assert.ok(
+    result.code.includes(
+      "return { ...props, cart, count, visible, increment };",
+    ),
+  );
 });
 
 test("Compiler compiles template features, directives, and slots", () => {
@@ -90,19 +96,27 @@ test("Compiler compiles template features, directives, and slots", () => {
       <Else>
         <div class="banner">Goodbye</div>
       </Else>
-      <slot name="footer" />
+      <Slot name="footer" />
     </div>
   </View>
   `;
   const result = compile(viewSFC, "pages/view.pom");
 
   // State deconstruction check
-  assert.ok(result.code.includes("const { dynamicClass, increment, title, username, products, prod, showBanner } = state;"));
+  assert.ok(
+    result.code.includes(
+      "const { dynamicClass, increment, title, username, products, showBanner } = state;",
+    ),
+  );
 
   // Event handlers & Bindings
   assert.ok(result.code.includes('data-pom-event-click="increment"'));
   assert.ok(result.code.includes('data-pom-bind="username"'));
-  assert.ok(result.code.includes('data-pom-event-input="username = $event.target.value"'));
+  assert.ok(
+    result.code.includes(
+      'data-pom-event-input="username = $event.target.value"',
+    ),
+  );
 
   // Class merging
   assert.ok(result.code.includes('class="box ${dynamicClass}"'));

@@ -135,8 +135,11 @@ export function transformTemplate(
     collectIdentifiers(child, identifiers);
   }
 
-
-  function compileNode(n: PomeloASTNode, lastWhen: string, activeLoopVars: string[]): { html: string; nextWhen: string } {
+  function compileNode(
+    n: PomeloASTNode,
+    lastWhen: string,
+    activeLoopVars: string[],
+  ): { html: string; nextWhen: string } {
     if (n.type === NODE_TEXT) {
       const html = n.content.replace(
         /\{\{([\s\S]*?)\}\}/g,
@@ -148,7 +151,13 @@ export function transformTemplate(
     if (n.type === NODE_ELEMENT) {
       const tagName = n.tagName!;
 
-      const isComponent = tagName && tagName.charAt(0) === tagName.charAt(0).toUpperCase() && tagName !== TAG_EACH && tagName !== TAG_WHEN && tagName !== TAG_ELSE;
+      const isComponent =
+        tagName &&
+        tagName.charAt(0) === tagName.charAt(0).toUpperCase() &&
+        tagName !== TAG_EACH &&
+        tagName !== TAG_WHEN &&
+        tagName !== TAG_ELSE &&
+        tagName !== TAG_SLOT;
       if (isComponent) {
         const propsPairs: string[] = [];
         if (n.attributes) {
@@ -162,20 +171,24 @@ export function transformTemplate(
             }
           }
         }
-        const propsObj = propsPairs.length > 0 ? `{ ${propsPairs.join(", ")} }` : `{}`;
+        const propsObj =
+          propsPairs.length > 0 ? `{ ${propsPairs.join(", ")} }` : `{}`;
         return {
           html: `\${typeof ${tagName} !== "undefined" && ${tagName}.render ? _renderComponent(${tagName}, ${propsObj}) : ""}`,
-          nextWhen: ""
+          nextWhen: "",
         };
       }
 
       if (tagName === TAG_EACH) {
         const ofAttr = n.attributes?.["of"];
         const asAttr = n.attributes?.["as"] || "item";
-        const childHTML = compileChildren(n.children || [], [...activeLoopVars, asAttr]);
+        const childHTML = compileChildren(n.children || [], [
+          ...activeLoopVars,
+          asAttr,
+        ]);
         return {
           html: `\${(${ofAttr} || []).map((${asAttr}) => \`${childHTML}\`).join("")}`,
-          nextWhen: ""
+          nextWhen: "",
         };
       }
 
@@ -184,7 +197,7 @@ export function transformTemplate(
         const childHTML = compileChildren(n.children || [], activeLoopVars);
         return {
           html: `\${${cond} ? \`${childHTML}\` : ""}`,
-          nextWhen: cond
+          nextWhen: cond,
         };
       }
 
@@ -193,7 +206,7 @@ export function transformTemplate(
         const childHTML = compileChildren(n.children || [], activeLoopVars);
         return {
           html: `\${${cond} ? \`${childHTML}\` : ""}`,
-          nextWhen: ""
+          nextWhen: "",
         };
       }
 
@@ -201,7 +214,7 @@ export function transformTemplate(
         const name = n.attributes?.["name"] || "default";
         return {
           html: `\${slots.${name} ? slots.${name}() : ""}`,
-          nextWhen: ""
+          nextWhen: "",
         };
       }
 
@@ -228,13 +241,13 @@ export function transformTemplate(
           } else if (key.startsWith("@")) {
             const eventName = key.slice(1);
             attributes.push(`data-pom-event-${eventName}="${value}"`);
-            
+
             // Serialize any active loop variables used in this event handler
             for (const loopVar of activeLoopVars) {
               const rx = new RegExp(`\\b${loopVar}\\b`);
               if (rx.test(value)) {
                 attributes.push(
-                  `data-pom-loop-item-${loopVar}="\${JSON.stringify(${loopVar}).replace(/\\"/g, '&quot;')}"`
+                  `data-pom-loop-item-${loopVar}="\${JSON.stringify(${loopVar}).replace(/\\"/g, '&quot;')}"`,
                 );
               }
             }
@@ -270,21 +283,24 @@ export function transformTemplate(
       if (isVoid) {
         return {
           html: `<${tagName}${attrsStr} />`,
-          nextWhen: ""
+          nextWhen: "",
         };
       }
 
       const childHTML = compileChildren(n.children || [], activeLoopVars);
       return {
         html: `<${tagName}${attrsStr}>${childHTML}</${tagName}>`,
-        nextWhen: ""
+        nextWhen: "",
       };
     }
 
     return { html: "", nextWhen: lastWhen };
   }
 
-  function compileChildren(children: PomeloASTNode[], activeLoopVars: string[]): string {
+  function compileChildren(
+    children: PomeloASTNode[],
+    activeLoopVars: string[],
+  ): string {
     let html = "";
     let currentWhen = "";
     for (const child of children) {
