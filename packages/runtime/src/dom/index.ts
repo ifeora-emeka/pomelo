@@ -96,7 +96,7 @@ function morphChildren(oldParent: HTMLElement, newParent: HTMLElement) {
   const oldKeyed = new Map<string, Node>();
   for (const child of oldChildren) {
     if (child.nodeType === 1) {
-      const key = (child as HTMLElement).getAttribute("data-pom-key");
+      const key = (child as HTMLElement).getAttribute("data-kal-key");
       if (key) {
         oldKeyed.set(key, child);
       }
@@ -106,7 +106,7 @@ function morphChildren(oldParent: HTMLElement, newParent: HTMLElement) {
   const newKeyed = new Set<string>();
   for (const child of newChildren) {
     if (child.nodeType === 1) {
-      const key = (child as HTMLElement).getAttribute("data-pom-key");
+      const key = (child as HTMLElement).getAttribute("data-kal-key");
       if (key) {
         newKeyed.add(key);
       }
@@ -127,7 +127,7 @@ function morphChildren(oldParent: HTMLElement, newParent: HTMLElement) {
     const oldChild = currentOldChildren[i];
 
     if (newChild.nodeType === 1) {
-      const newKey = (newChild as HTMLElement).getAttribute("data-pom-key");
+      const newKey = (newChild as HTMLElement).getAttribute("data-kal-key");
       if (newKey && oldKeyed.has(newKey)) {
         const existingNode = oldKeyed.get(newKey)!;
         if (oldChild !== existingNode) {
@@ -155,7 +155,7 @@ function morphChildren(oldParent: HTMLElement, newParent: HTMLElement) {
 
 export function injectStyle(css: string, componentId: string): void {
   if (typeof document === "undefined") return;
-  const styleId = `pom-style-${componentId}`;
+  const styleId = `kallo-style-${componentId}`;
   const existing = document.getElementById(styleId);
   if (existing) {
     existing.textContent = css;
@@ -169,7 +169,7 @@ export function injectStyle(css: string, componentId: string): void {
 
 export function removeStyle(componentId: string): void {
   if (typeof document === "undefined") return;
-  const styleId = `pom-style-${componentId}`;
+  const styleId = `kallo-style-${componentId}`;
   const existing = document.getElementById(styleId);
   if (existing) {
     existing.remove();
@@ -202,7 +202,7 @@ export function setupEventDelegation(
       eventName,
       (event) => {
         let target = event.target as HTMLElement | null;
-        const attrName = `data-pom-event-${eventName}`;
+        const attrName = `data-kal-event-${eventName}`;
         while (target && target !== container.parentElement) {
           if (target.hasAttribute && target.hasAttribute(attrName)) {
             const expr = target.getAttribute(attrName);
@@ -212,9 +212,9 @@ export function setupEventDelegation(
               while (current && current !== container.parentElement) {
                 if (current.attributes) {
                   for (const attr of Array.from(current.attributes)) {
-                    if (attr.name.startsWith("data-pom-loop-item-")) {
+                    if (attr.name.startsWith("data-kal-loop-item-")) {
                       const varName = attr.name.slice(
-                        "data-pom-loop-item-".length,
+                        "data-kal-loop-item-".length,
                       );
                       if (!(varName in loopVars)) {
                         try {
@@ -239,28 +239,50 @@ export function setupEventDelegation(
                 },
                 get(target, key) {
                   if (key === "state") return stateProxy;
+                  const raw = stateProxy.__raw__;
+                  if (raw && key in raw && raw[key] && typeof raw[key] === "object" && typeof (raw[key] as any).get === "function") {
+                    return raw[key];
+                  }
                   if (key in target) {
                     return target[key as string];
+                  }
+                  if (raw && key in raw) {
+                    return raw[key];
                   }
                   return Reflect.get(stateProxy, key);
                 },
                 set(target, key, value) {
+                  const raw = stateProxy.__raw__;
+                  if (raw && key in raw && raw[key] && typeof raw[key] === "object" && typeof (raw[key] as any).set === "function") {
+                    (raw[key] as any).set(value);
+                    return true;
+                  }
                   if (key in target) {
                     target[key as string] = value;
+                    return true;
+                  }
+                  if (raw && key in raw) {
+                    raw[key] = value;
                     return true;
                   }
                   return Reflect.set(stateProxy, key, value);
                 },
               });
 
-              const fn = new Function(
-                "state",
-                "$event",
-                `with(state) { return (${expr}); }`,
-              );
-              const evaluated = fn(eventState, event);
-              if (typeof evaluated === "function") {
-                evaluated(event);
+              console.log("[Kallo Runtime] Executing event expression:", expr);
+              try {
+                const fn = new Function(
+                  "state",
+                  "$event",
+                  `with(state) { return (${expr}); }`,
+                );
+                const evaluated = fn(eventState, event);
+                if (typeof evaluated === "function") {
+                  evaluated(event);
+                }
+                console.log("[Kallo Runtime] Event executed successfully");
+              } catch (err) {
+                console.error("[Kallo Runtime] Error executing event expression:", expr, err);
               }
             }
             break;
@@ -315,6 +337,7 @@ export function hydrate(
       return key in target || key === "state";
     },
     get(target, key) {
+      if (key === "__raw__") return target;
       const val = target[key];
       if (val && typeof val === "object" && typeof val.get === "function") {
         return val.get();
@@ -378,9 +401,151 @@ export function hydrate(
     container.innerHTML = "";
   };
 
+  activePageInstance = instance;
   return instance;
 }
 
 export function destroyInstance(instance: ComponentInstance): void {
   instance.teardown();
+}
+
+export let activePageInstance: ComponentInstance | null = null;
+
+export function navigateTo(href: string, pushState = true): Promise<void> {
+  return fetch(href, { headers: { "X-Kallo-Navigation": "true" } })
+    .then((res) => {
+      if (!res.ok) {
+        window.location.href = href;
+        return;
+      }
+      return res.json();
+    })
+    .then(async (data) => {
+      if (!data) return;
+      if (pushState) {
+        window.history.pushState(null, "", href);
+      }
+      if (data.metadata && data.metadata.title) {
+        document.title = data.metadata.title;
+      }
+
+      const [componentMod, ...layoutMods] = await Promise.all([
+        import(`/@kallo/view/${data.cacheFileName}`),
+        ...(data.layoutCacheFileNames || []).map((f: string) => import(`/@kallo/view/${f}`))
+      ]);
+
+      if (activePageInstance) {
+        activePageInstance.teardown();
+      }
+
+      const appContainer = document.getElementById("app");
+      if (appContainer) {
+        if (componentMod.css) {
+          injectStyle(componentMod.css, data.componentId || "page");
+        }
+        layoutMods.forEach((mod, idx) => {
+          if (mod.css) {
+            injectStyle(mod.css, mod.componentId || `layout_${idx}`);
+          }
+        });
+
+        const pageState = {
+          ...data.state,
+          ...(componentMod.setup ? componentMod.setup(data.state) : {}),
+        };
+
+        const layoutStates: any[] = [];
+        for (let i = 0; i < (data.layoutStates || []).length; i++) {
+          const layoutMod = layoutMods[i];
+          const s = data.layoutStates[i];
+          const layoutState = {
+            ...s,
+            ...(layoutMod && layoutMod.setup ? layoutMod.setup(s) : {}),
+          };
+          layoutStates.push(layoutState);
+        }
+
+        const combinedState = { ...pageState };
+        for (const s of layoutStates) {
+          Object.assign(combinedState, s);
+        }
+
+        const combinedRender = (state: any) => {
+          let html = componentMod.render ? componentMod.render(state) : "";
+          for (let i = layoutMods.length - 1; i >= 0; i--) {
+            const layoutMod = layoutMods[i];
+            if (layoutMod) {
+              const layoutStateForRender = { ...state, ...layoutStates[i] };
+              html = layoutMod.render
+                ? layoutMod.render(layoutStateForRender, { default: () => html })
+                : html;
+            }
+          }
+          return html;
+        };
+
+        const temp = document.createElement("div");
+        temp.innerHTML = combinedRender(combinedState);
+
+        const oldChildren = Array.from(appContainer.childNodes);
+        const newChildren = Array.from(temp.childNodes);
+        const maxLen = Math.max(oldChildren.length, newChildren.length);
+        for (let i = 0; i < maxLen; i++) {
+          const oldChild = oldChildren[i];
+          const newChild = newChildren[i];
+          if (oldChild === undefined && newChild !== undefined) {
+            appContainer.appendChild(newChild.cloneNode(true));
+          } else if (newChild === undefined && oldChild !== undefined) {
+            appContainer.removeChild(oldChild);
+          } else if (oldChild !== undefined && newChild !== undefined) {
+            morph(oldChild, newChild);
+          }
+        }
+
+        activePageInstance = hydrate(
+          appContainer,
+          {
+            setup: () => combinedState,
+            render: combinedRender,
+            css: componentMod.css || "",
+            componentId: data.componentId || "page",
+          },
+          combinedState
+        );
+      }
+    })
+    .catch((err) => {
+      console.error("[Kallo Router] Navigation error, falling back:", err);
+      window.location.href = href;
+    });
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("click", (e) => {
+    let target = e.target as HTMLElement | null;
+    while (target && target.tagName !== "A") {
+      target = target.parentElement;
+    }
+    if (target && target.tagName === "A") {
+      const href = target.getAttribute("href");
+      if (
+        href &&
+        href.startsWith("/") &&
+        !href.startsWith("//") &&
+        !target.hasAttribute("download") &&
+        target.getAttribute("target") !== "_blank" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        navigateTo(href);
+      }
+    }
+  });
+
+  window.addEventListener("popstate", () => {
+    navigateTo(window.location.pathname, false);
+  });
 }

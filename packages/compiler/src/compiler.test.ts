@@ -105,7 +105,7 @@ test("Compiler compiles template features, directives, and slots", () => {
   // State deconstruction check
   assert.ok(
     result.code.includes(
-      "const { dynamicClass, increment, title, username, products, showBanner } = state;",
+      "const { dynamicClass, increment, title, username, products, showBanner } = state.__raw__ || state;",
     ),
   );
 
@@ -119,7 +119,7 @@ test("Compiler compiles template features, directives, and slots", () => {
   );
 
   // Class merging
-  assert.ok(result.code.includes('class="box ${dynamicClass}"'));
+  assert.ok(result.code.includes('class="box ${_formatClass(dynamicClass)}"'));
 
   // Loops and Conditionals
   assert.ok(result.code.includes("(products || []).map((prod) =>"));

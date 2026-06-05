@@ -85,10 +85,16 @@ export function replaceEnvVars(content: string): string {
 
 export function stripServerBlock(code: string): string {
   const serverBlockMarker = "// === Server Block ===";
+  const endServerBlockMarker = "// === End Server Block ===";
   const clientBlockMarker = "// === Client Block ===";
 
   const serverIndex = code.indexOf(serverBlockMarker);
   if (serverIndex === -1) return code;
+
+  const endIndex = code.indexOf(endServerBlockMarker);
+  if (endIndex !== -1) {
+    return code.slice(0, serverIndex) + code.slice(endIndex + endServerBlockMarker.length);
+  }
 
   const clientIndex = code.indexOf(clientBlockMarker);
   if (clientIndex !== -1) {

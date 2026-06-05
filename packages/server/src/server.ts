@@ -872,11 +872,15 @@ export async function handleSSRWithLayouts(
       query: req.query,
     };
 
-    if (component.$serverGuard) {
+     if (component.$serverGuard) {
       const allowed = await component.$serverGuard(ctx);
       if (allowed === false) {
         if (!res.headersSent) {
-          res.forbidden();
+          if (typeof res.forbidden === "function") {
+            res.forbidden();
+          } else {
+            res.status(403).send("Forbidden");
+          }
         }
         return;
       }
@@ -887,7 +891,11 @@ export async function handleSSRWithLayouts(
         const allowed = await layout.$serverGuard(ctx);
         if (allowed === false) {
           if (!res.headersSent) {
-            res.forbidden();
+            if (typeof res.forbidden === "function") {
+              res.forbidden();
+            } else {
+              res.status(403).send("Forbidden");
+            }
           }
           return;
         }
@@ -989,6 +997,14 @@ export async function handleSSRWithLayouts(
         styleHTML += `<style id="kallo-style-${layout.componentId || "layout_" + i}">${layout.css}</style>`;
       }
     }
+    if ((ssrCtx as any).css) {
+      for (const itemStr of (ssrCtx as any).css) {
+        try {
+          const item = JSON.parse(itemStr);
+          styleHTML += `<style id="kallo-style-${item.id}">${item.css}</style>`;
+        } catch {}
+      }
+    }
 
     const routePath = req.route?.path || req.path;
     const resolvedCacheFileName =
@@ -998,6 +1014,24 @@ export async function handleSSRWithLayouts(
         : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}${SFC_EXTENSION}.js`);
     const componentId = component.componentId || "app";
     const stateJSON = JSON.stringify(state);
+
+    if (req.headers && req.headers["x-kallo-navigation"]) {
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          html: htmlContent,
+          state: state,
+          layoutStates: layoutStates,
+          cacheFileName: resolvedCacheFileName,
+          layoutCacheFileNames: layoutCacheFileNames,
+          componentId: component.componentId || "app",
+          metadata: {
+            title: (mergedMeta as any).title || "",
+          },
+        })
+      );
+      return;
+    }
 
     let hydrationScript = "";
     if (layouts.length > 0) {
@@ -1043,7 +1077,11 @@ export async function handleSSRWithLayouts(
         (err instanceof Error ? err.stack : String(err)),
     );
     if (!res.headersSent) {
-      res.serverError(err.message);
+      if (typeof res.serverError === "function") {
+        res.serverError(err.message);
+      } else {
+        res.status(500).send(err.message || "Internal Server Error");
+      }
     }
   }
 }
@@ -1054,10 +1092,36 @@ export interface ServerInstance {
 }
 
 function rewriteBrowserImports(content: string): string {
-  return content.replace(
+  let result = content.replace(
     /(\b(?:import|export)\s+[\s\S]*?\s+from\s+['"]|import\s+['"])@kallo\/runtime(['"])/g,
     "$1/@kallo/runtime/index.js$2",
   );
+
+  const pomPackages = ["@kallo/runtime", "@kallo/shared", "@kallo/types"];
+  for (const pkg of pomPackages) {
+    const pkgDir = resolvePackageToAbsolute(pkg);
+    if (!pkgDir) continue;
+
+    const absEntry = `file://${pkgDir.replace(/\\/g, "/")}`;
+    const escapedPkgDir = absEntry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(
+      `(\\b(?:import|export)\\s+[\\s\\S]*?\\s+from\\s+['"]|import\\s+['"])${escapedPkgDir}([^'"]*)(['"])`,
+      "g",
+    );
+
+    const shortName = pkg.replace("@kallo/", "");
+    result = result.replace(regex, (match, prefix, subpath, suffix) => {
+      let targetPath = `/@kallo/${shortName}${subpath}`;
+      if (subpath.startsWith("/dist/")) {
+        targetPath = `/@kallo/${shortName}/${subpath.slice(6)}`;
+      } else if (subpath === "/dist/index.js") {
+        targetPath = `/@kallo/${shortName}/index.js`;
+      }
+      return `${prefix}${targetPath}${suffix}`;
+    });
+  }
+
+  return result;
 }
 
 export function createServer(config: FrameworkConfig): ServerInstance {

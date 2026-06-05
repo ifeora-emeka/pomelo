@@ -23,5 +23,5 @@ export function transformServer(node: KalloASTNode): string {
     "export const $serverLayout = (",
   );
 
-  return `// === Server Block ===\n${ABORT_HELPER}${content}\n`;
+  return `// === Server Block ===\n${ABORT_HELPER}${content}\n// === End Server Block ===\n`;
 }

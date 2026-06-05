@@ -24,7 +24,7 @@ export interface FrameworkConfig {
 }
 
 export interface KalloASTNode {
-  type: "Server" | "Client" | "View" | "Style" | "Text" | "Element";
+  type: "Server" | "Client" | "View" | "Style" | "Text" | "Element" | "Head";
   content: string;
   tagName?: string;
   attributes?: Record<string, string>;

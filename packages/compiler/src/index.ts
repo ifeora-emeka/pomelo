@@ -46,6 +46,9 @@ export function compile(source: string, filename: string): CompilerResult {
     process.env.KALLO_TEST === "true" ||
     process.env.KALLO_ENV === "test";
 
+  let viewNode: any = null;
+  let headNode: any = null;
+
   for (const node of ast.children) {
     if (node.type === BLOCK_SERVER) {
       if (!isPageOrLayout) {
@@ -59,9 +62,18 @@ export function compile(source: string, filename: string): CompilerResult {
       clientCode += transformClient(node);
     } else if (node.type === BLOCK_STYLE) {
       cssCode += transformStyle(node, componentId);
+    } else if (node.type === "Head") {
+      if (!isPageOrLayout) {
+        throw new Error(`Using the <Head> block outside page.kal, layout.kal, or index.kal is not allowed (found in ${filename}).`);
+      }
+      headNode = node;
     } else if (node.type === BLOCK_VIEW) {
-      templateCode += transformTemplate(node, componentId);
+      viewNode = node;
     }
+  }
+
+  if (viewNode) {
+    templateCode += transformTemplate(viewNode, componentId, headNode);
   }
 
   const cssExport = cssCode

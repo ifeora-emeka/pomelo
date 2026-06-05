@@ -11,6 +11,7 @@ export const BLOCKS: readonly string[] = [
   BLOCK_CLIENT,
   BLOCK_VIEW,
   BLOCK_STYLE,
+  "Head",
 ];
 
 export const TAG_EACH = "Each";

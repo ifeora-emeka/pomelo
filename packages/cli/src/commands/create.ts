@@ -53,11 +53,51 @@ export function executeCreateCommand(args: string[]): boolean {
           },
           devDependencies: {
             "@kallo/cli": "workspace:*",
+            "tailwindcss": "^3.4.1",
+            "postcss": "^8.4.35",
+            "autoprefixer": "^10.4.18",
           },
         },
         null,
         2,
       ),
+    );
+
+    // Write Tailwind and PostCSS Configs
+    fs.writeFileSync(
+      path.join(targetDir, "tailwind.config.js"),
+      `/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./src/**/*.{html,js,ts,kal}",
+    "./index.html"
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+`
+    );
+
+    fs.writeFileSync(
+      path.join(targetDir, "postcss.config.js"),
+      `export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+`
+    );
+
+    fs.mkdirSync(path.join(targetDir, "src/styles"), { recursive: true });
+    fs.writeFileSync(
+      path.join(targetDir, "src/styles/global.css"),
+      `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+`
     );
 
     if (template === "ecommerce") {
@@ -431,6 +471,7 @@ export default router;
 </Server>
 
 <Client>
+  import "../styles/global.css";
   import { useCartStore } from "../stores/cart.js";
   const cart = useCartStore;
 </Client>

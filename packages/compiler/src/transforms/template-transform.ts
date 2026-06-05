@@ -129,10 +129,14 @@ function collectIdentifiers(node: KalloASTNode, set: Set<string>): void {
 export function transformTemplate(
   node: KalloASTNode,
   componentId: string,
+  headNode?: KalloASTNode,
 ): string {
   const identifiers = new Set<string>();
   for (const child of node.children || []) {
     collectIdentifiers(child, identifiers);
+  }
+  if (headNode) {
+    collectIdentifiers(headNode, identifiers);
   }
 
   function compileNode(
@@ -143,7 +147,7 @@ export function transformTemplate(
     if (n.type === NODE_TEXT) {
       const html = n.content.replace(
         /\{\{([\s\S]*?)\}\}/g,
-        (_, expr) => `\${${expr.trim()}}`,
+        (_, expr) => `\${_unwrapSignal(${expr.trim()})}`,
       );
       return { html, nextWhen: lastWhen };
     }
@@ -183,7 +187,7 @@ export function transformTemplate(
       if (tagName === "Head") {
         const childHTML = compileChildren(n.children || [], activeLoopVars);
         return {
-          html: `\${(typeof globalThis !== "undefined" && (globalThis as any).__kallo_ssr_context__) ? ((globalThis as any).__kallo_ssr_context__.headTags.push(\`${childHTML}\`), "") : ""}`,
+          html: `\${(typeof globalThis !== "undefined" && (globalThis as any).__kallo_ssr_context__) ? ((globalThis as any).__kallo_ssr_context__.headTags.push(\`${childHTML}\`), "") : _injectHead(\`${childHTML}\`)}`,
           nextWhen: "",
         };
       }
@@ -263,12 +267,12 @@ export function transformTemplate(
           } else if (key.startsWith(":")) {
             const propName = key.slice(1);
             attributes.push(`data-kal-bind-${propName}="${value}"`);
-            attributes.push(`${propName}="\${${value}}"`);
+            attributes.push(`${propName}="\${_unwrapSignal(${value})}"`);
           } else {
             // Static attribute (with interpolation support)
             const interpolatedValue = value.replace(
               /\{\{([\s\S]*?)\}\}/g,
-              (_, expr) => `\${${expr.trim()}}`,
+              (_, expr) => `\${_unwrapSignal(${expr.trim()})}`,
             );
             attributes.push(`${key}="${interpolatedValue}"`);
           }
@@ -278,11 +282,11 @@ export function transformTemplate(
       // Merge class and :class
       if (className || dynamicClass) {
         if (className && dynamicClass) {
-          attributes.push(`class="${className} \${${dynamicClass}}"`);
+          attributes.push(`class="${className} \${_formatClass(${dynamicClass})}"`);
         } else if (className) {
           attributes.push(`class="${className}"`);
         } else if (dynamicClass) {
-          attributes.push(`class="\${${dynamicClass}}"`);
+          attributes.push(`class="\${_formatClass(${dynamicClass})}"`);
         }
       }
 
@@ -349,21 +353,78 @@ export function transformTemplate(
 
   const deconstruct =
     identifiers.size > 0
-      ? `  const { ${Array.from(identifiers).join(", ")} } = state;\n`
+      ? `  const { ${Array.from(identifiers).join(", ")} } = state.__raw__ || state;\n`
       : "";
 
   const content = compileChildren(node.children || [], []);
+  let headInject = "";
+  if (headNode) {
+    const headChildrenHTML = compileChildren(headNode.children || [], []);
+    headInject = `\${(typeof globalThis !== "undefined" && (globalThis as any).__kallo_ssr_context__) ? ((globalThis as any).__kallo_ssr_context__.headTags.push(\\\`${headChildrenHTML}\\\`), "") : _injectHead(\\\`${headChildrenHTML}\\\`)}`;
+  }
+
   return `export function render(state = {}, slots = {}) {
   function _unwrapSignal(v) {
     return (v !== null && v !== undefined && typeof v === "object" && typeof v.get === "function") ? v.get() : v;
   }
+  function _formatClass(value) {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) {
+      return value.map(_formatClass).filter(Boolean).join(" ");
+    }
+    if (typeof value === "object") {
+      return Object.keys(value).filter(function(k) { return _unwrapSignal(value[k]); }).join(" ");
+    }
+    return String(value);
+  }
   function _renderComponent(C, props) {
     if (!C || !C.render) return "";
+    if (typeof globalThis !== "undefined" && globalThis.__kallo_ssr_context__ && C.css && C.componentId) {
+      if (!globalThis.__kallo_ssr_context__.css) {
+        globalThis.__kallo_ssr_context__.css = new Set();
+      }
+      globalThis.__kallo_ssr_context__.css.add(JSON.stringify({ id: C.componentId, css: C.css }));
+    }
     var unwrappedProps = {};
     for (var _k in props) { unwrappedProps[_k] = typeof props[_k] === "function" ? props[_k] : _unwrapSignal(props[_k]); }
-    var _s = C.setup ? Object.assign({}, C.setup(unwrappedProps), unwrappedProps) : unwrappedProps;
+    var _s = C.setup ? Object.assign({}, C.setup(props), props) : props;
     var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-kal-loop-item-' + e[0] + '="' + JSON.stringify(e[1]).replace(/"/g, '&quot;') + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
     return '<span data-kal-component style="display:contents"' + (_a ? ' ' + _a : '') + '>' + C.render(_s) + '</span>';
+  }
+  function _injectHead(html) {
+    if (typeof document === "undefined") return "";
+    var temp = document.createElement("div");
+    temp.innerHTML = html;
+    Array.from(temp.childNodes).forEach(function(node) {
+      if (node.nodeType === 1) {
+        var el = node;
+        var selector = "";
+        if (el.tagName === "TITLE") selector = "title";
+        else if (el.tagName === "META") {
+          var name = el.getAttribute("name");
+          var prop = el.getAttribute("property");
+          if (name) selector = 'meta[name="' + name + '"]';
+          else if (prop) selector = 'meta[property="' + prop + '"]';
+        } else if (el.tagName === "LINK") {
+          var rel = el.getAttribute("rel");
+          var href = el.getAttribute("href");
+          if (rel && href) selector = 'link[rel="' + rel + '"][href="' + href + '"]';
+        } else if (el.tagName === "SCRIPT") {
+          var src = el.getAttribute("src");
+          if (src) selector = 'script[src="' + src + '"]';
+        }
+        if (selector) {
+          var existing = document.head.querySelector(selector);
+          if (existing) {
+            if (el.tagName === "TITLE") existing.textContent = el.textContent;
+            return;
+          }
+        }
+        document.head.appendChild(el.cloneNode(true));
+      }
+    });
+    return "";
   }
   if (typeof document !== "undefined" && typeof css !== "undefined" && css && !document.getElementById("kallo-style-${componentId}")) {
     const styleEl = document.createElement("style");
@@ -371,7 +432,7 @@ export function transformTemplate(
     styleEl.textContent = css;
     document.head.appendChild(styleEl);
   }
-${deconstruct}  return \`${content}\`;
+${deconstruct}  return \`${content}${headInject}\`;
 }
 `;
 }

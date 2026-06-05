@@ -3,13 +3,27 @@ import type { KalloASTNode } from "@kallo/types";
 export function transformClient(node: KalloASTNode): string {
   // Extract imports to place them at the top level
   const imports: string[] = [];
-  const cleanContent = node.content.replace(
-    /import\s+[\s\S]*?\s+from\s+['"][^'"]+['"];?/g,
-    (match) => {
-      imports.push(match);
+  let cleanContent = node.content;
+
+  // 1. Match standard imports with 'from' (prevent spanning across other 'import' keywords)
+  const fromRegex = /import\s+((?:(?!import)[\s\S])*?)\s+from\s+['"]([^'"]+)['"];?/g;
+  cleanContent = cleanContent.replace(fromRegex, (match, specifiers, importPath) => {
+    if (importPath.endsWith(".css")) {
       return "";
-    },
-  );
+    }
+    imports.push(match);
+    return "";
+  });
+
+  // 2. Match side-effect imports without 'from'
+  const sideEffectRegex = /import\s+['"]([^'"]+)['"];?/g;
+  cleanContent = cleanContent.replace(sideEffectRegex, (match, importPath) => {
+    if (importPath.endsWith(".css")) {
+      return "";
+    }
+    imports.push(match);
+    return "";
+  });
 
   // Find all declared variable and function names at the top level of client block
   const declaredNames = new Set<string>();

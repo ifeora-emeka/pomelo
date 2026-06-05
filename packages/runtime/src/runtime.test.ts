@@ -362,7 +362,7 @@ test("DOM morph function syncs elements and attributes", () => {
 
 test("Component hydration sets up reactivity, event delegation and mounts", () => {
   const mockContainer = new MockElement("div");
-  mockContainer.innerHTML = `<button data-pom-event-click="increment">0</button>`;
+  mockContainer.innerHTML = `<button data-kal-event-click="increment">0</button>`;
 
   const component = {
     setup() {
@@ -377,7 +377,7 @@ test("Component hydration sets up reactivity, event delegation and mounts", () =
       return { count, increment, mounted };
     },
     render(state: any) {
-      return `<button data-pom-event-click="increment">${state.count}</button>`;
+      return `<button data-kal-event-click="increment">${state.count}</button>`;
     },
   };
 
@@ -425,7 +425,7 @@ test("Component destroy teardown cleans up listeners and styles", () => {
 test("injectStyle creates and removeStyle removes style element", () => {
   styleStore.clear();
   injectStyle(".foo { color: blue; }", "inject-test");
-  const styleEl = styleStore.get("pom-style-inject-test");
+  const styleEl = styleStore.get("kallo-style-inject-test");
   assert.ok(styleEl);
 
   removeStyle("inject-test");
