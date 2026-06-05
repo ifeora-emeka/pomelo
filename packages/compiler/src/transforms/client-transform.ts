@@ -1,6 +1,6 @@
-import type { PomeloASTNode } from "@pomelo/types";
+import type { KalloASTNode } from "@kallo/types";
 
-export function transformClient(node: PomeloASTNode): string {
+export function transformClient(node: KalloASTNode): string {
   // Extract imports to place them at the top level
   const imports: string[] = [];
   const cleanContent = node.content.replace(

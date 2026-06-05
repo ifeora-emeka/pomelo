@@ -1,8 +1,8 @@
 ## About
 
-Pomelo is a TypeScript-first fullstack framework built on Express.
+Kallo is a TypeScript-first fullstack framework built on Express.
 
-Pomelo is inspired by Vue, Laravel, Next.js, and Svelte, but it is not intended to clone any of them. When implementing features, prefer Pomelo-native APIs, naming, and developer experience.
+Kallo is inspired by Vue, Laravel, Next.js, and Svelte, but it is not intended to clone any of them. When implementing features, prefer Kallo-native APIs, naming, and developer experience.
 
 This repository is a Turborepo monorepo.
 
@@ -90,7 +90,7 @@ Do not introduce reverse dependencies.
 - Reuse shared utilities
 - Follow existing naming conventions
 - Preserve backwards compatibility when possible
-- Always create test pomelo project in a temp dir which should be ignored by git. This way it is tested and ran in isolation.
+- Always create test kallo project in a temp dir which should be ignored by git. This way it is tested and ran in isolation.
 
 ### Don't
 
@@ -153,4 +153,4 @@ When uncertain:
 3. Follow existing patterns.
 4. Choose consistency over novelty.
 
-Do not invent new architectural patterns when an existing Pomelo pattern already exists.
+Do not invent new architectural patterns when an existing Kallo pattern already exists.

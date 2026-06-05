@@ -23,17 +23,17 @@ export interface FrameworkConfig {
   auth?: AuthConfig;
 }
 
-export interface PomeloASTNode {
+export interface KalloASTNode {
   type: "Server" | "Client" | "View" | "Style" | "Text" | "Element";
   content: string;
   tagName?: string;
   attributes?: Record<string, string>;
-  children?: PomeloASTNode[];
+  children?: KalloASTNode[];
 }
 
-export interface PomeloAST {
+export interface KalloAST {
   type: "Root";
-  children: PomeloASTNode[];
+  children: KalloASTNode[];
 }
 
 export interface CompilerOptions {

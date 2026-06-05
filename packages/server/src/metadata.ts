@@ -1,4 +1,4 @@
-import type { Metadata } from "@pomelo/types";
+import type { Metadata } from "@kallo/types";
 
 export function mergeMetadata(parent: Metadata, child: Metadata): Metadata {
   const merged: Metadata = {

@@ -1,8 +1,8 @@
-import type { PomeloASTNode } from "@pomelo/types";
-import { SCOPED_CSS_PREFIX } from "@pomelo/shared";
+import type { KalloASTNode } from "@kallo/types";
+import { SCOPED_CSS_PREFIX } from "@kallo/shared";
 
 export function transformStyle(
-  node: PomeloASTNode,
+  node: KalloASTNode,
   componentId: string,
 ): string {
   const content = node.content.replace(/([^\r\n,{}]+)(?=\s*\{)/g, (match) => {

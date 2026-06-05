@@ -1,5 +1,5 @@
 {
-  "name": "@pomelo/runtime",
+  "name": "@kallo/runtime",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,7 +12,7 @@
     "test": "node --test dist/**/*.test.js"
   },
   "dependencies": {
-    "@pomelo/types": "workspace:*",
-    "@pomelo/shared": "workspace:*"
+    "@kallo/types": "workspace:*",
+    "@kallo/shared": "workspace:*"
   }
 }

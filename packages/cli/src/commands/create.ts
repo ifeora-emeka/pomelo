@@ -1,9 +1,9 @@
-import { PomeloLogger } from "@pomelo/shared";
+import { KalloLogger } from "@kallo/shared";
 import fs from "node:fs";
 import path from "node:path";
 
 export function executeCreateCommand(args: string[]): boolean {
-  const appName = args[0] || "my-pomelo-app";
+  const appName = args[0] || "my-kallo-app";
   const targetDir = path.resolve(process.cwd(), appName);
 
   const templateIdx = args.indexOf("--template");
@@ -15,12 +15,12 @@ export function executeCreateCommand(args: string[]): boolean {
     template = "ecommerce";
   }
 
-  PomeloLogger.info(
-    `Scaffolding new Pomelo project in ${targetDir} with template '${template}'...`,
+  KalloLogger.info(
+    `Scaffolding new Kallo project in ${targetDir} with template '${template}'...`,
   );
 
   if (fs.existsSync(targetDir)) {
-    PomeloLogger.warn(`Directory ${appName} already exists!`);
+    KalloLogger.warn(`Directory ${appName} already exists!`);
     return false;
   }
 
@@ -40,16 +40,16 @@ export function executeCreateCommand(args: string[]): boolean {
           private: true,
           type: "module",
           scripts: {
-            dev: "pomelo dev",
-            build: "pomelo build",
-            start: "pomelo start",
+            dev: "kallo dev",
+            build: "kallo build",
+            start: "kallo start",
           },
           dependencies: {
-            "@pomelo/runtime": "workspace:*",
-            "@pomelo/server": "workspace:*",
+            "@kallo/runtime": "workspace:*",
+            "@kallo/server": "workspace:*",
           },
           devDependencies: {
-            "@pomelo/cli": "workspace:*",
+            "@kallo/cli": "workspace:*",
           },
         },
         null,
@@ -60,11 +60,11 @@ export function executeCreateCommand(args: string[]): boolean {
     if (template === "ecommerce") {
       fs.writeFileSync(
         path.join(targetDir, "src/stores/cart.ts"),
-        `import { $store } from "@pomelo/runtime";
+        `import { $store } from "@kallo/runtime";
 
 export const useCartStore = $store({
-  items: (typeof window !== "undefined" && localStorage.getItem("pomelo_cart"))
-    ? JSON.parse(localStorage.getItem("pomelo_cart") || "[]")
+  items: (typeof window !== "undefined" && localStorage.getItem("kallo_cart"))
+    ? JSON.parse(localStorage.getItem("kallo_cart") || "[]")
     : [] as Array<{ id: string; name: string; price: number; qty: number }>,
   get total() {
     return this.items.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -80,7 +80,7 @@ export const useCartStore = $store({
       this.items.push({ ...item, qty: 1 });
     }
     if (typeof window !== "undefined") {
-      localStorage.setItem("pomelo_cart", JSON.stringify(this.items));
+      localStorage.setItem("kallo_cart", JSON.stringify(this.items));
     }
   },
   removeItem(id: string) {
@@ -93,7 +93,7 @@ export const useCartStore = $store({
         this.items.splice(idx, 1);
       }
       if (typeof window !== "undefined") {
-        localStorage.setItem("pomelo_cart", JSON.stringify(this.items));
+        localStorage.setItem("kallo_cart", JSON.stringify(this.items));
       }
     }
   },
@@ -104,7 +104,7 @@ export const useCartStore = $store({
   clear() {
     this.items = [];
     if (typeof window !== "undefined") {
-      localStorage.removeItem("pomelo_cart");
+      localStorage.removeItem("kallo_cart");
     }
   }
 });
@@ -214,7 +214,7 @@ export class ProductController {
       });
       fs.writeFileSync(
         path.join(targetDir, "src/api/products/products.api.ts"),
-        `import { $router } from "@pomelo/server";
+        `import { $router } from "@kallo/server";
 import { ProductController } from "./controllers/product.controller.js";
 
 const router = $router();
@@ -453,7 +453,7 @@ export default router;
         `<Server>
   $page(async () => {
     return {
-      storeName: "Pomelo Elite Tech Store"
+      storeName: "Kallo Elite Tech Store"
     };
   });
 </Server>
@@ -534,7 +534,7 @@ export default router;
 
   $meta(() => {
     return {
-      title: "Pomelo Elite Tech Store - Home of Premium Tech",
+      title: "Kallo Elite Tech Store - Home of Premium Tech",
       description: "Discover our premium tech product catalog. Shop wireless headsets, mechanical keyboards, ultra-wide 4K monitors, and ergonomic furniture."
     };
   });
@@ -657,7 +657,7 @@ export default router;
 
   $meta((state) => {
     return {
-      title: state.product ? state.product.name + " | Pomelo Store" : "Product Not Found",
+      title: state.product ? state.product.name + " | Kallo Store" : "Product Not Found",
       description: state.product ? state.product.description : "View our premium product details."
     };
   });
@@ -665,7 +665,7 @@ export default router;
 
 <Client>
   import { useCartStore } from "../../../stores/cart.js";
-  import { $local } from "@pomelo/runtime";
+  import { $local } from "@kallo/runtime";
   import ProductInfo from "../../../components/ProductInfo.pom";
   import QuantitySelector from "../../../components/QuantitySelector.pom";
 
@@ -784,7 +784,7 @@ export default router;
       // 1. Store
       fs.writeFileSync(
         path.join(targetDir, "src/stores/user.ts"),
-        `import { $store } from "@pomelo/runtime";
+        `import { $store } from "@kallo/runtime";
 
 export const useUserStore = $store({
   isLoggedIn: false,
@@ -807,7 +807,7 @@ export const useUserStore = $store({
       });
       fs.writeFileSync(
         path.join(targetDir, "src/api/subscription/subscription.api.ts"),
-        `import { $router } from "@pomelo/server";
+        `import { $router } from "@kallo/server";
 
 const router = $router();
 
@@ -825,14 +825,14 @@ export default router;
         `<Server>
   $page(async () => {
     return {
-      title: "Pomelo SaaS Platform"
+      title: "Kallo SaaS Platform"
     };
   });
 </Server>
 
 <Client>
   import { useUserStore } from "../stores/user.js";
-  import { $local } from "@pomelo/runtime";
+  import { $local } from "@kallo/runtime";
 
   const user = useUserStore;
   const emailInput = $local("");
@@ -889,7 +889,7 @@ export default router;
       // 1. Store
       fs.writeFileSync(
         path.join(targetDir, "src/stores/blog.ts"),
-        `import { $store } from "@pomelo/runtime";
+        `import { $store } from "@kallo/runtime";
 
 export const useBlogStore = $store({
   likes: {} as Record<string, number>,
@@ -907,13 +907,13 @@ export const useBlogStore = $store({
       fs.mkdirSync(path.join(targetDir, "src/api/posts"), { recursive: true });
       fs.writeFileSync(
         path.join(targetDir, "src/api/posts/posts.api.ts"),
-        `import { $router } from "@pomelo/server";
+        `import { $router } from "@kallo/server";
 
 const router = $router();
 
 router.get("/", (req, res) => {
   res.ok([
-    { id: "1", title: "Getting Started with Pomelo", summary: "Learn the fundamentals of the fast, Express-friendly monorepo framework." },
+    { id: "1", title: "Getting Started with Kallo", summary: "Learn the fundamentals of the fast, Express-friendly monorepo framework." },
     { id: "2", title: "Why Reactivity Matters", summary: "Deep-dive into proxies and signals in web application performance." }
   ]);
 });
@@ -929,7 +929,7 @@ export default router;
   $page(async () => {
     return {
       posts: [
-        { id: "1", title: "Getting Started with Pomelo", summary: "Learn the fundamentals of the fast, Express-friendly monorepo framework." },
+        { id: "1", title: "Getting Started with Kallo", summary: "Learn the fundamentals of the fast, Express-friendly monorepo framework." },
         { id: "2", title: "Why Reactivity Matters", summary: "Deep-dive into proxies and signals in web application performance." }
       ]
     };
@@ -944,7 +944,7 @@ export default router;
 <View>
   <div class="blog">
     <header>
-      <h1>Pomelo Developer Blog</h1>
+      <h1>Kallo Developer Blog</h1>
     </header>
 
     <main class="posts">
@@ -983,7 +983,7 @@ export default router;
         `<Server>
   $page(async ({ params }) => {
     const posts = [
-      { id: "1", title: "Getting Started with Pomelo", content: "Pomelo makes fullstack development delightful. By utilizing a familiar Express paradigm on the server combined with single-file component structure, we achieve near-zero compile overhead and rapid rendering times." },
+      { id: "1", title: "Getting Started with Kallo", content: "Kallo makes fullstack development delightful. By utilizing a familiar Express paradigm on the server combined with single-file component structure, we achieve near-zero compile overhead and rapid rendering times." },
       { id: "2", title: "Why Reactivity Matters", content: "Modern applications require smooth state updates. By separating reactive logic via deep proxies for store state and signals for local variables, components stay isolated and rendering updates are minimal." }
     ];
     const post = posts.find(p => p.id === params.id) || { title: "Post Not Found", content: "Sorry, that article could not be found." };
@@ -1013,12 +1013,12 @@ export default router;
         path.join(targetDir, "src/pages/index.pom"),
         `<Server>
   $page(async () => {
-    return { title: "Welcome to Pomelo!" };
+    return { title: "Welcome to Kallo!" };
   });
 </Server>
 
 <Client>
-  import { $local } from "@pomelo/runtime";
+  import { $local } from "@kallo/runtime";
   const count = $local(0);
 </Client>
 
@@ -1041,10 +1041,10 @@ export default router;
       );
     }
 
-    PomeloLogger.info(`Successfully created project ${appName}!`);
+    KalloLogger.info(`Successfully created project ${appName}!`);
     return true;
   } catch (err) {
-    PomeloLogger.error("Failed to scaffold project: " + String(err));
+    KalloLogger.error("Failed to scaffold project: " + String(err));
     return false;
   }
 }

@@ -1,9 +1,9 @@
-import { PomeloLogger } from "@pomelo/shared";
+import { KalloLogger } from "@kallo/shared";
 import {
   createServer,
   registerFileSystemRoutes,
   registerAPIRoutes,
-} from "@pomelo/server";
+} from "@kallo/server";
 import path from "node:path";
 
 export function executeStartCommand(args: string[]): boolean {
@@ -16,7 +16,7 @@ export function executeStartCommand(args: string[]): boolean {
   process.env.NODE_ENV = "production";
   process.env.POMELO_ENV = "production";
 
-  PomeloLogger.info(`Starting Pomelo application in production...`);
+  KalloLogger.info(`Starting Kallo application in production...`);
 
   const portIndex = args.indexOf("--port");
   const port =
@@ -24,7 +24,7 @@ export function executeStartCommand(args: string[]): boolean {
 
   try {
     const server = createServer({
-      name: "Pomelo App",
+      name: "Kallo App",
       version: "1.0.0",
       port,
       env: "production",
@@ -40,7 +40,7 @@ export function executeStartCommand(args: string[]): boolean {
     }
     return true;
   } catch (err) {
-    PomeloLogger.error("Failed to start server: " + String(err));
+    KalloLogger.error("Failed to start server: " + String(err));
     return false;
   }
 }

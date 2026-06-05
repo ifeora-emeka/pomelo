@@ -1,10 +1,10 @@
 {
-  "name": "@pomelo/cli",
+  "name": "@kallo/cli",
   "version": "0.1.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "pomelo": "./dist/bin.js"
+    "kallo": "./dist/bin.js"
   },
   "license": "MIT",
   "scripts": {
@@ -14,12 +14,12 @@
     "test": "NODE_ENV=test node --test dist/**/*.test.js"
   },
   "dependencies": {
-    "@pomelo/types": "workspace:*",
-    "@pomelo/shared": "workspace:*",
-    "@pomelo/parser": "workspace:*",
-    "@pomelo/compiler": "workspace:*",
-    "@pomelo/runtime": "workspace:*",
-    "@pomelo/server": "workspace:*",
-    "@pomelo/vite-plugin": "workspace:*"
+    "@kallo/types": "workspace:*",
+    "@kallo/shared": "workspace:*",
+    "@kallo/parser": "workspace:*",
+    "@kallo/compiler": "workspace:*",
+    "@kallo/runtime": "workspace:*",
+    "@kallo/server": "workspace:*",
+    "@kallo/vite-plugin": "workspace:*"
   }
 }

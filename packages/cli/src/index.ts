@@ -1,5 +1,5 @@
-import type { CLIContext } from "@pomelo/types";
-import { PomeloLogger } from "@pomelo/shared";
+import type { CLIContext } from "@kallo/types";
+import { KalloLogger } from "@kallo/shared";
 import { executeDevCommand } from "./commands/dev.js";
 import { executeBuildCommand } from "./commands/build.js";
 import { executeStartCommand } from "./commands/start.js";
@@ -8,7 +8,7 @@ import { executeGenerateCommand } from "./commands/generate.js";
 import { executeHelpCommand } from "./commands/help.js";
 
 export function handleCLI(context: CLIContext): boolean {
-  PomeloLogger.info(`Executing CLI command: ${context.command}`);
+  KalloLogger.info(`Executing CLI command: ${context.command}`);
   if (context.command === "dev") {
     return executeDevCommand(context.args);
   } else if (context.command === "build") {
@@ -33,7 +33,7 @@ export function handleCLI(context: CLIContext): boolean {
     console.log("0.1.0");
     return true;
   } else {
-    PomeloLogger.warn(`Unknown command: ${context.command}`);
+    KalloLogger.warn(`Unknown command: ${context.command}`);
     return false;
   }
 }

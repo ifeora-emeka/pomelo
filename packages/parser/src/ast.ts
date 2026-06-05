@@ -1,13 +1,13 @@
-import type { PomeloAST, PomeloASTNode } from "@pomelo/types";
-import { NODE_ROOT } from "@pomelo/shared";
+import type { KalloAST, KalloASTNode } from "@kallo/types";
+import { NODE_ROOT } from "@kallo/shared";
 
 export function createASTNode(
-  type: PomeloASTNode["type"],
+  type: KalloASTNode["type"],
   content: string,
   attributes?: Record<string, string>,
-  children?: PomeloASTNode[],
+  children?: KalloASTNode[],
   tagName?: string,
-): PomeloASTNode {
+): KalloASTNode {
   return {
     type,
     content,
@@ -17,7 +17,7 @@ export function createASTNode(
   };
 }
 
-export function createAST(children: PomeloASTNode[]): PomeloAST {
+export function createAST(children: KalloASTNode[]): KalloAST {
   return {
     type: NODE_ROOT,
     children,

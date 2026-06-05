@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { PomeloLogger } from "@pomelo/shared";
+import { KalloLogger } from "@kallo/shared";
 
 export type Handler = (req: any, res: any) => void;
 
@@ -78,6 +78,6 @@ export class Router {
 }
 
 export function $router(): Router {
-  PomeloLogger.info("Initializing new Pomelo router...");
+  KalloLogger.info("Initializing new Kallo router...");
   return new Router();
 }

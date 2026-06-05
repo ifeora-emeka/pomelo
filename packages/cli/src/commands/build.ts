@@ -1,17 +1,17 @@
-import { PomeloLogger, rewriteRelativeImports } from "@pomelo/shared";
-import { scanRoutes, compileAPIRoutes } from "@pomelo/server";
-import { compile } from "@pomelo/compiler";
+import { KalloLogger, rewriteRelativeImports } from "@kallo/shared";
+import { scanRoutes, compileAPIRoutes } from "@kallo/server";
+import { compile } from "@kallo/compiler";
 import fs from "node:fs";
 import path from "node:path";
 
 export function executeBuildCommand(args: string[]): boolean {
-  PomeloLogger.info("Starting compilation build...");
+  KalloLogger.info("Starting compilation build...");
 
   const pagesDir = path.join(process.cwd(), "src/pages");
-  const cacheDir = path.join(process.cwd(), ".pomelo-cache");
+  const cacheDir = path.join(process.cwd(), ".kallo-cache");
 
   if (!fs.existsSync(pagesDir)) {
-    PomeloLogger.warn(
+    KalloLogger.warn(
       `Pages directory ${pagesDir} does not exist. Nothing to build.`,
     );
     return true;
@@ -69,13 +69,13 @@ export function executeBuildCommand(args: string[]): boolean {
 
     if (combinedCSS) {
       fs.writeFileSync(path.join(cacheDir, "bundle.css"), combinedCSS);
-      PomeloLogger.info("Bundled styles written to .pomelo-cache/bundle.css");
+      KalloLogger.info("Bundled styles written to .kallo-cache/bundle.css");
     }
 
-    PomeloLogger.info(`Successfully compiled ${routes.length} routes!`);
+    KalloLogger.info(`Successfully compiled ${routes.length} routes!`);
     return true;
   } catch (err) {
-    PomeloLogger.error("Build failed: " + String(err));
+    KalloLogger.error("Build failed: " + String(err));
     return false;
   }
 }

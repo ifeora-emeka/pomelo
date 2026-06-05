@@ -3,14 +3,14 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import { compile } from "@pomelo/compiler";
+import { compile } from "@kallo/compiler";
 import {
-  PomeloLogger,
+  KalloLogger,
   formatFrameworkName,
   rewriteRelativeImports,
-} from "@pomelo/shared";
-import type { FrameworkConfig } from "@pomelo/types";
-import { PomeloError } from "./errors.js";
+} from "@kallo/shared";
+import type { FrameworkConfig } from "@kallo/types";
+import { KalloError } from "./errors.js";
 import {
   scanRoutes,
   sortRoutesBySpecificity,
@@ -29,7 +29,7 @@ function resolvePackageToAbsolute(packageName: string): string | null {
 }
 
 function rewriteBareModuleImports(code: string): string {
-  const pomPackages = ["@pomelo/runtime", "@pomelo/shared", "@pomelo/types"];
+  const pomPackages = ["@kallo/runtime", "@kallo/shared", "@kallo/types"];
   let result = code;
   for (const pkg of pomPackages) {
     const pkgDir = resolvePackageToAbsolute(pkg);
@@ -111,8 +111,8 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ) {
-  if (err instanceof PomeloError) {
-    PomeloLogger.error(`${err.name}: ${err.message}`);
+  if (err instanceof KalloError) {
+    KalloLogger.error(`${err.name}: ${err.message}`);
     if (!res.headersSent) {
       res.status(err.statusCode).json({
         error: err.message,
@@ -122,7 +122,7 @@ export function errorHandler(
     return;
   }
 
-  PomeloLogger.error(
+  KalloLogger.error(
     "Unhandled Error: " + (err.stack || err.message || String(err)),
   );
   if (!res.headersSent) {
@@ -140,8 +140,8 @@ function generateHydrationScript(
   stateJSON: string,
 ): string {
   return `<script type="module">
-import { hydrate } from "/@pomelo/runtime/index.js";
-import * as component from "/@pomelo/pages/${cacheFileName}";
+import { hydrate } from "/@kallo/runtime/index.js";
+import * as component from "/@kallo/pages/${cacheFileName}";
 const container = document.getElementById("app");
 const serverState = ${stateJSON};
 if (container && component.setup) {
@@ -163,15 +163,15 @@ function generateHydrationScriptWithLayouts(
   layoutStatesJSON: string[],
 ): string {
   const imports: string[] = [];
-  imports.push(`import * as component from "/@pomelo/pages/${cacheFileName}";`);
+  imports.push(`import * as component from "/@kallo/pages/${cacheFileName}";`);
   for (let i = 0; i < layoutCacheFileNames.length; i++) {
     imports.push(
-      `import * as layout_${i} from "/@pomelo/pages/${layoutCacheFileNames[i]}";`,
+      `import * as layout_${i} from "/@kallo/pages/${layoutCacheFileNames[i]}";`,
     );
   }
 
   return `<script type="module">
-import { hydrate } from "/@pomelo/runtime/index.js";
+import { hydrate } from "/@kallo/runtime/index.js";
 ${imports.join("\n")}
 
 const container = document.getElementById("app");
@@ -307,13 +307,13 @@ export async function handleSSR(
 
     res.status(200).send(fullHTML);
   } catch (err: any) {
-    if (err.isPomeloAbort === true && typeof err.statusCode === "number") {
+    if (err.isKalloAbort === true && typeof err.statusCode === "number") {
       if (!res.headersSent) {
         res.status(err.statusCode).end();
       }
       return;
     }
-    PomeloLogger.error(
+    KalloLogger.error(
       "SSR Rendering Error: " +
         (err instanceof Error ? err.stack : String(err)),
     );
@@ -396,13 +396,13 @@ export async function handleSSRStream(
     res.write(`</div></body></html>`);
     res.end();
   } catch (err: any) {
-    if (err.isPomeloAbort === true && typeof err.statusCode === "number") {
+    if (err.isKalloAbort === true && typeof err.statusCode === "number") {
       if (!res.headersSent) {
         res.status(err.statusCode).end();
       }
       return;
     }
-    PomeloLogger.error(
+    KalloLogger.error(
       "SSR Stream Error: " + (err instanceof Error ? err.stack : String(err)),
     );
     if (!res.headersSent) {
@@ -556,7 +556,7 @@ export function registerFileSystemRoutes(
   if (!fs.existsSync(pagesDir)) return;
 
   const routes = sortRoutesBySpecificity(scanRoutes(pagesDir));
-  const cacheDir = path.join(process.cwd(), ".pomelo-cache");
+  const cacheDir = path.join(process.cwd(), ".kallo-cache");
 
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
@@ -673,7 +673,7 @@ export function registerFileSystemRoutes(
       }
     });
 
-    PomeloLogger.info(`Registered route: ${route.path} → ${relative}`);
+    KalloLogger.info(`Registered route: ${route.path} → ${relative}`);
   }
 }
 
@@ -757,8 +757,8 @@ export function compileAPIRoutes(apiDir: string, cacheDir: string) {
       compilePomDeps(cacheFile, cacheDir, process.cwd());
 
       const routePrefix = apiFileToRoutePath(relative);
-      PomeloLogger.info(
-        `Compiled API route: ${routePrefix} → .pomelo-cache/${cacheFileName}`,
+      KalloLogger.info(
+        `Compiled API route: ${routePrefix} → .kallo-cache/${cacheFileName}`,
       );
     }
   }
@@ -769,7 +769,7 @@ export function compileAPIRoutes(apiDir: string, cacheDir: string) {
 export function registerAPIRoutes(app: express.Express, apiDir: string) {
   if (!fs.existsSync(apiDir)) return;
 
-  const cacheDir = path.join(process.cwd(), ".pomelo-cache");
+  const cacheDir = path.join(process.cwd(), ".kallo-cache");
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
   }
@@ -874,7 +874,7 @@ export function registerAPIRoutes(app: express.Express, apiDir: string) {
         },
       );
 
-      PomeloLogger.info(`Registered API route: ${routePrefix} → ${relative}`);
+      KalloLogger.info(`Registered API route: ${routePrefix} → ${relative}`);
     }
   }
 
@@ -1047,13 +1047,13 @@ export async function handleSSRWithLayouts(
 
     res.status(200).send(fullHTML);
   } catch (err: any) {
-    if (err.isPomeloAbort === true && typeof err.statusCode === "number") {
+    if (err.isKalloAbort === true && typeof err.statusCode === "number") {
       if (!res.headersSent) {
         res.status(err.statusCode).end();
       }
       return;
     }
-    PomeloLogger.error(
+    KalloLogger.error(
       "SSR Layouts Rendering Error: " +
         (err instanceof Error ? err.stack : String(err)),
     );
@@ -1070,14 +1070,14 @@ export interface ServerInstance {
 
 function rewriteBrowserImports(content: string): string {
   return content.replace(
-    /(\b(?:import|export)\s+[\s\S]*?\s+from\s+['"]|import\s+['"])@pomelo\/runtime(['"])/g,
-    "$1/@pomelo/runtime/index.js$2",
+    /(\b(?:import|export)\s+[\s\S]*?\s+from\s+['"]|import\s+['"])@kallo\/runtime(['"])/g,
+    "$1/@kallo/runtime/index.js$2",
   );
 }
 
 export function createServer(config: FrameworkConfig): ServerInstance {
   const name = formatFrameworkName(config);
-  PomeloLogger.info(`Creating server for ${name}...`);
+  KalloLogger.info(`Creating server for ${name}...`);
 
   const app = express();
   app.use(express.json());
@@ -1087,13 +1087,13 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   const routeCacheMap = new Map<string, string>();
   app.set("routeCacheMap", routeCacheMap);
 
-  // Serve @pomelo/runtime client-side files
+  // Serve @kallo/runtime client-side files
   try {
-    const runtimePkgPath = require.resolve("@pomelo/runtime/package.json", {
+    const runtimePkgPath = require.resolve("@kallo/runtime/package.json", {
       paths: [process.cwd()],
     });
     const runtimeDir = path.dirname(runtimePkgPath);
-    app.use("/@pomelo/runtime", express.static(path.join(runtimeDir, "dist")));
+    app.use("/@kallo/runtime", express.static(path.join(runtimeDir, "dist")));
   } catch (err) {
     let resolved = false;
     const pathsToTry = [
@@ -1103,20 +1103,20 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     ];
     for (const p of pathsToTry) {
       if (fs.existsSync(path.join(p, "package.json"))) {
-        app.use("/@pomelo/runtime", express.static(path.join(p, "dist")));
+        app.use("/@kallo/runtime", express.static(path.join(p, "dist")));
         resolved = true;
         break;
       }
     }
     if (!resolved) {
-      PomeloLogger.warn(
-        "Could not resolve @pomelo/runtime path for static serving: " +
+      KalloLogger.warn(
+        "Could not resolve @kallo/runtime path for static serving: " +
           String(err),
       );
     }
   }
 
-  app.use("/@pomelo/pages", (req, res, next) => {
+  app.use("/@kallo/pages", (req, res, next) => {
     const cleanPath = decodeURIComponent(req.path).replace(/^\//, "");
     let cacheFileName = cleanPath;
     if (cleanPath.endsWith(".pom")) {
@@ -1131,7 +1131,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
       cacheFileName = cleanPath.replace(/[\/\\]/g, "_") + ".js";
     }
 
-    const cacheFile = path.join(process.cwd(), ".pomelo-cache", cacheFileName);
+    const cacheFile = path.join(process.cwd(), ".kallo-cache", cacheFileName);
     if (fs.existsSync(cacheFile)) {
       res.setHeader("Content-Type", "application/javascript; charset=utf-8");
       const content = fs.readFileSync(cacheFile, "utf-8");
@@ -1142,9 +1142,9 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   });
 
   // Serve compiled cache files
-  app.use("/.pomelo-cache", (req, res, next) => {
+  app.use("/.kallo-cache", (req, res, next) => {
     const cleanPath = req.path.replace(/^\//, "");
-    const cacheFile = path.join(process.cwd(), ".pomelo-cache", cleanPath);
+    const cacheFile = path.join(process.cwd(), ".kallo-cache", cleanPath);
     if (fs.existsSync(cacheFile)) {
       res.setHeader("Content-Type", "application/javascript; charset=utf-8");
       const content = fs.readFileSync(cacheFile, "utf-8");
@@ -1182,7 +1182,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
         res.send(rewriteBrowserImports(transpiled.outputText));
         return;
       } catch (err) {
-        PomeloLogger.error(
+        KalloLogger.error(
           `On-the-fly TS compilation failed for ${tsFilePath}: ` + String(err),
         );
         res.status(500).send("Compilation error: " + String(err));
@@ -1240,7 +1240,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   // Authentication & Session Configuration
   if (config.auth) {
     const authOptions = config.auth;
-    const cookieName = authOptions.cookieName || "pomelo.session";
+    const cookieName = authOptions.cookieName || "kallo.session";
 
     // 1. Simple custom cookie parser
     app.use((req: Request, res: Response, next: NextFunction) => {
@@ -1331,7 +1331,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   const isDev = config.env === "development" || !config.env;
   if (isDev) {
     app.use((req: Request, _res: Response, next: NextFunction) => {
-      PomeloLogger.info(`${req.method} ${req.url}`);
+      KalloLogger.info(`${req.method} ${req.url}`);
       next();
     });
   }
@@ -1343,7 +1343,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
 
       const port = config.port || 3000;
       const server = app.listen(port, () => {
-        PomeloLogger.info(`Pomelo server running at http://localhost:${port}`);
+        KalloLogger.info(`Kallo server running at http://localhost:${port}`);
       });
       return server;
     },

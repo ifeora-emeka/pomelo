@@ -4,7 +4,7 @@ import {
   BLOCK_VIEW,
   BLOCK_STYLE,
   BLOCKS,
-} from "@pomelo/shared";
+} from "@kallo/shared";
 import { parseAttributes } from "./parser.js";
 
 export interface Token {

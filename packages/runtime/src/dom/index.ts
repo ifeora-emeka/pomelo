@@ -1,4 +1,4 @@
-import { PomeloLogger } from "@pomelo/shared";
+import { KalloLogger } from "@kallo/shared";
 import { $effect, $batch, Signal } from "../reactivity/index.js";
 
 export interface ComponentInstance {

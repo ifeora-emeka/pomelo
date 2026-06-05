@@ -1,4 +1,4 @@
-import type { ReactiveState, StoreOptions } from "@pomelo/types";
+import type { ReactiveState, StoreOptions } from "@kallo/types";
 
 let activeEffect: (() => void) | null = null;
 let activeSubscriptions: Set<Signal<any>> | null = null;
@@ -8,7 +8,7 @@ let signalIdCounter = 0;
 
 function notifyDevtools(type: "store" | "signal", name: string, state: any) {
   if (typeof window !== "undefined") {
-    const event = new CustomEvent("pomelo:devtools", {
+    const event = new CustomEvent("kallo:devtools", {
       detail: { type, name, state: JSON.parse(JSON.stringify(state)) },
     });
     window.dispatchEvent(event);
@@ -150,7 +150,7 @@ export function $store<T extends object>(
     Object.getPrototypeOf(initialObj),
     Object.getOwnPropertyDescriptors(initialObj),
   );
-  const persistKey = options?.persistKey || "pomelo-store";
+  const persistKey = options?.persistKey || "kallo-store";
 
   if (
     options?.persist &&

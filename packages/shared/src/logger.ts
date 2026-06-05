@@ -1,4 +1,4 @@
-import type { FrameworkConfig } from "@pomelo/types";
+import type { FrameworkConfig } from "@kallo/types";
 import {
   FRAMEWORK_NAME,
   COLOR_RESET,
@@ -8,7 +8,7 @@ import {
   COLOR_RED,
 } from "./constants.js";
 
-export class PomeloLogger {
+export class KalloLogger {
   private static prefix = `${COLOR_MAGENTA}[${FRAMEWORK_NAME}]${COLOR_RESET}`;
 
   static info(message: string): string {

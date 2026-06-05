@@ -59,13 +59,13 @@ test("Store persistence options correctly save and load from localStorage", () =
   ]);
 });
 
-test("Reactivity updates emit pomelo:devtools custom events on window", () => {
+test("Reactivity updates emit kallo:devtools custom events on window", () => {
   eventsDispatched.length = 0;
 
   // Emit store setup
   const store = $store({ value: 1 }, { persistKey: "test-store" });
   assert.ok(eventsDispatched.length > 0);
-  assert.strictEqual(eventsDispatched[0].type, "pomelo:devtools");
+  assert.strictEqual(eventsDispatched[0].type, "kallo:devtools");
   assert.deepStrictEqual(eventsDispatched[0].detail, {
     type: "store",
     name: "test-store",
@@ -75,7 +75,7 @@ test("Reactivity updates emit pomelo:devtools custom events on window", () => {
   // Emit store updates
   eventsDispatched.length = 0;
   store.value = 42;
-  assert.strictEqual(eventsDispatched[0].type, "pomelo:devtools");
+  assert.strictEqual(eventsDispatched[0].type, "kallo:devtools");
   assert.deepStrictEqual(eventsDispatched[0].detail, {
     type: "store",
     name: "test-store",

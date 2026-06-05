@@ -1,8 +1,8 @@
-# PLAN.md — Pomelo Framework Build Plan
+# PLAN.md — Kallo Framework Build Plan
 
 ## Overview
 
-Pomelo is a fullstack TypeScript-first framework powered by Express, a custom compiler, and a Vite plugin system.
+Kallo is a fullstack TypeScript-first framework powered by Express, a custom compiler, and a Vite plugin system.
 
 This plan defines phased execution for building a production-grade framework using LLM agents.
 
@@ -20,7 +20,7 @@ Set up monorepo and enforce strict boundaries.
 - [x] Configure pnpm workspaces
 - [x] Setup TypeScript base config
 - [x] Setup ESLint + Prettier
-- [x] Setup path aliases (`@pomelo/*`)
+- [x] Setup path aliases (`@kallo/*`)
 - [x] Create package skeletons:
   - [x] parser
   - [x] compiler
@@ -55,7 +55,7 @@ Define `.pom` syntax parsing rules and AST structure.
 
 - [x] Build lexer
 - [x] Build HTML-like parser
-- [x] Define AST types in `@pomelo/types`
+- [x] Define AST types in `@kallo/types`
 - [x] Parse:
   - [x] attributes
   - [x] directives (`@click`, `:class`)
@@ -122,7 +122,7 @@ Build client-side execution system.
 
 ## Goals
 
-Turn Pomelo into a real SSR framework.
+Turn Kallo into a real SSR framework.
 
 ## Tasks
 
@@ -264,10 +264,10 @@ Developer experience layer.
 
 ## Tasks
 
-- [x] `create-pomelo` scaffolder
-- [x] `pomelo dev`
-- [x] `pomelo build`
-- [x] `pomelo start`
+- [x] `create-kallo` scaffolder
+- [x] `kallo dev`
+- [x] `kallo build`
+- [x] `kallo start`
 - [x] Code generator:
   - [x] page
   - [x] api route
@@ -308,7 +308,7 @@ Make framework production-ready.
 
 ## Goals
 
-Make Pomelo feel "delightful".
+Make Kallo feel "delightful".
 
 ## Tasks
 
@@ -337,7 +337,7 @@ Make Pomelo feel "delightful".
 
 # Definition of Done (Global)
 
-Pomelo is complete when:
+Kallo is complete when:
 
 - SSR works
 - Hydration works

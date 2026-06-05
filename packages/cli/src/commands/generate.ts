@@ -1,4 +1,4 @@
-import { PomeloLogger } from "@pomelo/shared";
+import { KalloLogger } from "@kallo/shared";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -7,7 +7,7 @@ export function executeGenerateCommand(args: string[]): boolean {
   const name = args[1];
 
   if (!type || !name) {
-    PomeloLogger.warn("Usage: pomelo generate <page|component> <name>");
+    KalloLogger.warn("Usage: kallo generate <page|component> <name>");
     return false;
   }
 
@@ -20,7 +20,7 @@ export function executeGenerateCommand(args: string[]): boolean {
     }
     const pagePath = path.join(pageDir, "page.pom");
     if (fs.existsSync(pagePath)) {
-      PomeloLogger.warn(`Page src/pages/${name}/page.pom already exists!`);
+      KalloLogger.warn(`Page src/pages/${name}/page.pom already exists!`);
       return false;
     }
     fs.writeFileSync(
@@ -36,7 +36,7 @@ export function executeGenerateCommand(args: string[]): boolean {
 </View>
 `,
     );
-    PomeloLogger.info(`Generated page: src/pages/${name}/page.pom`);
+    KalloLogger.info(`Generated page: src/pages/${name}/page.pom`);
     return true;
   }
 
@@ -47,7 +47,7 @@ export function executeGenerateCommand(args: string[]): boolean {
     }
     const compPath = path.join(compDir, `${name}.pom`);
     if (fs.existsSync(compPath)) {
-      PomeloLogger.warn(`Component ${name}.pom already exists!`);
+      KalloLogger.warn(`Component ${name}.pom already exists!`);
       return false;
     }
     fs.writeFileSync(
@@ -63,7 +63,7 @@ export function executeGenerateCommand(args: string[]): boolean {
 </View>
 `,
     );
-    PomeloLogger.info(`Generated component: src/components/${name}.pom`);
+    KalloLogger.info(`Generated component: src/components/${name}.pom`);
     return true;
   }
 
@@ -74,14 +74,14 @@ export function executeGenerateCommand(args: string[]): boolean {
     }
     const apiPath = path.join(apiRouteDir, `${name}.api.ts`);
     if (fs.existsSync(apiPath)) {
-      PomeloLogger.warn(
+      KalloLogger.warn(
         `API route src/api/${name}/${name}.api.ts already exists!`,
       );
       return false;
     }
     fs.writeFileSync(
       apiPath,
-      `import { $router } from "@pomelo/server";
+      `import { $router } from "@kallo/server";
 
 const router = $router();
 
@@ -94,7 +94,7 @@ router.get("/", (req, res) => {
 export default router;
 `,
     );
-    PomeloLogger.info(`Generated API route: src/api/${name}/${name}.api.ts`);
+    KalloLogger.info(`Generated API route: src/api/${name}/${name}.api.ts`);
     return true;
   }
 
@@ -105,13 +105,13 @@ export default router;
     }
     const storePath = path.join(storesDir, `${name}.ts`);
     if (fs.existsSync(storePath)) {
-      PomeloLogger.warn(`Store ${name}.ts already exists!`);
+      KalloLogger.warn(`Store ${name}.ts already exists!`);
       return false;
     }
     const storePascal = name.charAt(0).toUpperCase() + name.slice(1);
     fs.writeFileSync(
       storePath,
-      `import { $store } from "@pomelo/runtime";
+      `import { $store } from "@kallo/runtime";
 
 export const use${storePascal}Store = $store(
   {
@@ -120,15 +120,15 @@ export const use${storePascal}Store = $store(
   },
   {
     persist: true,
-    persistKey: "pomelo-${name.toLowerCase()}-store",
+    persistKey: "kallo-${name.toLowerCase()}-store",
   }
 );
 `,
     );
-    PomeloLogger.info(`Generated store: src/stores/${name}.ts`);
+    KalloLogger.info(`Generated store: src/stores/${name}.ts`);
     return true;
   }
 
-  PomeloLogger.warn(`Unknown generator type: ${type}`);
+  KalloLogger.warn(`Unknown generator type: ${type}`);
   return false;
 }

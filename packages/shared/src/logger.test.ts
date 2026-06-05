@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert";
-import { PomeloLogger } from "./logger.js";
+import { KalloLogger } from "./logger.js";
 
-test("PomeloLogger formats messages correctly", () => {
-  const infoMsg = PomeloLogger.info("Server started");
-  const warnMsg = PomeloLogger.warn("Missing layout");
-  const errMsg = PomeloLogger.error("Port conflict");
+test("KalloLogger formats messages correctly", () => {
+  const infoMsg = KalloLogger.info("Server started");
+  const warnMsg = KalloLogger.warn("Missing layout");
+  const errMsg = KalloLogger.error("Port conflict");
 
   assert.ok(infoMsg.includes("INFO:"));
   assert.ok(infoMsg.includes("Server started"));

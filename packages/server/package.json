@@ -1,5 +1,5 @@
 {
-  "name": "@pomelo/server",
+  "name": "@kallo/server",
   "version": "0.1.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,9 +11,9 @@
     "test": "node --test dist/**/*.test.js"
   },
   "dependencies": {
-    "@pomelo/shared": "workspace:*",
-    "@pomelo/types": "workspace:*",
-    "@pomelo/compiler": "workspace:*",
+    "@kallo/shared": "workspace:*",
+    "@kallo/types": "workspace:*",
+    "@kallo/compiler": "workspace:*",
     "express": "^5.2.1",
     "typescript": "^5.0.0"
   },

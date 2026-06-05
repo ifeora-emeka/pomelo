@@ -1,9 +1,9 @@
-# Pomelo 🍊
+# Kallo 🍊
 
-![Pomelo Banner](https://www.shutterstock.com/image-photo/red-pomelo-citrus-fruit-banner-260nw-2095057009.jpg)
+![Kallo Banner](https://www.shutterstock.com/image-photo/red-kallo-citrus-fruit-banner-260nw-2095057009.jpg)
 
 > **TypeScript-First, HTML-First Fullstack Framework built on Express.**
-> Pomelo combines the server-side simplicity and familiarity of Express with a powerful compiler, reactive client-side runtime, and modern file-based routing.
+> Kallo combines the server-side simplicity and familiarity of Express with a powerful compiler, reactive client-side runtime, and modern file-based routing.
 
 ---
 
@@ -21,12 +21,12 @@
 
 ## 📦 Monorepo Package Structure
 
-Pomelo is structured as a Turborepo monorepo to maintain clean boundaries between features:
+Kallo is structured as a Turborepo monorepo to maintain clean boundaries between features:
 
 ```text
-pomelo/
+kallo/
 ├── apps/
-│   ├── www/          # Marketing website for Pomelo
+│   ├── www/          # Marketing website for Kallo
 │   ├── docs/         # Documentation website
 │   └── playground/   # Interactive browser playground
 ├── packages/
@@ -35,7 +35,7 @@ pomelo/
 │   ├── runtime/      # Client-side reactivity, lifecycle, and hydration engine
 │   ├── server/       # SSR rendering, routing, middleware, and Express wrapper
 │   ├── vite-plugin/  # Vite integration, hot module replacement (HMR), and file-based routing sync
-│   ├── cli/          # Pomelo CLI tools (dev, build, start, create)
+│   ├── cli/          # Kallo CLI tools (dev, build, start, create)
 │   ├── shared/       # Cross-package utility functions
 │   └── types/        # Unified TypeScript typings for the framework
 ```
@@ -44,7 +44,7 @@ pomelo/
 
 ## 🛠️ The `.pom` Component Anatomy
 
-Pomelo components use the `.pom` extension. They are compiled at build time to produce optimized, reactive client-side modules and server-side render functions.
+Kallo components use the `.pom` extension. They are compiled at build time to produce optimized, reactive client-side modules and server-side render functions.
 
 ### Example: Product Detail Page (`src/pages/products/[id]/page.pom`)
 
@@ -53,7 +53,7 @@ Pomelo components use the `.pom` extension. They are compiled at build time to p
   // Server-side data fetching and API definition $page(async ({ params }) => {
   const product = await ProductService.getById(params.id); if (!product) {
   $abort(404); } return { product }; }); $meta(({ product }) => ({ title:
-  `${product.name} | Pomelo Store`, description: product.description, image:
+  `${product.name} | Kallo Store`, description: product.description, image:
   product.image, canonical: `/products/${product.id}` }));
 </Server>
 
@@ -109,12 +109,12 @@ Pomelo components use the `.pom` extension. They are compiled at build time to p
 
 ## 🚦 Routing & API Endpoints
 
-Pomelo relies on an Express-compatible router and standard request/response handling.
+Kallo relies on an Express-compatible router and standard request/response handling.
 
 ### Example: Product Router (`src/api/products/products.api.ts`)
 
 ```ts
-import { $router } from "@pomelo/server";
+import { $router } from "@kallo/server";
 import { auth, admin } from "@/middleware/auth";
 import { listProducts, getProduct, createProduct } from "./controllers";
 
@@ -131,12 +131,12 @@ export default router;
 
 ## ⚡ Global Reactivity (`$store`)
 
-State management in Pomelo is handled via reactive stores defined with `$store()`.
+State management in Kallo is handled via reactive stores defined with `$store()`.
 
 ### Example: Global Cart Store (`src/stores/cart.store.ts`)
 
 ```ts
-import { $store } from "@pomelo/runtime";
+import { $store } from "@kallo/runtime";
 
 export const cartStore = $store({
   items: [] as CartItem[],

@@ -1,19 +1,19 @@
-import type { CompilerResult } from "@pomelo/types";
-import { parse } from "@pomelo/parser";
+import type { CompilerResult } from "@kallo/types";
+import { parse } from "@kallo/parser";
 import { transformServer } from "./transforms/server-transform.js";
 import { transformClient } from "./transforms/client-transform.js";
 import { transformStyle } from "./transforms/style-transform.js";
 import { transformTemplate } from "./transforms/template-transform.js";
 import {
-  PomeloLogger,
+  KalloLogger,
   BLOCK_SERVER,
   BLOCK_CLIENT,
   BLOCK_STYLE,
   BLOCK_VIEW,
-} from "@pomelo/shared";
+} from "@kallo/shared";
 
 export function compile(source: string, filename: string): CompilerResult {
-  PomeloLogger.info(`Compiling component file: ${filename}`);
+  KalloLogger.info(`Compiling component file: ${filename}`);
 
   const componentId = Math.abs(
     filename

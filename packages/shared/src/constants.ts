@@ -1,4 +1,4 @@
-export const FRAMEWORK_NAME = "Pomelo";
+export const FRAMEWORK_NAME = "Kallo";
 export const DEFAULT_PORT = 3000;
 
 export const BLOCK_SERVER = "Server";
@@ -46,9 +46,9 @@ export const NODE_TEXT = "Text";
 export const NODE_ELEMENT = "Element";
 export const NODE_ROOT = "Root";
 
-export const SFC_EXTENSION = ".pom";
+export const SFC_EXTENSION = ".kal";
 
-export const SCOPED_CSS_PREFIX = "data-pom-";
+export const SCOPED_CSS_PREFIX = "data-kal-";
 
 export const ATTR_EACH_OF = "of";
 export const ATTR_EACH_AS = "as";

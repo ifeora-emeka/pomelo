@@ -6,7 +6,7 @@ import {
   responseHelpersMiddleware,
   handleSSR,
   errorHandler,
-  PomeloError,
+  KalloError,
   NotFoundError,
   UnauthorizedError,
   ForbiddenError,
@@ -155,7 +155,7 @@ test("handleSSR injects hydration script when component has setup function", asy
 
   assert.ok(bodyHTML.includes('<script type="module">'));
   assert.ok(bodyHTML.includes("hydrate"));
-  assert.ok(bodyHTML.includes("/@pomelo/runtime"));
+  assert.ok(bodyHTML.includes("/@kallo/runtime"));
 });
 
 test("handleSSR blocks access when guard returns false", async () => {
@@ -205,7 +205,7 @@ test("Server boots, starts on port and closes", () => {
   activeServer.close();
 });
 
-test("Error handler processes PomeloError instances", () => {
+test("Error handler processes KalloError instances", () => {
   const err = new NotFoundError("Page not found");
   let statusVal = 0;
   let jsonVal: any = null;
@@ -259,7 +259,7 @@ test("Error handler processes generic errors in dev mode", () => {
 });
 
 test("Error hierarchy has correct status codes", () => {
-  assert.strictEqual(new PomeloError("test", 418).statusCode, 418);
+  assert.strictEqual(new KalloError("test", 418).statusCode, 418);
   assert.strictEqual(new NotFoundError().statusCode, 404);
   assert.strictEqual(new UnauthorizedError().statusCode, 401);
   assert.strictEqual(new ForbiddenError().statusCode, 403);
@@ -399,9 +399,9 @@ test("$guard middleware forwards errors to next", async () => {
 test("handleSSR handles $abort with correct status code", async () => {
   const mockComponent = {
     async $serverPage() {
-      const e = Object.assign(new Error("Pomelo Abort"), {
+      const e = Object.assign(new Error("Kallo Abort"), {
         statusCode: 404,
-        isPomeloAbort: true,
+        isKalloAbort: true,
       });
       throw e;
     },
@@ -429,9 +429,9 @@ test("handleSSR handles $abort with correct status code", async () => {
 test("handleSSR handles $abort 403 correctly", async () => {
   const mockComponent = {
     async $serverGuard() {
-      const e = Object.assign(new Error("Pomelo Abort"), {
+      const e = Object.assign(new Error("Kallo Abort"), {
         statusCode: 403,
-        isPomeloAbort: true,
+        isKalloAbort: true,
       });
       throw e;
     },

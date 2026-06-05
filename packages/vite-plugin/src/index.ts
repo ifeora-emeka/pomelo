@@ -1,24 +1,24 @@
 import { handleSFCCompilation, generateClientModule } from "./transform.js";
-import { PomeloLogger, SFC_EXTENSION } from "@pomelo/shared";
+import { KalloLogger, SFC_EXTENSION } from "@kallo/shared";
 
-const CSS_VIRTUAL_PREFIX = "\0pomelo-css:";
+const CSS_VIRTUAL_PREFIX = "\0kallo-css:";
 
-export function pomeloVitePlugin(options: { pagesDir?: string } = {}) {
+export function kalloVitePlugin(options: { pagesDir?: string } = {}) {
   const cssMap = new Map<string, string>();
   let isServing = false;
 
   return {
-    name: "vite-plugin-pomelo",
+    name: "vite-plugin-kallo",
 
     configResolved(config: any) {
       isServing = config.command === "serve";
     },
 
     resolveId(id: string) {
-      if (id.startsWith("pomelo-css:")) {
-        return CSS_VIRTUAL_PREFIX + id.slice("pomelo-css:".length);
+      if (id.startsWith("kallo-css:")) {
+        return CSS_VIRTUAL_PREFIX + id.slice("kallo-css:".length);
       }
-      if (id === "@pomelo/runtime") {
+      if (id === "@kallo/runtime") {
         return id;
       }
       return null;
@@ -77,7 +77,7 @@ export function pomeloVitePlugin(options: { pagesDir?: string } = {}) {
           map: null,
         };
       } catch (err: any) {
-        PomeloLogger.error(`Compilation error in ${id}: ${err.message}`);
+        KalloLogger.error(`Compilation error in ${id}: ${err.message}`);
 
         if (isServing) {
           return {
@@ -95,7 +95,7 @@ export function pomeloVitePlugin(options: { pagesDir?: string } = {}) {
         return;
       }
 
-      PomeloLogger.info(`HMR update: ${ctx.file}`);
+      KalloLogger.info(`HMR update: ${ctx.file}`);
 
       const affectedModules = ctx.modules.filter(
         (mod: any) => mod.file === ctx.file,
@@ -128,17 +128,17 @@ function generateErrorOverlay(file: string, message: string): string {
   return `
 if (typeof document !== "undefined") {
   const overlay = document.createElement("div");
-  overlay.id = "pomelo-error-overlay";
+  overlay.id = "kallo-error-overlay";
   overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);color:#ff6b6b;font-family:monospace;font-size:14px;padding:32px;z-index:999999;overflow:auto;box-sizing:border-box";
   overlay.innerHTML = \`
     <div style="max-width:800px;margin:0 auto">
-      <h2 style="color:#ff6b6b;font-size:18px;margin-bottom:8px">Pomelo Compilation Error</h2>
+      <h2 style="color:#ff6b6b;font-size:18px;margin-bottom:8px">Kallo Compilation Error</h2>
       <p style="color:#999;margin-bottom:16px">${file}</p>
       <pre style="background:#1a1a1a;padding:16px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;color:#ff6b6b">${escaped}</pre>
       <button onclick="this.parentElement.parentElement.remove()" style="margin-top:16px;padding:8px 16px;background:#333;color:#fff;border:none;border-radius:4px;cursor:pointer">Dismiss</button>
     </div>
   \`;
-  const existing = document.getElementById("pomelo-error-overlay");
+  const existing = document.getElementById("kallo-error-overlay");
   if (existing) existing.remove();
   document.body.appendChild(overlay);
 }

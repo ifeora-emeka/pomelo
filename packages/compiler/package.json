@@ -1,5 +1,5 @@
 {
-  "name": "@pomelo/compiler",
+  "name": "@kallo/compiler",
   "version": "0.1.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,8 +11,8 @@
     "test": "node --test dist/**/*.test.js"
   },
   "dependencies": {
-    "@pomelo/types": "workspace:*",
-    "@pomelo/shared": "workspace:*",
-    "@pomelo/parser": "workspace:*"
+    "@kallo/types": "workspace:*",
+    "@kallo/shared": "workspace:*",
+    "@kallo/parser": "workspace:*"
   }
 }

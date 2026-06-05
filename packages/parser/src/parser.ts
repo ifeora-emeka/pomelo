@@ -1,7 +1,7 @@
-import type { PomeloAST, PomeloASTNode } from "@pomelo/types";
+import type { KalloAST, KalloASTNode } from "@kallo/types";
 import { createAST, createASTNode } from "./ast.js";
 import {
-  PomeloLogger,
+  KalloLogger,
   BLOCK_VIEW,
   BLOCKS,
   VOID_TAGS,
@@ -10,7 +10,7 @@ import {
   NODE_TEXT,
   ATTR_EACH_OF,
   ATTR_EACH_AS,
-} from "@pomelo/shared";
+} from "@kallo/shared";
 
 export function parseAttributes(attrString: string): Record<string, string> {
   const attributes: Record<string, string> = {};
@@ -28,9 +28,9 @@ export function parseAttributes(attrString: string): Record<string, string> {
   return attributes;
 }
 
-function parseHTML(html: string): PomeloASTNode[] {
-  const nodes: PomeloASTNode[] = [];
-  const stack: PomeloASTNode[] = [];
+function parseHTML(html: string): KalloASTNode[] {
+  const nodes: KalloASTNode[] = [];
+  const stack: KalloASTNode[] = [];
   let index = 0;
 
   while (index < html.length) {
@@ -204,7 +204,7 @@ function parseHTML(html: string): PomeloASTNode[] {
   return nodes;
 }
 
-function validateEach(node: PomeloASTNode): void {
+function validateEach(node: KalloASTNode): void {
   if (node.type === NODE_ELEMENT && node.tagName === TAG_EACH) {
     if (!node.attributes || !node.attributes[ATTR_EACH_OF]) {
       throw new Error(
@@ -224,10 +224,10 @@ function validateEach(node: PomeloASTNode): void {
   }
 }
 
-export function parse(source: string): PomeloAST {
-  PomeloLogger.info("Parsing SFC source into AST...");
+export function parse(source: string): KalloAST {
+  KalloLogger.info("Parsing SFC source into AST...");
 
-  const children: PomeloASTNode[] = [];
+  const children: KalloASTNode[] = [];
   let index = 0;
   const blockTypes = new Set<string>();
 
@@ -333,7 +333,7 @@ export function parse(source: string): PomeloAST {
 
     const content = source.slice(openingEndIndex + 1, closeIndex);
     const node = createASTNode(
-      tagName as PomeloASTNode["type"],
+      tagName as KalloASTNode["type"],
       content,
       attributes,
     );

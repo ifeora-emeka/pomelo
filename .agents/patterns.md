@@ -1,4 +1,4 @@
-I would lean into a few core principles for Pomelo:
+I would lean into a few core principles for Kallo:
 
 1. **Single File Components** (`.pom`)
 2. **TypeScript first**
@@ -36,7 +36,7 @@ _watch();
 `src/stores/cart.store.ts`
 
 ```ts
-import { $store } from "@pomelo/core";
+import { $store } from "@kallo/core";
 
 type CartItem = {
   id: number;
@@ -202,7 +202,7 @@ cart.add(product);
 
 # Example 4 — API Route
 
-This is where I would differentiate Pomelo from Next.
+This is where I would differentiate Kallo from Next.
 
 Instead of:
 
@@ -215,7 +215,7 @@ use actual Express-style syntax.
 `src/api/products/products.api.ts`
 
 ```ts
-import { $router } from "@pomelo/server";
+import { $router } from "@kallo/server";
 
 const router = $router();
 
@@ -335,12 +335,12 @@ src/
 │
 ├── app.ts
 │
-└── pomelo.config.ts
+└── kallo.config.ts
 ```
 
 ---
 
-# Core Pomelo Keywords
+# Core Kallo Keywords
 
 Server:
 
@@ -392,7 +392,7 @@ Data Binding:
 :value :class :style :disabled :checked :selected
 ```
 
-If I were designing Pomelo today, the biggest DX decision would be:
+If I were designing Kallo today, the biggest DX decision would be:
 
 ```html
 <Server />

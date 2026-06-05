@@ -1,9 +1,14 @@
-import { compile } from "@pomelo/compiler";
-import { PomeloLogger, SFC_EXTENSION } from "@pomelo/shared";
+import { compile } from "@kallo/compiler";
+import {
+  KalloLogger,
+  SFC_EXTENSION,
+  replaceEnvVars,
+  stripServerBlock,
+} from "@kallo/shared";
 
 export function handleSFCCompilation(code: string, id: string) {
   if (id.endsWith(SFC_EXTENSION)) {
-    PomeloLogger.info(`Compiling template inside Vite: ${id}`);
+    KalloLogger.info(`Compiling template inside Vite: ${id}`);
     const result = compile(code, id);
     return result;
   }
@@ -28,30 +33,32 @@ export function generateClientModule(
 ): string {
   let output = "";
 
-  output += `import { hydrate, injectStyle, removeStyle, destroyInstance } from "@pomelo/runtime";\n`;
+  output += `import { hydrate, injectStyle, removeStyle, destroyInstance } from "@kallo/runtime";\n`;
 
   if (css) {
-    output += `const __pom_css__ = ${JSON.stringify(css)};\n`;
-    output += `injectStyle(__pom_css__, ${JSON.stringify(componentId)});\n`;
+    output += `const __kal_css__ = ${JSON.stringify(css)};\n`;
+    output += `injectStyle(__kal_css__, ${JSON.stringify(componentId)});\n`;
   }
 
-  output += code + "\n";
+  // Strip server block and replace environment variables for client-side execution
+  const processedCode = replaceEnvVars(stripServerBlock(code));
+  output += processedCode + "\n";
 
   output += `\nexport const componentId = ${JSON.stringify(componentId)};\n`;
-  output += `export const css = ${css ? "__pom_css__" : "undefined"};\n`;
+  output += `export const css = ${css ? "__kal_css__" : "undefined"};\n`;
 
   const setupCode = code.split("// === Template Block ===")[0] ?? code;
   const setupHash = computeHash(setupCode);
-  output += `export const __pom_setup_hash__ = ${JSON.stringify(setupHash)};\n`;
+  output += `export const __kal_setup_hash__ = ${JSON.stringify(setupHash)};\n`;
 
   output += `\nif (import.meta.hot) {\n`;
   output += `  import.meta.hot.accept((newModule) => {\n`;
   output += `    if (!newModule) return;\n`;
   output += `    const container = document.getElementById("app");\n`;
   output += `    if (!container) return;\n`;
-  output += `    const prevInst = window.__pom_instance__;\n`;
+  output += `    const prevInst = window.__kal_instance__;\n`;
   output += `    if (newModule.setup) {\n`;
-  output += `      const setupUnchanged = !!prevInst && newModule.__pom_setup_hash__ === __pom_setup_hash__;\n`;
+  output += `      const setupUnchanged = !!prevInst && newModule.__kal_setup_hash__ === __kal_setup_hash__;\n`;
   output += `      if (setupUnchanged && prevInst.hotUpdate) {\n`;
   output += `        if (newModule.css) {\n`;
   output += `          injectStyle(newModule.css, newModule.componentId || ${JSON.stringify(componentId)});\n`;
@@ -64,7 +71,7 @@ export function generateClientModule(
   output += `        if (newModule.css) {\n`;
   output += `          injectStyle(newModule.css, newModule.componentId || ${JSON.stringify(componentId)});\n`;
   output += `        }\n`;
-  output += `        window.__pom_instance__ = hydrate(container, {\n`;
+  output += `        window.__kal_instance__ = hydrate(container, {\n`;
   output += `          setup: newModule.setup,\n`;
   output += `          render: newModule.render,\n`;
   output += `          css: newModule.css || "",\n`;

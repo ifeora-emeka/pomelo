@@ -1,6 +1,6 @@
 For a framework project, I would strongly recommend a **monorepo-first architecture** where every major responsibility is its own package.
 
-Don't build Pomelo as one giant codebase.
+Don't build Kallo as one giant codebase.
 
 Build it like how Next.js, Nuxt, Vue, SvelteKit, and Angular are internally organized.
 
@@ -23,7 +23,7 @@ all separated.
 # Recommended Turborepo Structure
 
 ```text
-pomelo/
+kallo/
 
 ├── apps/
 │
@@ -58,7 +58,7 @@ pomelo/
 │   │
 │   ├── cli/
 │   │
-│   ├── create-pomelo/
+│   ├── create-kallo/
 │   │
 │   ├── shared/
 │   │
@@ -104,7 +104,7 @@ Everything else can come later.
 
 # Compiler Package
 
-This is the heart of Pomelo.
+This is the heart of Kallo.
 
 ```text
 packages/compiler/
@@ -179,7 +179,7 @@ src/
 This becomes:
 
 ```ts
-import { $local } from "@pomelo/runtime";
+import { $local } from "@kallo/runtime";
 ```
 
 ---
@@ -231,7 +231,7 @@ src/
 Usage:
 
 ```ts
-import { createServer } from "@pomelo/server";
+import { createServer } from "@kallo/server";
 ```
 
 ---
@@ -291,28 +291,28 @@ src/
 Commands:
 
 ```bash
-pomelo create
-pomelo dev
-pomelo build
-pomelo start
+kallo create
+kallo dev
+kallo build
+kallo start
 ```
 
 ---
 
-# Create Pomelo Package
+# Create Kallo Package
 
 Separate from CLI.
 
 Like:
 
 ```bash
-npx create-pomelo
+npx create-kallo
 ```
 
 Structure:
 
 ```text
-packages/create-pomelo/
+packages/create-kallo/
 
 src/
 
@@ -373,7 +373,7 @@ Everything imports from here.
 
 # The Future Architecture
 
-Once Pomelo matures:
+Once Kallo matures:
 
 ```text
 packages/
@@ -390,7 +390,7 @@ validation
 css
 vite-plugin
 cli
-create-pomelo
+create-kallo
 shared
 types
 ```
@@ -404,9 +404,9 @@ I would actually split the compiler immediately into three packages:
 ```text
 packages/
 
-pomelo-parser
-pomelo-compiler
-pomelo-vite-plugin
+kallo-parser
+kallo-compiler
+kallo-vite-plugin
 ```
 
 Because eventually you'll want:
@@ -442,15 +442,15 @@ everything
 
 which becomes painful after 6–12 months.
 
-If I were building Pomelo for real, my first six packages would be:
+If I were building Kallo for real, my first six packages would be:
 
 ```text
-@pomelo/parser
-@pomelo/compiler
-@pomelo/runtime
-@pomelo/server
-@pomelo/vite-plugin
-@pomelo/cli
+@kallo/parser
+@kallo/compiler
+@kallo/runtime
+@kallo/server
+@kallo/vite-plugin
+@kallo/cli
 ```
 
 Everything else would be layered on top of those. That gives you a clean separation between syntax, compilation, runtime behavior, server behavior, and developer tooling—the same boundaries that tend to survive long-term as frameworks grow.

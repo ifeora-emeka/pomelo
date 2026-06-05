@@ -1,10 +1,10 @@
-# API Design — Pomelo Framework
+# API Design — Kallo Framework
 
 ## Overview
 
-This document defines the design principles and conventions for all **server-side APIs** in Pomelo.
+This document defines the design principles and conventions for all **server-side APIs** in Kallo.
 
-Pomelo APIs are built on top of Express, but expose a structured, opinionated layer for scalability, type safety, and consistent DX.
+Kallo APIs are built on top of Express, but expose a structured, opinionated layer for scalability, type safety, and consistent DX.
 
 The API layer must remain:
 
@@ -219,7 +219,7 @@ roles("admin", "manager");
 
 ## Response Helpers
 
-All responses should use Pomelo response helpers:
+All responses should use Kallo response helpers:
 
 ### Standard responses
 
@@ -283,7 +283,7 @@ throw new NotFoundError("Product not found");
 
 ## API Versioning
 
-Pomelo supports versioned APIs.
+Kallo supports versioned APIs.
 
 ### Structure
 
@@ -386,7 +386,7 @@ Not allowed:
 
 ## Design Philosophy
 
-Pomelo APIs should feel:
+Kallo APIs should feel:
 
 - predictable
 - explicit

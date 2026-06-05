@@ -19,7 +19,7 @@ const sampleSFC = `
 `;
 
 test("Compiler compiles SFC completely", () => {
-  const result = compile(sampleSFC, "pages/index.pom");
+  const result = compile(sampleSFC, "view/index.kal");
 
   // Server block check
   assert.ok(result.code.includes("=== Server Block ==="));
@@ -31,13 +31,13 @@ test("Compiler compiles SFC completely", () => {
 
   // Template block check
   assert.ok(result.code.includes("export function render("));
-  assert.ok(result.code.includes("data-pom-"));
+  assert.ok(result.code.includes("data-kal-"));
 
   // Style scoping check
   assert.ok(result.css !== undefined);
-  assert.ok(result.css.includes("[data-pom-"));
-  assert.ok(result.css.includes(".container[data-pom-"));
-  assert.ok(result.css.includes("h1[data-pom-"));
+  assert.ok(result.css.includes("[data-kal-"));
+  assert.ok(result.css.includes(".container[data-kal-"));
+  assert.ok(result.css.includes("h1[data-kal-"));
 });
 
 test("Compiler compiles server block keywords", () => {
@@ -49,7 +49,7 @@ test("Compiler compiles server block keywords", () => {
     $layout("main");
   </Server>
   `;
-  const result = compile(serverSFC, "pages/server.pom");
+  const result = compile(serverSFC, "view/server.kal");
   assert.ok(result.code.includes("export const $serverPage = (async"));
   assert.ok(result.code.includes("export const $serverMeta = (() =>"));
   assert.ok(result.code.includes("export const $serverGuard = (async"));
@@ -67,7 +67,7 @@ test("Compiler compiles client block setup and returns", () => {
     function increment() { count.set(count.get() + 1); }
   </Client>
   `;
-  const result = compile(clientSFC, "pages/client.pom");
+  const result = compile(clientSFC, "view/client.kal");
   // Top-level imports
   assert.ok(
     result.code.startsWith('import { cartStore } from "@/stores/cart";'),
@@ -100,7 +100,7 @@ test("Compiler compiles template features, directives, and slots", () => {
     </div>
   </View>
   `;
-  const result = compile(viewSFC, "pages/view.pom");
+  const result = compile(viewSFC, "view/view.kal");
 
   // State deconstruction check
   assert.ok(
@@ -110,11 +110,11 @@ test("Compiler compiles template features, directives, and slots", () => {
   );
 
   // Event handlers & Bindings
-  assert.ok(result.code.includes('data-pom-event-click="increment"'));
-  assert.ok(result.code.includes('data-pom-bind="username"'));
+  assert.ok(result.code.includes('data-kal-event-click="increment"'));
+  assert.ok(result.code.includes('data-kal-bind="username"'));
   assert.ok(
     result.code.includes(
-      'data-pom-event-input="username = $event.target.value"',
+      'data-kal-event-input="username = $event.target.value"',
     ),
   );
 

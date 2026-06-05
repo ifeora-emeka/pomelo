@@ -1,4 +1,4 @@
-import type { PomeloASTNode } from "@pomelo/types";
+import type { KalloASTNode } from "@kallo/types";
 import {
   VOID_TAGS,
   NODE_TEXT,
@@ -7,7 +7,7 @@ import {
   TAG_WHEN,
   TAG_ELSE,
   TAG_SLOT,
-} from "@pomelo/shared";
+} from "@kallo/shared";
 
 function extractIdentifiers(expression: string): string[] {
   const cleanExpr = expression
@@ -76,7 +76,7 @@ function extractIdentifiers(expression: string): string[] {
   return matches.filter((id) => !keywords.has(id));
 }
 
-function collectIdentifiers(node: PomeloASTNode, set: Set<string>): void {
+function collectIdentifiers(node: KalloASTNode, set: Set<string>): void {
   if (node.type === NODE_TEXT) {
     const rx = /\{\{([\s\S]*?)\}\}/g;
     let m;
@@ -127,7 +127,7 @@ function collectIdentifiers(node: PomeloASTNode, set: Set<string>): void {
 }
 
 export function transformTemplate(
-  node: PomeloASTNode,
+  node: KalloASTNode,
   componentId: string,
 ): string {
   const identifiers = new Set<string>();
@@ -136,7 +136,7 @@ export function transformTemplate(
   }
 
   function compileNode(
-    n: PomeloASTNode,
+    n: KalloASTNode,
     lastWhen: string,
     activeLoopVars: string[],
   ): { html: string; nextWhen: string } {
@@ -220,7 +220,7 @@ export function transformTemplate(
 
       // Normal HTML elements
       const attributes: string[] = [];
-      attributes.push(`data-pom-${componentId}`);
+      attributes.push(`data-kal-${componentId}`);
 
       let className = "";
       let dynamicClass = "";
@@ -233,27 +233,27 @@ export function transformTemplate(
             dynamicClass = value;
           } else if (key === ":bind") {
             // Two-way binding: e.g. :bind="search"
-            attributes.push(`data-pom-bind="${value}"`);
+            attributes.push(`data-kal-bind="${value}"`);
             attributes.push(`value="\${${value}}"`);
             attributes.push(
-              `data-pom-event-input="${value} = $event.target.value"`,
+              `data-kal-event-input="${value} = $event.target.value"`,
             );
           } else if (key.startsWith("@")) {
             const eventName = key.slice(1);
-            attributes.push(`data-pom-event-${eventName}="${value}"`);
+            attributes.push(`data-kal-event-${eventName}="${value}"`);
 
             // Serialize any active loop variables used in this event handler
             for (const loopVar of activeLoopVars) {
               const rx = new RegExp(`\\b${loopVar}\\b`);
               if (rx.test(value)) {
                 attributes.push(
-                  `data-pom-loop-item-${loopVar}="\${JSON.stringify(${loopVar}).replace(/\\"/g, '&quot;')}"`,
+                  `data-kal-loop-item-${loopVar}="\${JSON.stringify(${loopVar}).replace(/\\"/g, '&quot;')}"`,
                 );
               }
             }
           } else if (key.startsWith(":")) {
             const propName = key.slice(1);
-            attributes.push(`data-pom-bind-${propName}="${value}"`);
+            attributes.push(`data-kal-bind-${propName}="${value}"`);
             attributes.push(`${propName}="\${${value}}"`);
           } else {
             // Static attribute (with interpolation support)
@@ -298,7 +298,7 @@ export function transformTemplate(
   }
 
   function compileChildren(
-    children: PomeloASTNode[],
+    children: KalloASTNode[],
     activeLoopVars: string[],
   ): string {
     let html = "";
@@ -312,7 +312,7 @@ export function transformTemplate(
   }
 
   const loopVars = new Set<string>();
-  function findLoopVars(n: PomeloASTNode) {
+  function findLoopVars(n: KalloASTNode) {
     if (n.type === NODE_ELEMENT) {
       if (n.tagName === TAG_EACH) {
         const asAttr = n.attributes?.["as"];
@@ -353,12 +353,12 @@ export function transformTemplate(
     var unwrappedProps = {};
     for (var _k in props) { unwrappedProps[_k] = typeof props[_k] === "function" ? props[_k] : _unwrapSignal(props[_k]); }
     var _s = C.setup ? Object.assign({}, C.setup(unwrappedProps), unwrappedProps) : unwrappedProps;
-    var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-pom-loop-item-' + e[0] + '="' + JSON.stringify(e[1]).replace(/"/g, '&quot;') + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
-    return '<span data-pom-component style="display:contents"' + (_a ? ' ' + _a : '') + '>' + C.render(_s) + '</span>';
+    var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-kal-loop-item-' + e[0] + '="' + JSON.stringify(e[1]).replace(/"/g, '&quot;') + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
+    return '<span data-kal-component style="display:contents"' + (_a ? ' ' + _a : '') + '>' + C.render(_s) + '</span>';
   }
-  if (typeof document !== "undefined" && typeof css !== "undefined" && css && !document.getElementById("pom-style-${componentId}")) {
+  if (typeof document !== "undefined" && typeof css !== "undefined" && css && !document.getElementById("kallo-style-${componentId}")) {
     const styleEl = document.createElement("style");
-    styleEl.id = "pom-style-${componentId}";
+    styleEl.id = "kallo-style-${componentId}";
     styleEl.textContent = css;
     document.head.appendChild(styleEl);
   }

@@ -1,8 +1,8 @@
-import type { PomeloASTNode } from "@pomelo/types";
+import type { KalloASTNode } from "@kallo/types";
 
-const ABORT_HELPER = `const $abort = (statusCode, message) => { const e = Object.assign(new Error(message || "Pomelo Abort"), { statusCode, isPomeloAbort: true }); throw e; };\n`;
+const ABORT_HELPER = `const $abort = (statusCode, message) => { const e = Object.assign(new Error(message || "Kallo Abort"), { statusCode, isKalloAbort: true }); throw e; };\n`;
 
-export function transformServer(node: PomeloASTNode): string {
+export function transformServer(node: KalloASTNode): string {
   let content = node.content;
 
   // Rewrite definition keywords to exports

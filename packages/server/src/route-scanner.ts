@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { PomeloLogger, SFC_EXTENSION } from "@pomelo/shared";
-import type { RouteRecord, RouteManifest } from "@pomelo/types";
+import { KalloLogger, SFC_EXTENSION } from "@kallo/shared";
+import type { RouteRecord, RouteManifest } from "@kallo/types";
 
 const LAYOUT_FILENAME = "layout.pom";
 
@@ -109,7 +109,7 @@ function resolveLayoutChain(filePath: string, pagesDir: string): string[] {
 
 export function scanRoutes(pagesDir: string): RouteRecord[] {
   if (!fs.existsSync(pagesDir)) {
-    PomeloLogger.warn(`Pages directory not found: ${pagesDir}`);
+    KalloLogger.warn(`Pages directory not found: ${pagesDir}`);
     return [];
   }
 
@@ -166,7 +166,7 @@ export function scanRoutes(pagesDir: string): RouteRecord[] {
 
   scan(pagesDir, 0);
 
-  PomeloLogger.info(`Scanned ${routes.length} route(s) from ${pagesDir}`);
+  KalloLogger.info(`Scanned ${routes.length} route(s) from ${pagesDir}`);
   return routes;
 }
 
