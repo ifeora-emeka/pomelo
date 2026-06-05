@@ -37,7 +37,7 @@ Example:
     console.log(`
 Usage: kallo build [options]
 
-Compile all SFC (.pom) pages and components to production-ready JS modules.
+Compile all SFC (.kal) views and components to production-ready JS modules.
 
 Options:
   --minify         Minify the compiled JS and CSS outputs
@@ -68,14 +68,14 @@ Example:
 Usage: kallo generate <type> <name>
 Alias: kallo g <type> <name>
 
-Scaffold a new Kallo SFC page or component.
+Scaffold a new Kallo SFC view or component.
 
 Arguments:
-  <type>  Type of generator: "page" or "component" (required)
+  <type>  Type of generator: "view" or "component" (required)
   <name>  The name of the file to create (required)
 
 Examples:
-  kallo generate page about
+  kallo generate view about
   kallo g component button
 `);
     return true;
@@ -92,7 +92,7 @@ Commands:
   dev                  Start development server
   build                Build application for production
   start                Start production server
-  generate <type> <n>  Generate page or component (alias: g)
+  generate <type> <n>  Generate view or component (alias: g)
   help [command]       Display help for a command
 
 Options:

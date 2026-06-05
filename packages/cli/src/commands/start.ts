@@ -8,13 +8,13 @@ import path from "node:path";
 
 export function executeStartCommand(args: string[]): boolean {
   const isTest =
-    process.env.POMELO_TEST === "true" ||
+    process.env.KALLO_TEST === "true" ||
     process.env.NODE_ENV === "test" ||
-    process.env.POMELO_ENV === "test" ||
+    process.env.KALLO_ENV === "test" ||
     args.includes("--test");
 
   process.env.NODE_ENV = "production";
-  process.env.POMELO_ENV = "production";
+  process.env.KALLO_ENV = "production";
 
   KalloLogger.info(`Starting Kallo application in production...`);
 
@@ -30,7 +30,7 @@ export function executeStartCommand(args: string[]): boolean {
       env: "production",
     });
 
-    const pagesDir = path.join(process.cwd(), "src/pages");
+    const pagesDir = path.join(process.cwd(), "src/view");
     const apiDir = path.join(process.cwd(), "src/api");
     registerFileSystemRoutes(server.app, pagesDir);
     registerAPIRoutes(server.app, apiDir);

@@ -3,7 +3,7 @@ import path from "node:path";
 import { KalloLogger, SFC_EXTENSION } from "@kallo/shared";
 import type { RouteRecord, RouteManifest } from "@kallo/types";
 
-const LAYOUT_FILENAME = "layout.pom";
+const LAYOUT_FILENAME = "layout.kal";
 
 export function extractParams(segment: string): {
   isDynamic: boolean;
@@ -44,7 +44,7 @@ function fileToRoutePath(relativePath: string): string {
   const segments: string[] = [];
 
   for (const part of parts) {
-    if (part === "index.pom" || part === "page.pom") {
+    if (part === "index.kal" || part === "page.kal") {
       continue;
     }
     if (part.endsWith(SFC_EXTENSION)) {
@@ -140,7 +140,7 @@ export function scanRoutes(pagesDir: string): RouteRecord[] {
 
       if (!entry.name.endsWith(SFC_EXTENSION)) continue;
       if (entry.name === LAYOUT_FILENAME) continue;
-      if (entry.name !== "page.pom" && entry.name !== "index.pom") continue;
+      if (entry.name !== "page.kal" && entry.name !== "index.kal") continue;
 
       const relativePath = path.relative(pagesDir, fullPath);
       const routePath = fileToRoutePath(relativePath);

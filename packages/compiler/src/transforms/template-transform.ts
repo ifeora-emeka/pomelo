@@ -157,7 +157,8 @@ export function transformTemplate(
         tagName !== TAG_EACH &&
         tagName !== TAG_WHEN &&
         tagName !== TAG_ELSE &&
-        tagName !== TAG_SLOT;
+        tagName !== TAG_SLOT &&
+        tagName !== "Head";
       if (isComponent) {
         const propsPairs: string[] = [];
         if (n.attributes) {
@@ -175,6 +176,14 @@ export function transformTemplate(
           propsPairs.length > 0 ? `{ ${propsPairs.join(", ")} }` : `{}`;
         return {
           html: `\${typeof ${tagName} !== "undefined" && ${tagName}.render ? _renderComponent(${tagName}, ${propsObj}) : ""}`,
+          nextWhen: "",
+        };
+      }
+
+      if (tagName === "Head") {
+        const childHTML = compileChildren(n.children || [], activeLoopVars);
+        return {
+          html: `\${(typeof globalThis !== "undefined" && (globalThis as any).__kallo_ssr_context__) ? ((globalThis as any).__kallo_ssr_context__.headTags.push(\`${childHTML}\`), "") : ""}`,
           nextWhen: "",
         };
       }

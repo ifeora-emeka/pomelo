@@ -17,13 +17,13 @@ function createMockPages() {
   fs.mkdirSync(tmpDir, { recursive: true });
 
   const files = [
-    "index.pom",
-    "about/page.pom",
-    "blog/index.pom",
-    "blog/[id]/page.pom",
-    "blog/[...catchall]/page.pom",
-    "layout.pom",
-    "blog/layout.pom",
+    "index.kal",
+    "about/page.kal",
+    "blog/index.kal",
+    "blog/[id]/page.kal",
+    "blog/[...catchall]/page.kal",
+    "layout.kal",
+    "blog/layout.kal",
   ];
 
   for (const file of files) {
@@ -62,14 +62,14 @@ test("Route scanner resolves layout chains", () => {
   const homeRoute = routes.find((r) => r.path === "/");
   assert.ok(homeRoute);
   assert.deepStrictEqual(homeRoute.layoutPaths, [
-    path.join(tmpDir, "layout.pom"),
+    path.join(tmpDir, "layout.kal"),
   ]);
 
   const blogRoute = routes.find((r) => r.path === "/blog/:id");
   assert.ok(blogRoute);
   assert.deepStrictEqual(blogRoute.layoutPaths, [
-    path.join(tmpDir, "layout.pom"),
-    path.join(tmpDir, "blog/layout.pom"),
+    path.join(tmpDir, "layout.kal"),
+    path.join(tmpDir, "blog/layout.kal"),
   ]);
 
   cleanupMockPages();

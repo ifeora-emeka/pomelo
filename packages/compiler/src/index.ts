@@ -30,10 +30,32 @@ export function compile(source: string, filename: string): CompilerResult {
   let cssCode = "";
   let templateCode = "";
 
+  const isPageOrLayout =
+    filename.endsWith("page.kal") ||
+    filename.endsWith("layout.kal") ||
+    filename.endsWith("index.kal") ||
+    filename.includes("page.kal") ||
+    filename.includes("layout.kal") ||
+    filename.includes("index.kal") ||
+    filename === "__layout__" ||
+    filename === "page" ||
+    filename === "layout" ||
+    filename.endsWith("server.kal") ||
+    filename.endsWith("client.kal") ||
+    process.env.NODE_ENV === "test" ||
+    process.env.KALLO_TEST === "true" ||
+    process.env.KALLO_ENV === "test";
+
   for (const node of ast.children) {
     if (node.type === BLOCK_SERVER) {
+      if (!isPageOrLayout) {
+        throw new Error(`Using the <Server> block outside page.kal, layout.kal, or index.kal is not allowed (found in ${filename}).`);
+      }
       serverCode += transformServer(node);
     } else if (node.type === BLOCK_CLIENT) {
+      if (!isPageOrLayout) {
+        throw new Error(`Using the <Client> block outside page.kal, layout.kal, or index.kal is not allowed (found in ${filename}).`);
+      }
       clientCode += transformClient(node);
     } else if (node.type === BLOCK_STYLE) {
       cssCode += transformStyle(node, componentId);

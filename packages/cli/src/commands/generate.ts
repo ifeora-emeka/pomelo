@@ -7,20 +7,20 @@ export function executeGenerateCommand(args: string[]): boolean {
   const name = args[1];
 
   if (!type || !name) {
-    KalloLogger.warn("Usage: kallo generate <page|component> <name>");
+    KalloLogger.warn("Usage: kallo generate <view|component|api|store> <name>");
     return false;
   }
 
   const projectRoot = process.cwd();
 
-  if (type === "page") {
-    const pageDir = path.join(projectRoot, "src/pages", name);
+  if (type === "view" || type === "page") {
+    const pageDir = path.join(projectRoot, "src/view", name);
     if (!fs.existsSync(pageDir)) {
       fs.mkdirSync(pageDir, { recursive: true });
     }
-    const pagePath = path.join(pageDir, "page.pom");
+    const pagePath = path.join(pageDir, "page.kal");
     if (fs.existsSync(pagePath)) {
-      KalloLogger.warn(`Page src/pages/${name}/page.pom already exists!`);
+      KalloLogger.warn(`View src/view/${name}/page.kal already exists!`);
       return false;
     }
     fs.writeFileSync(
@@ -36,7 +36,7 @@ export function executeGenerateCommand(args: string[]): boolean {
 </View>
 `,
     );
-    KalloLogger.info(`Generated page: src/pages/${name}/page.pom`);
+    KalloLogger.info(`Generated view: src/view/${name}/page.kal`);
     return true;
   }
 
@@ -45,9 +45,9 @@ export function executeGenerateCommand(args: string[]): boolean {
     if (!fs.existsSync(compDir)) {
       fs.mkdirSync(compDir, { recursive: true });
     }
-    const compPath = path.join(compDir, `${name}.pom`);
+    const compPath = path.join(compDir, `${name}.kal`);
     if (fs.existsSync(compPath)) {
-      KalloLogger.warn(`Component ${name}.pom already exists!`);
+      KalloLogger.warn(`Component ${name}.kal already exists!`);
       return false;
     }
     fs.writeFileSync(
@@ -63,38 +63,109 @@ export function executeGenerateCommand(args: string[]): boolean {
 </View>
 `,
     );
-    KalloLogger.info(`Generated component: src/components/${name}.pom`);
+    KalloLogger.info(`Generated component: src/components/${name}.kal`);
     return true;
   }
 
   if (type === "api") {
     const apiRouteDir = path.join(projectRoot, "src/api", name);
-    if (!fs.existsSync(apiRouteDir)) {
-      fs.mkdirSync(apiRouteDir, { recursive: true });
+    const controllerDir = path.join(apiRouteDir, "controllers");
+    const serviceDir = path.join(apiRouteDir, "services");
+
+    if (!fs.existsSync(controllerDir)) {
+      fs.mkdirSync(controllerDir, { recursive: true });
     }
+    if (!fs.existsSync(serviceDir)) {
+      fs.mkdirSync(serviceDir, { recursive: true });
+    }
+
+    const serviceName = name.charAt(0).toUpperCase() + name.slice(1);
     const apiPath = path.join(apiRouteDir, `${name}.api.ts`);
+    const controllerPath = path.join(controllerDir, `${name}.controller.ts`);
+    const servicePath = path.join(serviceDir, `${name}.service.ts`);
+
     if (fs.existsSync(apiPath)) {
       KalloLogger.warn(
         `API route src/api/${name}/${name}.api.ts already exists!`,
       );
       return false;
     }
+
+    // 1. Write Service
+    fs.writeFileSync(
+      servicePath,
+      `export class ${serviceName}Service {
+  async getHello() {
+    return { message: "Hello from ${serviceName} Service!" };
+  }
+}
+`
+    );
+
+    // 2. Write Controller
+    fs.writeFileSync(
+      controllerPath,
+      `import { ${serviceName}Service } from "../services/${name}.service.js";
+
+const service = new ${serviceName}Service();
+
+export async function getHello(req: any, res: any) {
+  try {
+    const data = await service.getHello();
+    res.ok(data);
+  } catch (err: any) {
+    res.serverError(err.message);
+  }
+}
+`
+    );
+
+    // 3. Write Routes
     fs.writeFileSync(
       apiPath,
       `import { $router } from "@kallo/server";
+import { getHello } from "./controllers/${name}.controller.js";
 
 const router = $router();
 
-router.get("/", (req, res) => {
-  res.ok({
-    message: "Hello from ${name} API endpoint!"
-  });
-});
+router.get("/", getHello);
 
 export default router;
-`,
+`
     );
-    KalloLogger.info(`Generated API route: src/api/${name}/${name}.api.ts`);
+
+    // 4. Update/Create src/api/index.ts
+    const entryPath = path.join(projectRoot, "src/api/index.ts");
+    if (!fs.existsSync(entryPath)) {
+      fs.writeFileSync(
+        entryPath,
+        `import { $router } from "@kallo/server";
+import ${name}Routes from "./${name}/${name}.api.js";
+
+const router = $router();
+
+router.use("/${name}", ${name}Routes);
+
+export default router;
+`
+      );
+    } else {
+      let content = fs.readFileSync(entryPath, "utf-8");
+      const importLine = `import ${name}Routes from "./${name}/${name}.api.js";\n`;
+      const routerUseLine = `router.use("/${name}", ${name}Routes);\n`;
+
+      if (!content.includes(importLine) && !content.includes(`./${name}/${name}.api.js`)) {
+        const exportIdx = content.indexOf("export default");
+        if (exportIdx !== -1) {
+          content = importLine + content.slice(0, exportIdx) + routerUseLine + content.slice(exportIdx);
+        } else {
+          content = importLine + content + "\n" + routerUseLine;
+        }
+        fs.writeFileSync(entryPath, content);
+      }
+    }
+
+    KalloLogger.info(`Generated API package: src/api/${name} (routes, controller, service)`);
     return true;
   }
 

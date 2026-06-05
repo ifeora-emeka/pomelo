@@ -8,6 +8,10 @@ import {
   KalloLogger,
   formatFrameworkName,
   rewriteRelativeImports,
+  SFC_EXTENSION,
+  replaceEnvVars,
+  stripServerBlock,
+  loadEnv,
 } from "@kallo/shared";
 import type { FrameworkConfig } from "@kallo/types";
 import { KalloError } from "./errors.js";
@@ -141,7 +145,7 @@ function generateHydrationScript(
 ): string {
   return `<script type="module">
 import { hydrate } from "/@kallo/runtime/index.js";
-import * as component from "/@kallo/pages/${cacheFileName}";
+import * as component from "/@kallo/view/${cacheFileName}";
 const container = document.getElementById("app");
 const serverState = ${stateJSON};
 if (container && component.setup) {
@@ -163,10 +167,10 @@ function generateHydrationScriptWithLayouts(
   layoutStatesJSON: string[],
 ): string {
   const imports: string[] = [];
-  imports.push(`import * as component from "/@kallo/pages/${cacheFileName}";`);
+  imports.push(`import * as component from "/@kallo/view/${cacheFileName}";`);
   for (let i = 0; i < layoutCacheFileNames.length; i++) {
     imports.push(
-      `import * as layout_${i} from "/@kallo/pages/${layoutCacheFileNames[i]}";`,
+      `import * as layout_${i} from "/@kallo/view/${layoutCacheFileNames[i]}";`,
     );
   }
 
@@ -264,7 +268,15 @@ export async function handleSSR(
       },
     });
 
-    const htmlContent = component.render ? component.render(renderState) : "";
+    const ssrCtx = { headTags: [] as string[] };
+    (globalThis as any).__kallo_ssr_context__ = ssrCtx;
+
+    let htmlContent = "";
+    try {
+      htmlContent = component.render ? component.render(renderState) : "";
+    } finally {
+      delete (globalThis as any).__kallo_ssr_context__;
+    }
 
     let metaHTML = "";
     if (component.$serverMeta) {
@@ -274,17 +286,19 @@ export async function handleSSR(
       }
     }
 
+    const headTagsHTML = ssrCtx.headTags.join("\n");
+
     let styleHTML = "";
     if (component.css) {
-      styleHTML = `<style id="pom-style-${component.componentId || "app"}">${component.css}</style>`;
+      styleHTML = `<style id="kallo-style-${component.componentId || "app"}">${component.css}</style>`;
     }
 
     const routePath = req.route?.path || req.path;
     const resolvedCacheFileName =
       cacheFileName ||
       (routePath === "/"
-        ? "index.pom.js"
-        : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}.pom.js`);
+        ? `index${SFC_EXTENSION}.js`
+        : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}${SFC_EXTENSION}.js`);
     const componentId = component.componentId || "app";
     const stateJSON = JSON.stringify(state);
     const hydrationScript = component.setup
@@ -297,6 +311,7 @@ export async function handleSSR(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   ${metaHTML}
+  ${headTagsHTML}
   ${styleHTML}
 </head>
 <body>
@@ -478,7 +493,7 @@ function compileTypeScriptDeps(
   }
 }
 
-function compilePomDeps(
+function compileKalDeps(
   cacheFile: string,
   cacheDir: string,
   projectRoot: string,
@@ -488,11 +503,11 @@ function compilePomDeps(
   visited.add(cacheFile);
 
   let content = fs.readFileSync(cacheFile, "utf-8");
-  const pomImportRegex = /import\s+(\w+)\s+from\s+['"]([^'"]+\.pom)['"]/g;
+  const kalImportRegex = new RegExp(`import\\s+(\\w+)\\s+from\\s+['"]([^'"]+\\${SFC_EXTENSION})['"]`, "g");
   let match;
   const rewrites = new Map<string, string>();
 
-  while ((match = pomImportRegex.exec(content)) !== null) {
+  while ((match = kalImportRegex.exec(content)) !== null) {
     const importName = match[1]!;
     const importPath = match[2]!;
 
@@ -511,10 +526,10 @@ function compilePomDeps(
 
     if (fs.existsSync(absolutePomPath)) {
       const pomSource = fs.readFileSync(absolutePomPath, "utf-8");
-      const compiled = compile(pomSource, importName);
+      const compiled = compile(pomSource, absolutePomPath);
       const relative = path.relative(projectRoot, absolutePomPath);
       const compCacheName =
-        "comp_" + relative.replace(/[\/\\]/g, "_").replace(/\.pom$/, ".js");
+        "comp_" + relative.replace(/[\/\\]/g, "_").replace(new RegExp(`\\${SFC_EXTENSION}$`), ".js");
       const compCacheFile = path.join(cacheDir, compCacheName);
       const rewroteCode = rewriteRelativeImports(
         compiled.code,
@@ -523,7 +538,7 @@ function compilePomDeps(
       );
       fs.writeFileSync(compCacheFile, rewriteBareModuleImports(rewroteCode));
       compileTypeScriptDeps(compCacheFile, cacheDir, new Set());
-      compilePomDeps(compCacheFile, cacheDir, projectRoot, visited);
+      compileKalDeps(compCacheFile, cacheDir, projectRoot, visited);
 
       const newRelPath =
         "./" +
@@ -567,13 +582,13 @@ export function registerFileSystemRoutes(
   for (const route of routes) {
     const relative = path.relative(pagesDir, route.filePath);
     const content = fs.readFileSync(route.filePath, "utf-8");
-    const compiled = compile(content, route.path);
+    const compiled = compile(content, route.filePath);
 
     const cacheFile = path.join(
       cacheDir,
       relative.replace(/[\/\\]/g, "_") + ".js",
     );
-    const importPath = route.path === "/" ? "/index.pom" : `${route.path}.pom`;
+    const importPath = route.path === "/" ? `/index${SFC_EXTENSION}` : `${route.path}${SFC_EXTENSION}`;
     routeCacheMap.set(importPath, cacheFile);
     const rewroteCode = rewriteRelativeImports(
       compiled.code,
@@ -582,13 +597,13 @@ export function registerFileSystemRoutes(
     );
     fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteCode));
     compileTypeScriptDeps(cacheFile, cacheDir);
-    compilePomDeps(cacheFile, cacheDir, process.cwd());
+    compileKalDeps(cacheFile, cacheDir, process.cwd());
 
     const layoutCacheFiles: string[] = [];
     for (const layoutPath of route.layoutPaths) {
       const layoutRelative = path.relative(pagesDir, layoutPath);
       const layoutContent = fs.readFileSync(layoutPath, "utf-8");
-      const layoutCompiled = compile(layoutContent, "__layout__");
+      const layoutCompiled = compile(layoutContent, layoutPath);
       const layoutCacheFile = path.join(
         cacheDir,
         "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
@@ -603,7 +618,7 @@ export function registerFileSystemRoutes(
         rewriteBareModuleImports(layoutRewroteCode),
       );
       compileTypeScriptDeps(layoutCacheFile, cacheDir);
-      compilePomDeps(layoutCacheFile, cacheDir, process.cwd());
+      compileKalDeps(layoutCacheFile, cacheDir, process.cwd());
       layoutCacheFiles.push(layoutCacheFile);
     }
 
@@ -611,10 +626,10 @@ export function registerFileSystemRoutes(
       try {
         if (
           process.env.NODE_ENV === "development" ||
-          process.env.POMELO_ENV === "development"
+          process.env.KALLO_ENV === "development"
         ) {
           const content = fs.readFileSync(route.filePath, "utf-8");
-          const compiled = compile(content, route.path);
+          const compiled = compile(content, route.filePath);
           const devRewroteCode = rewriteRelativeImports(
             compiled.code,
             route.filePath,
@@ -622,12 +637,12 @@ export function registerFileSystemRoutes(
           );
           fs.writeFileSync(cacheFile, rewriteBareModuleImports(devRewroteCode));
           compileTypeScriptDeps(cacheFile, cacheDir);
-          compilePomDeps(cacheFile, cacheDir, process.cwd());
+          compileKalDeps(cacheFile, cacheDir, process.cwd());
 
           for (const layoutPath of route.layoutPaths) {
             const layoutRelative = path.relative(pagesDir, layoutPath);
             const layoutContent = fs.readFileSync(layoutPath, "utf-8");
-            const layoutCompiled = compile(layoutContent, "__layout__");
+            const layoutCompiled = compile(layoutContent, layoutPath);
             const layoutCacheFile = path.join(
               cacheDir,
               "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
@@ -642,7 +657,7 @@ export function registerFileSystemRoutes(
               rewriteBareModuleImports(devLayoutRewroteCode),
             );
             compileTypeScriptDeps(layoutCacheFile, cacheDir);
-            compilePomDeps(layoutCacheFile, cacheDir, process.cwd());
+            compileKalDeps(layoutCacheFile, cacheDir, process.cwd());
           }
         }
 
@@ -708,62 +723,62 @@ export function apiFileToRoutePath(relativePath: string): string {
   return routePath.replace(/\/+/g, "/").replace(/\/$/, "") || "/api";
 }
 
+export function getApiEntryPoint(apiDir: string): string | null {
+  const possibleEntries = [
+    "index.ts",
+    "index.js",
+    "routes.ts",
+    "routes.js",
+  ];
+  for (const entry of possibleEntries) {
+    const fullPath = path.join(apiDir, entry);
+    if (fs.existsSync(fullPath)) {
+      return fullPath;
+    }
+  }
+  return null;
+}
+
 export function compileAPIRoutes(apiDir: string, cacheDir: string) {
   if (!fs.existsSync(apiDir)) return;
 
-  function scanApi(dir: string) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        scanApi(fullPath);
-        continue;
-      }
-
-      const isApiFile =
-        entry.name.endsWith(".api.ts") ||
-        entry.name.endsWith(".api.js") ||
-        entry.name === "route.ts" ||
-        entry.name === "route.js" ||
-        (entry.name === "index.ts" && dir !== apiDir);
-      if (!isApiFile) continue;
-
-      const relative = path.relative(apiDir, fullPath);
-      const tsSource = fs.readFileSync(fullPath, "utf-8");
-
-      let transpiledCode = tsSource;
-      if (fullPath.endsWith(".ts")) {
-        const transpiled = ts.transpileModule(tsSource, {
-          compilerOptions: {
-            module: ts.ModuleKind.ESNext,
-            target: ts.ScriptTarget.ES2022,
-          },
-        });
-        transpiledCode = transpiled.outputText;
-      }
-
-      const cacheFileName =
-        "api_" + relative.replace(/[\/\\]/g, "_").replace(/\.(ts|js)$/, ".js");
-      const cacheFile = path.join(cacheDir, cacheFileName);
-
-      const rewroteOutput = rewriteRelativeImports(
-        transpiledCode,
-        fullPath,
-        cacheFile,
-      );
-      fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteOutput));
-
-      compileTypeScriptDeps(cacheFile, cacheDir);
-      compilePomDeps(cacheFile, cacheDir, process.cwd());
-
-      const routePrefix = apiFileToRoutePath(relative);
-      KalloLogger.info(
-        `Compiled API route: ${routePrefix} → .kallo-cache/${cacheFileName}`,
-      );
-    }
+  const entryPath = getApiEntryPoint(apiDir);
+  if (!entryPath) {
+    KalloLogger.warn(`No API entry point found in ${apiDir}. Create src/api/index.ts or routes.ts.`);
+    return;
   }
 
-  scanApi(apiDir);
+  const relative = path.relative(apiDir, entryPath);
+  const tsSource = fs.readFileSync(entryPath, "utf-8");
+
+  let transpiledCode = tsSource;
+  if (entryPath.endsWith(".ts")) {
+    const transpiled = ts.transpileModule(tsSource, {
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+      },
+    });
+    transpiledCode = transpiled.outputText;
+  }
+
+  const cacheFileName =
+    "api_" + relative.replace(/[\/\\]/g, "_").replace(/\.(ts|js)$/, ".js");
+  const cacheFile = path.join(cacheDir, cacheFileName);
+
+  const rewroteOutput = rewriteRelativeImports(
+    transpiledCode,
+    entryPath,
+    cacheFile,
+  );
+  fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteOutput));
+
+  compileTypeScriptDeps(cacheFile, cacheDir);
+  compileKalDeps(cacheFile, cacheDir, process.cwd());
+
+  KalloLogger.info(
+    `Compiled API entry route: /api → .kallo-cache/${cacheFileName}`,
+  );
 }
 
 export function registerAPIRoutes(app: express.Express, apiDir: string) {
@@ -774,111 +789,71 @@ export function registerAPIRoutes(app: express.Express, apiDir: string) {
     fs.mkdirSync(cacheDir, { recursive: true });
   }
 
-  function scanApi(dir: string) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        scanApi(fullPath);
-        continue;
-      }
-
-      const isApiFile =
-        entry.name.endsWith(".api.ts") ||
-        entry.name.endsWith(".api.js") ||
-        entry.name === "route.ts" ||
-        entry.name === "route.js" ||
-        (entry.name === "index.ts" && dir !== apiDir);
-      if (!isApiFile) continue;
-
-      const relative = path.relative(apiDir, fullPath);
-      const tsSource = fs.readFileSync(fullPath, "utf-8");
-
-      let transpiledCode = tsSource;
-      if (fullPath.endsWith(".ts")) {
-        const transpiled = ts.transpileModule(tsSource, {
-          compilerOptions: {
-            module: ts.ModuleKind.ESNext,
-            target: ts.ScriptTarget.ES2022,
-          },
-        });
-        transpiledCode = transpiled.outputText;
-      }
-
-      const cacheFileName =
-        "api_" + relative.replace(/[\/\\]/g, "_").replace(/\.(ts|js)$/, ".js");
-      const cacheFile = path.join(cacheDir, cacheFileName);
-
-      const rewroteOutput = rewriteRelativeImports(
-        transpiledCode,
-        fullPath,
-        cacheFile,
-      );
-      fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteOutput));
-
-      compileTypeScriptDeps(cacheFile, cacheDir);
-      compilePomDeps(cacheFile, cacheDir, process.cwd());
-
-      const routePrefix = apiFileToRoutePath(relative);
-
-      app.use(
-        routePrefix,
-        async (req: Request, res: Response, next: NextFunction) => {
-          try {
-            if (
-              process.env.NODE_ENV === "development" ||
-              process.env.POMELO_ENV === "development"
-            ) {
-              const freshTsSource = fs.readFileSync(fullPath, "utf-8");
-              let freshTranspiledCode = freshTsSource;
-              if (fullPath.endsWith(".ts")) {
-                const freshTranspiled = ts.transpileModule(freshTsSource, {
-                  compilerOptions: {
-                    module: ts.ModuleKind.ESNext,
-                    target: ts.ScriptTarget.ES2022,
-                  },
-                });
-                freshTranspiledCode = freshTranspiled.outputText;
-              }
-              const freshRewrote = rewriteRelativeImports(
-                freshTranspiledCode,
-                fullPath,
-                cacheFile,
-              );
-              fs.writeFileSync(
-                cacheFile,
-                rewriteBareModuleImports(freshRewrote),
-              );
-              compileTypeScriptDeps(cacheFile, cacheDir);
-              compilePomDeps(cacheFile, cacheDir, process.cwd());
-            }
-
-            const apiModule = await import(
-              `file://${cacheFile}?t=${Date.now()}`
-            );
-            const router = apiModule.default || apiModule;
-
-            if (router && typeof router.handle === "function" && !router.use) {
-              const handled = router.handle(req.method, req.path, req, res);
-              if (!handled) {
-                next();
-              }
-            } else if (typeof router === "function") {
-              router(req, res, next);
-            } else {
-              next();
-            }
-          } catch (err) {
-            next(err);
-          }
-        },
-      );
-
-      KalloLogger.info(`Registered API route: ${routePrefix} → ${relative}`);
-    }
+  const entryPath = getApiEntryPoint(apiDir);
+  if (!entryPath) {
+    KalloLogger.warn(`No API entry point found in ${apiDir}. Create src/api/index.ts or routes.ts.`);
+    return;
   }
 
-  scanApi(apiDir);
+  const relative = path.relative(apiDir, entryPath);
+  const cacheFileName =
+    "api_" + relative.replace(/[\/\\]/g, "_").replace(/\.(ts|js)$/, ".js");
+  const cacheFile = path.join(cacheDir, cacheFileName);
+
+  app.use(
+    "/api",
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        if (
+          process.env.NODE_ENV === "development" ||
+          process.env.KALLO_ENV === "development"
+        ) {
+          const freshTsSource = fs.readFileSync(entryPath, "utf-8");
+          let freshTranspiledCode = freshTsSource;
+          if (entryPath.endsWith(".ts")) {
+            const freshTranspiled = ts.transpileModule(freshTsSource, {
+              compilerOptions: {
+                module: ts.ModuleKind.ESNext,
+                target: ts.ScriptTarget.ES2022,
+              },
+            });
+            freshTranspiledCode = freshTranspiled.outputText;
+          }
+          const freshRewrote = rewriteRelativeImports(
+            freshTranspiledCode,
+            entryPath,
+            cacheFile,
+          );
+          fs.writeFileSync(
+            cacheFile,
+            rewriteBareModuleImports(freshRewrote),
+          );
+          compileTypeScriptDeps(cacheFile, cacheDir);
+          compileKalDeps(cacheFile, cacheDir, process.cwd());
+        }
+
+        const apiModule = await import(
+          `file://${cacheFile}?t=${Date.now()}`
+        );
+        const router = apiModule.default || apiModule;
+
+        if (router && typeof router.handle === "function" && !router.use) {
+          const handled = router.handle(req.method, req.path, req, res);
+          if (!handled) {
+            next();
+          }
+        } else if (typeof router === "function") {
+          router(req, res, next);
+        } else {
+          next();
+        }
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  KalloLogger.info(`Registered API route: /api → ${relative}`);
 }
 
 export async function handleSSRWithLayouts(
@@ -968,41 +943,50 @@ export async function handleSSRWithLayouts(
       },
     });
 
-    const pageContent = component.render ? component.render(renderState) : "";
+    const ssrCtx = { headTags: [] as string[] };
+    (globalThis as any).__kallo_ssr_context__ = ssrCtx;
 
-    let htmlContent = pageContent;
-    for (let i = layouts.length - 1; i >= 0; i--) {
-      const layout = layouts[i];
-      let layoutState = layoutStates[i] || {};
-      if (layout.setup) {
-        const clientSetupState = layout.setup(layoutState) || {};
-        layoutState = { ...layoutState, ...clientSetupState };
+    let htmlContent = "";
+    try {
+      const pageContent = component.render ? component.render(renderState) : "";
+      htmlContent = pageContent;
+      for (let i = layouts.length - 1; i >= 0; i--) {
+        const layout = layouts[i];
+        let layoutState = layoutStates[i] || {};
+        if (layout.setup) {
+          const clientSetupState = layout.setup(layoutState) || {};
+          layoutState = { ...layoutState, ...clientSetupState };
+        }
+        const layoutRenderState = new Proxy(layoutState, {
+          get(target, key) {
+            if (key === "state") return target;
+            const val = Reflect.get(target, key);
+            if (val && typeof val === "object" && typeof val.get === "function") {
+              return val.get();
+            }
+            return val;
+          },
+        });
+        htmlContent = layout.render
+          ? layout.render(layoutRenderState, {
+              default: () => htmlContent,
+            })
+          : htmlContent;
       }
-      const layoutRenderState = new Proxy(layoutState, {
-        get(target, key) {
-          if (key === "state") return target;
-          const val = Reflect.get(target, key);
-          if (val && typeof val === "object" && typeof val.get === "function") {
-            return val.get();
-          }
-          return val;
-        },
-      });
-      htmlContent = layout.render
-        ? layout.render(layoutRenderState, {
-            default: () => htmlContent,
-          })
-        : htmlContent;
+    } finally {
+      delete (globalThis as any).__kallo_ssr_context__;
     }
+
+    const headTagsHTML = ssrCtx.headTags.join("\n");
 
     let styleHTML = "";
     if (component.css) {
-      styleHTML += `<style id="pom-style-${component.componentId || "app"}">${component.css}</style>`;
+      styleHTML += `<style id="kallo-style-${component.componentId || "app"}">${component.css}</style>`;
     }
     for (let i = 0; i < layouts.length; i++) {
       const layout = layouts[i];
       if (layout.css) {
-        styleHTML += `<style id="pom-style-${layout.componentId || "layout_" + i}">${layout.css}</style>`;
+        styleHTML += `<style id="kallo-style-${layout.componentId || "layout_" + i}">${layout.css}</style>`;
       }
     }
 
@@ -1010,8 +994,8 @@ export async function handleSSRWithLayouts(
     const resolvedCacheFileName =
       cacheFileName ||
       (routePath === "/"
-        ? "index.pom.js"
-        : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}.pom.js`);
+        ? `index${SFC_EXTENSION}.js`
+        : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}${SFC_EXTENSION}.js`);
     const componentId = component.componentId || "app";
     const stateJSON = JSON.stringify(state);
 
@@ -1037,6 +1021,7 @@ export async function handleSSRWithLayouts(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   ${metaHTML}
+  ${headTagsHTML}
   ${styleHTML}
 </head>
 <body>
@@ -1076,6 +1061,7 @@ function rewriteBrowserImports(content: string): string {
 }
 
 export function createServer(config: FrameworkConfig): ServerInstance {
+  loadEnv(config.env);
   const name = formatFrameworkName(config);
   KalloLogger.info(`Creating server for ${name}...`);
 
@@ -1116,16 +1102,17 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     }
   }
 
-  app.use("/@kallo/pages", (req, res, next) => {
+  app.use("/@kallo/view", (req, res, next) => {
     const cleanPath = decodeURIComponent(req.path).replace(/^\//, "");
     let cacheFileName = cleanPath;
-    if (cleanPath.endsWith(".pom")) {
+    if (cleanPath.endsWith(SFC_EXTENSION)) {
       const importPath = "/" + cleanPath;
       const cacheFile = routeCacheMap.get(importPath);
       if (cacheFile && fs.existsSync(cacheFile)) {
         res.setHeader("Content-Type", "application/javascript; charset=utf-8");
         const content = fs.readFileSync(cacheFile, "utf-8");
-        res.send(rewriteBrowserImports(content));
+        const processed = replaceEnvVars(stripServerBlock(rewriteBrowserImports(content)));
+        res.send(processed);
         return;
       }
       cacheFileName = cleanPath.replace(/[\/\\]/g, "_") + ".js";
@@ -1135,7 +1122,8 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     if (fs.existsSync(cacheFile)) {
       res.setHeader("Content-Type", "application/javascript; charset=utf-8");
       const content = fs.readFileSync(cacheFile, "utf-8");
-      res.send(rewriteBrowserImports(content));
+      const processed = replaceEnvVars(stripServerBlock(rewriteBrowserImports(content)));
+      res.send(processed);
     } else {
       res.status(404).send(`Cache file not found: ${cacheFileName}`);
     }
@@ -1148,7 +1136,8 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     if (fs.existsSync(cacheFile)) {
       res.setHeader("Content-Type", "application/javascript; charset=utf-8");
       const content = fs.readFileSync(cacheFile, "utf-8");
-      res.send(rewriteBrowserImports(content));
+      const processed = replaceEnvVars(stripServerBlock(rewriteBrowserImports(content)));
+      res.send(processed);
     } else {
       res.status(404).send("Not found");
     }
@@ -1191,6 +1180,12 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     }
     next();
   });
+
+  // Serve public directory if it exists
+  const publicDir = path.join(process.cwd(), "public");
+  if (fs.existsSync(publicDir)) {
+    app.use(express.static(publicDir));
+  }
 
   // Serve other project root files statically (e.g. assets, static resources)
   app.use(express.static(process.cwd()));

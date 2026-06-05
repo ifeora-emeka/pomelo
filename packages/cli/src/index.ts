@@ -1,5 +1,5 @@
 import type { CLIContext } from "@kallo/types";
-import { KalloLogger } from "@kallo/shared";
+import { KalloLogger, loadEnv } from "@kallo/shared";
 import { executeDevCommand } from "./commands/dev.js";
 import { executeBuildCommand } from "./commands/build.js";
 import { executeStartCommand } from "./commands/start.js";
@@ -8,6 +8,7 @@ import { executeGenerateCommand } from "./commands/generate.js";
 import { executeHelpCommand } from "./commands/help.js";
 
 export function handleCLI(context: CLIContext): boolean {
+  loadEnv();
   KalloLogger.info(`Executing CLI command: ${context.command}`);
   if (context.command === "dev") {
     return executeDevCommand(context.args);

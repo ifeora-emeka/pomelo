@@ -3,13 +3,13 @@ import { spawn } from "node:child_process";
 
 const isTypeScriptSource = __filename.endsWith(".ts");
 
-if (isTypeScriptSource && !process.env.POMELO_CLI_RESPAWNED) {
+if (isTypeScriptSource && !process.env.KALLO_CLI_RESPAWNED) {
   const child = spawn(
     process.execPath,
     ["--import", "tsx", process.argv[1]!, ...process.argv.slice(2)],
     {
       stdio: "inherit",
-      env: { ...process.env, POMELO_CLI_RESPAWNED: "true" },
+      env: { ...process.env, KALLO_CLI_RESPAWNED: "true" },
     },
   );
   child.on("exit", (code) => {

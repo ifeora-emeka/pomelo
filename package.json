@@ -9,7 +9,8 @@
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules packages/*/node_modules apps/*/node_modules",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.js",
+    "generate": "./scripts/generate.sh"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

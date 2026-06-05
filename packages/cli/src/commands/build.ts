@@ -7,12 +7,12 @@ import path from "node:path";
 export function executeBuildCommand(args: string[]): boolean {
   KalloLogger.info("Starting compilation build...");
 
-  const pagesDir = path.join(process.cwd(), "src/pages");
+  const pagesDir = path.join(process.cwd(), "src/view");
   const cacheDir = path.join(process.cwd(), ".kallo-cache");
 
   if (!fs.existsSync(pagesDir)) {
     KalloLogger.warn(
-      `Pages directory ${pagesDir} does not exist. Nothing to build.`,
+      `View directory ${pagesDir} does not exist. Nothing to build.`,
     );
     return true;
   }
@@ -28,7 +28,7 @@ export function executeBuildCommand(args: string[]): boolean {
     for (const route of routes) {
       const relative = path.relative(pagesDir, route.filePath);
       const content = fs.readFileSync(route.filePath, "utf-8");
-      const compiled = compile(content, route.path);
+      const compiled = compile(content, route.filePath);
 
       const cacheFile = path.join(
         cacheDir,
@@ -47,7 +47,7 @@ export function executeBuildCommand(args: string[]): boolean {
       for (const layoutPath of route.layoutPaths) {
         const layoutRelative = path.relative(pagesDir, layoutPath);
         const layoutContent = fs.readFileSync(layoutPath, "utf-8");
-        const layoutCompiled = compile(layoutContent, "__layout__");
+        const layoutCompiled = compile(layoutContent, layoutPath);
         const layoutCacheFile = path.join(
           cacheDir,
           "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",

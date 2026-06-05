@@ -1,5 +1,5 @@
-process.env.POMELO_ENV = "test";
-process.env.POMELO_TEST = "true";
+process.env.KALLO_ENV = "test";
+process.env.KALLO_TEST = "true";
 
 import test from "node:test";
 import assert from "node:assert";
@@ -37,7 +37,7 @@ test("CLI create command scaffolds new app structure", () => {
   assert.ok(createSuccess);
   assert.ok(fs.existsSync(testAppPath));
   assert.ok(fs.existsSync(path.join(testAppPath, "package.json")));
-  assert.ok(fs.existsSync(path.join(testAppPath, "src/pages/page.pom")));
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/view/page.kal")));
 
   // Clean up
   fs.rmSync(testAppPath, { recursive: true, force: true });
@@ -60,12 +60,12 @@ test("CLI create command scaffolds ecommerce template structure", () => {
   assert.ok(
     fs.existsSync(path.join(testAppPath, "src/api/products/products.api.ts")),
   );
-  assert.ok(fs.existsSync(path.join(testAppPath, "src/pages/page.pom")));
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/view/page.kal")));
 
   fs.rmSync(testAppPath, { recursive: true, force: true });
 });
 
-test("CLI generate command scaffolds pages, components, api, and stores", () => {
+test("CLI generate command scaffolds views, components, api, and stores", () => {
   const tempDir = path.resolve(process.cwd(), "temp-gen-project");
   if (fs.existsSync(tempDir)) {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -78,17 +78,17 @@ test("CLI generate command scaffolds pages, components, api, and stores", () => 
   try {
     const pageSuccess = handleCLI({
       command: "generate",
-      args: ["page", "profile"],
+      args: ["view", "profile"],
     });
     assert.ok(pageSuccess);
-    assert.ok(fs.existsSync(path.join(tempDir, "src/pages/profile/page.pom")));
+    assert.ok(fs.existsSync(path.join(tempDir, "src/view/profile/page.kal")));
 
     const componentSuccess = handleCLI({
       command: "g",
       args: ["component", "Button"],
     });
     assert.ok(componentSuccess);
-    assert.ok(fs.existsSync(path.join(tempDir, "src/components/Button.pom")));
+    assert.ok(fs.existsSync(path.join(tempDir, "src/components/Button.kal")));
 
     const apiSuccess = handleCLI({
       command: "generate",
