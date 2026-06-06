@@ -286,8 +286,7 @@ body {
     };
 
     if (template === "empty") {
-      writeDefaultLayout();
-
+      // ── Task store (API-backed, explicit state for reliable reactivity)
       fs.writeFileSync(
         path.join(targetDir, "src/stores/tasks.ts"),
         `import { $store } from "@kallo/runtime";
@@ -301,28 +300,139 @@ export interface Task {
 
 export const useTaskStore = $store({
   tasks: [] as Task[],
-  get total() {
-    return this.tasks.length;
+  total: 0,
+  completedCount: 0,
+  pendingCount: 0,
+  loading: false,
+  error: "" as string,
+
+  _recalc() {
+    this.total = this.tasks.length;
+    this.completedCount = this.tasks.filter((t: Task) => t.completed).length;
+    this.pendingCount = this.tasks.filter((t: Task) => !t.completed).length;
   },
-  get completedCount() {
-    return this.tasks.filter(t => t.completed).length;
-  },
-  get pendingCount() {
-    return this.tasks.filter(t => !t.completed).length;
-  },
+
   setTasks(newTasks: Task[]) {
+    this.tasks = [...newTasks];
+    this._recalc();
+  },
+
+  async fetchTasks() {
+    this.loading = true;
+    try {
+      const res = await fetch("/api/tasks");
+      if (res.ok) {
+        const data = await res.json();
+        this.tasks = [...data];
+        this._recalc();
+      }
+    } catch (e: any) {
+      this.error = e.message;
+    } finally {
+      this.loading = false;
+    }
+  },
+
+  async addTask(title: string, priority: "low" | "medium" | "high") {
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, priority }),
+      });
+      if (res.ok) {
+        const task = await res.json();
+        this.tasks = [...this.tasks, task];
+        this._recalc();
+      }
+    } catch (e: any) {
+      this.error = e.message;
+    }
+  },
+
+  async toggleTask(id: string) {
+    const idx = this.tasks.findIndex((t: Task) => t.id === id);
+    if (idx === -1) return;
+    const task = this.tasks[idx];
+    const updated = { ...task, completed: !task.completed };
+    const newTasks = [...this.tasks];
+    newTasks[idx] = updated;
     this.tasks = newTasks;
+    this._recalc();
+    try {
+      await fetch(\`/api/tasks/\${id}\`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: updated.completed }),
+      });
+    } catch (e: any) {
+      this.error = e.message;
+      const rollback = [...this.tasks];
+      rollback[idx] = task;
+      this.tasks = rollback;
+      this._recalc();
+    }
   },
-  addTask(title: string, priority: "low" | "medium" | "high") {
-    this.tasks.push({ id: String(Date.now()), title, completed: false, priority });
+
+  async deleteTask(id: string) {
+    const prev = [...this.tasks];
+    this.tasks = this.tasks.filter((t: Task) => t.id !== id);
+    this._recalc();
+    try {
+      await fetch(\`/api/tasks/\${id}\`, { method: "DELETE" });
+    } catch (e: any) {
+      this.error = e.message;
+      this.tasks = prev;
+      this._recalc();
+    }
   },
-  toggleTask(id: string) {
-    const task = this.tasks.find(t => t.id === id);
-    if (task) task.completed = !task.completed;
+});
+`
+      );
+
+      // ── Auth store (client-side session state)
+      fs.writeFileSync(
+        path.join(targetDir, "src/stores/auth.ts"),
+        `import { $store } from "@kallo/runtime";
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export const useAuthStore = $store({
+  user: null as AuthUser | null,
+  loading: false,
+
+  setUser(user: AuthUser | null) {
+    this.user = user;
   },
-  deleteTask(id: string) {
-    this.tasks = this.tasks.filter(t => t.id !== id);
-  }
+
+  async signOut() {
+    this.loading = true;
+    try {
+      await fetch("/api/auth/signout", { method: "POST" });
+      this.user = null;
+      window.location.href = "/";
+    } catch (e: any) {
+      console.error("Sign out failed:", e.message);
+    } finally {
+      this.loading = false;
+    }
+  },
+
+  async fetchSession() {
+    try {
+      const res = await fetch("/api/auth/session");
+      if (res.ok) {
+        const data = await res.json();
+        this.user = data.user || null;
+      }
+    } catch {
+      this.user = null;
+    }
+  },
 });
 `
       );
@@ -395,10 +505,18 @@ export const useTaskStore = $store({
 `
       );
 
-      // 7. Root Layout
+      // 7. Root Layout (with SSR auth header)
       fs.writeFileSync(
         path.join(targetDir, "src/view/layout.kal"),
-        `<View>
+        `<Server>
+  import { $currentUser } from "@kallo/server";
+  $page(async (ctx) => {
+    const user = $currentUser(ctx);
+    return { currentUser: user };
+  });
+</Server>
+
+<View>
   <html lang="en">
     <head>
       <title>Kallo Task Flow</title>
@@ -410,16 +528,33 @@ export const useTaskStore = $store({
     <body class="bg-bg-primary text-foreground min-h-screen">
       <div class="max-w-6xl mx-auto p-6">
         <header class="flex justify-between items-center pb-4 border-b border-border mb-8">
-          <div class="flex items-center gap-2">
+          <a href="/" class="flex items-center gap-2 no-underline">
             <svg class="w-8 h-8 text-primary-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
             <span class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary-500 to-tertiary-500 bg-clip-text text-transparent">Kallo Task Flow</span>
-          </div>
-          <div class="flex items-center gap-2 text-xs font-semibold text-neutral-500 bg-bg-secondary px-3 py-1.5 rounded-full border border-border">
-            <span class="w-2 h-2 rounded-full bg-success-500 animate-pulse"></span>
-            System Active
-          </div>
+          </a>
+          <nav class="flex items-center gap-3">
+            <When condition="currentUser">
+              <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg-secondary border border-border">
+                  <span class="w-2 h-2 rounded-full bg-success-500 animate-pulse"></span>
+                  <span class="text-xs font-semibold text-foreground">{{ currentUser && currentUser.name }}</span>
+                </div>
+                <form action="/api/auth/signout" method="POST">
+                  <button type="submit" class="text-xs font-semibold text-neutral-500 hover:text-danger-500 px-3 py-1.5 rounded-full border border-border bg-bg-secondary hover:border-danger-400 transition-all duration-200 cursor-pointer">
+                    Sign Out
+                  </button>
+                </form>
+              </div>
+            </When>
+            <Else>
+              <div class="flex items-center gap-2">
+                <a href="/login" class="text-xs font-semibold text-neutral-500 hover:text-foreground px-3 py-1.5 rounded-full border border-border bg-bg-secondary transition-all duration-200">Log In</a>
+                <a href="/signup" class="text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 px-4 py-1.5 rounded-full transition-all duration-200">Sign Up</a>
+              </div>
+            </Else>
+          </nav>
         </header>
         <main>
           <Slot />
@@ -428,35 +563,51 @@ export const useTaskStore = $store({
     </body>
   </html>
 </View>
+
+<Style>
+  a { text-decoration: none; }
+</Style>
 `
       );
 
-      // 8. Root Page
+
+      // 8. Root Page (client-side fetch for tasks, SSR for auth state)
       fs.writeFileSync(
         path.join(targetDir, "src/view/page.kal"),
-        `<Client>
+        `<Server>
+  $page(async () => {
+    return {};
+  });
+</Server>
+
+<Client>
   import { useTaskStore } from "../stores/tasks.js";
-  import { $local } from "@kallo/runtime";
+  import { $local, $mount } from "@kallo/runtime";
   import EachTask from "../components/EachTask.kal";
   import ProjectStats from "../components/ProjectStats.kal";
 
   const taskStore = useTaskStore;
   const newTaskTitle = $local("");
-  const newTaskPriority = $local("medium");
+  const newTaskPriority = $local("low");
 
-  function handleAddTask(e) {
+  $mount(() => {
+    taskStore.fetchTasks();
+  });
+
+  async function handleAddTask(e) {
     if (e) e.preventDefault();
-    if (!newTaskTitle.get().trim()) return;
-    taskStore.addTask(newTaskTitle.get(), newTaskPriority.get());
+    const title = newTaskTitle.get().trim();
+    if (!title) return;
+    await taskStore.addTask(title, newTaskPriority.get());
     newTaskTitle.set("");
   }
 
-  function handleToggle(id) {
-    taskStore.toggleTask(id);
+  async function handleToggle(id) {
+    await taskStore.toggleTask(id);
   }
 
-  function handleDelete(id) {
-    taskStore.deleteTask(id);
+  async function handleDelete(id) {
+    await taskStore.deleteTask(id);
   }
 </Client>
 
@@ -468,22 +619,21 @@ export const useTaskStore = $store({
       <form class="p-5 rounded-2xl bg-bg-secondary border border-border shadow-sm flex flex-col gap-4" @submit="handleAddTask(event)">
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Task Title</label>
-          <input 
-            type="text" 
-            :value="newTaskTitle" 
-            @input="newTaskTitle.set(event.target.value)" 
-            placeholder="What needs to be done?" 
+          <input
+            type="text"
+            :value="newTaskTitle"
+            @input="newTaskTitle.set(event.target.value)"
+            placeholder="What needs to be done?"
             class="w-full px-4 py-3 rounded-xl border border-border bg-bg-primary text-foreground placeholder-neutral-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm transition-all duration-200"
-            required
           />
         </div>
-        
+
         <div class="flex justify-between items-center gap-4">
           <div class="flex items-center gap-3">
             <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Priority</label>
-            <select 
-              :value="newTaskPriority" 
-              @change="newTaskPriority.set(event.target.value)" 
+            <select
+              :value="newTaskPriority"
+              @change="newTaskPriority.set(event.target.value)"
               class="px-3 py-2 rounded-lg border border-border bg-bg-primary text-foreground text-xs font-semibold focus:outline-none focus:border-primary-500 cursor-pointer"
             >
               <option value="low">Low</option>
@@ -500,16 +650,21 @@ export const useTaskStore = $store({
       <div class="flex flex-col gap-3">
         <When condition="taskStore.total > 0">
           <Each of="taskStore.tasks" as="task">
-            <EachTask 
-              :task="task" 
-              :onToggle="handleToggle" 
-              :onDelete="handleDelete" 
+            <EachTask
+              :task="task"
+              :onToggle="handleToggle"
+              :onDelete="handleDelete"
             />
           </Each>
         </When>
         <Else>
-          <div class="text-center p-12 border-2 border-dashed border-border rounded-2xl text-neutral-500 font-semibold bg-bg-secondary/40">
-            No tasks found. Add a task to get started!
+          <div class="text-center p-12 border-2 border-dashed border-border rounded-2xl text-neutral-500 font-semibold">
+            <When condition="taskStore.loading">
+              <span>Loading tasks...</span>
+            </When>
+            <Else>
+              <span>No tasks yet. Add your first task above!</span>
+            </Else>
           </div>
         </Else>
       </div>
@@ -517,16 +672,17 @@ export const useTaskStore = $store({
 
     <div class="flex flex-col gap-6">
       <h2 class="text-2xl font-extrabold text-foreground tracking-tight">Project Status</h2>
-      <ProjectStats 
-        :total="taskStore.total" 
-        :completed="taskStore.completedCount" 
-        :pending="taskStore.pendingCount" 
+      <ProjectStats
+        :total="taskStore.total"
+        :completed="taskStore.completedCount"
+        :pending="taskStore.pendingCount"
         :completionPercentage="taskStore.total > 0 ? Math.round((taskStore.completedCount / taskStore.total) * 100) : 0"
       />
     </div>
   </div>
 </View>
 `
+
       );
 
       // 9. Root fallback: not-found.kal
@@ -582,19 +738,347 @@ export const useTaskStore = $store({
 `
       );
 
+      // ── Tasks API
+      fs.mkdirSync(path.join(targetDir, "src/api/tasks"), { recursive: true });
       fs.writeFileSync(
-        path.join(targetDir, "src/api/index.ts"),
+        path.join(targetDir, "src/api/tasks/tasks.api.ts"),
         `import { $router } from "@kallo/server";
+
+interface Task {
+  id: string;
+  title: string;
+  completed: boolean;
+  priority: "low" | "medium" | "high";
+}
+
+const tasks: Task[] = [];
 
 const router = $router();
 
-router.get("/", (req, res) => {
-  res.ok({ message: "Welcome to Kallo API!" });
+router.get("/", (_req, res) => {
+  res.ok(tasks);
+});
+
+router.post("/", (req, res) => {
+  const { title, priority } = req.body as { title?: string; priority?: string };
+  if (!title || typeof title !== "string") {
+    return res.badRequest("title is required");
+  }
+  const task: Task = {
+    id: String(Date.now()),
+    title: title.trim(),
+    completed: false,
+    priority: (["low", "medium", "high"].includes(priority ?? "") ? priority : "medium") as Task["priority"],
+  };
+  tasks.push(task);
+  res.created(task);
+});
+
+router.patch("/:id", (req, res) => {
+  const task = tasks.find((t) => t.id === req.params["id"]);
+  if (!task) return res.notFound("Task not found");
+  const { completed, title, priority } = req.body as Partial<Task>;
+  if (typeof completed === "boolean") task.completed = completed;
+  if (typeof title === "string") task.title = title.trim();
+  if (priority && ["low", "medium", "high"].includes(priority)) task.priority = priority;
+  res.ok(task);
+});
+
+router.delete("/:id", (req, res) => {
+  const idx = tasks.findIndex((t) => t.id === req.params["id"]);
+  if (idx === -1) return res.notFound("Task not found");
+  tasks.splice(idx, 1);
+  res.deleted();
 });
 
 export default router;
 `
       );
+
+      // ── Auth API
+      fs.mkdirSync(path.join(targetDir, "src/api/auth"), { recursive: true });
+      fs.writeFileSync(
+        path.join(targetDir, "src/api/auth/auth.api.ts"),
+        `import { $router, $setSessionCookie, $signOut, $currentUser } from "@kallo/server";
+import crypto from "node:crypto";
+
+interface StoredUser {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+}
+
+const users: StoredUser[] = [];
+
+function hashPassword(password: string): string {
+  return crypto.createHash("sha256").update(password).digest("hex");
+}
+
+const router = $router();
+
+router.post("/signup", (req, res) => {
+  const { name, email, password } = req.body as { name?: string; email?: string; password?: string };
+  if (!name || !email || !password) return res.badRequest("name, email, and password are required");
+  if (users.find((u) => u.email === email)) return res.badRequest("Email already registered");
+  const user: StoredUser = { id: String(Date.now()), name, email, passwordHash: hashPassword(password) };
+  users.push(user);
+  $setSessionCookie(res, { id: user.id, name: user.name, email: user.email });
+  res.created({ id: user.id, name: user.name, email: user.email });
+});
+
+router.post("/login", (req, res) => {
+  const { email, password } = req.body as { email?: string; password?: string };
+  if (!email || !password) return res.badRequest("email and password are required");
+  const user = users.find((u) => u.email === email && u.passwordHash === hashPassword(password));
+  if (!user) return res.unauthorized("Invalid email or password");
+  $setSessionCookie(res, { id: user.id, name: user.name, email: user.email });
+  res.ok({ id: user.id, name: user.name, email: user.email });
+});
+
+router.post("/signout", (req, res) => {
+  $signOut(res);
+  res.redirect("/");
+});
+
+router.get("/session", (req, res) => {
+  const user = $currentUser({ req });
+  res.ok({ user: user || null });
+});
+
+export default router;
+`
+      );
+
+      // ── API root index
+      fs.writeFileSync(
+        path.join(targetDir, "src/api/index.ts"),
+        `import { $router } from "@kallo/server";
+import tasksRoutes from "./tasks/tasks.api.js";
+import authRoutes from "./auth/auth.api.js";
+
+const router = $router();
+
+router.use("/tasks", tasksRoutes);
+router.use("/auth", authRoutes);
+
+export default router;
+`
+      );
+
+      // ── Login page
+      fs.mkdirSync(path.join(targetDir, "src/view/login"), { recursive: true });
+      fs.writeFileSync(
+        path.join(targetDir, "src/view/login/page.kal"),
+        `<Server>
+  import { $currentUser } from "@kallo/server";
+  $page(async (ctx) => {
+    const user = $currentUser(ctx);
+    if (user) {
+      ctx.res.redirect("/");
+      return {};
+    }
+    return {};
+  });
+</Server>
+
+<Client>
+  import { $local } from "@kallo/runtime";
+
+  const email = $local("");
+  const password = $local("");
+  const errorMsg = $local("");
+  const loading = $local(false);
+
+  async function handleLogin(e) {
+    if (e) e.preventDefault();
+    errorMsg.set("");
+    loading.set(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.get(), password: password.get() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        window.location.href = "/";
+      } else {
+        errorMsg.set(data.error || "Login failed");
+      }
+    } catch (err) {
+      errorMsg.set("Network error. Please try again.");
+    } finally {
+      loading.set(false);
+    }
+  }
+</Client>
+
+<View>
+  <div class="min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-extrabold text-foreground mb-2">Welcome back</h1>
+        <p class="text-neutral-500 text-sm">Sign in to your account to continue</p>
+      </div>
+      <form class="bg-bg-secondary border border-border rounded-2xl p-8 shadow-sm flex flex-col gap-5" @submit="handleLogin(event)">
+        <When condition="errorMsg">
+          <div class="px-4 py-3 rounded-xl bg-danger-50 border border-danger-200 text-danger-700 text-sm font-medium">
+            {{ errorMsg }}
+          </div>
+        </When>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Email</label>
+          <input
+            type="email"
+            :value="email"
+            @input="email.set(event.target.value)"
+            placeholder="you@example.com"
+            class="w-full px-4 py-3 rounded-xl border border-border bg-bg-primary text-foreground placeholder-neutral-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm transition-all"
+            required
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Password</label>
+          <input
+            type="password"
+            :value="password"
+            @input="password.set(event.target.value)"
+            placeholder="••••••••"
+            class="w-full px-4 py-3 rounded-xl border border-border bg-bg-primary text-foreground placeholder-neutral-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm transition-all"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          :disabled="loading"
+          class="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm cursor-pointer shadow-md transition-all duration-200"
+        >
+          Sign In
+        </button>
+        <p class="text-center text-sm text-neutral-500">
+          Don't have an account? <a href="/signup" class="text-primary-500 font-semibold hover:underline">Sign up</a>
+        </p>
+      </form>
+    </div>
+  </div>
+</View>
+`
+      );
+
+      // ── Signup page
+      fs.mkdirSync(path.join(targetDir, "src/view/signup"), { recursive: true });
+      fs.writeFileSync(
+        path.join(targetDir, "src/view/signup/page.kal"),
+        `<Server>
+  import { $currentUser } from "@kallo/server";
+  $page(async (ctx) => {
+    const user = $currentUser(ctx);
+    if (user) {
+      ctx.res.redirect("/");
+      return {};
+    }
+    return {};
+  });
+</Server>
+
+<Client>
+  import { $local } from "@kallo/runtime";
+
+  const name = $local("");
+  const email = $local("");
+  const password = $local("");
+  const errorMsg = $local("");
+  const loading = $local(false);
+
+  async function handleSignup(e) {
+    if (e) e.preventDefault();
+    errorMsg.set("");
+    loading.set(true);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.get(), email: email.get(), password: password.get() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        window.location.href = "/";
+      } else {
+        errorMsg.set(data.error || "Signup failed");
+      }
+    } catch (err) {
+      errorMsg.set("Network error. Please try again.");
+    } finally {
+      loading.set(false);
+    }
+  }
+</Client>
+
+<View>
+  <div class="min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-extrabold text-foreground mb-2">Create an account</h1>
+        <p class="text-neutral-500 text-sm">Start tracking your tasks today</p>
+      </div>
+      <form class="bg-bg-secondary border border-border rounded-2xl p-8 shadow-sm flex flex-col gap-5" @submit="handleSignup(event)">
+        <When condition="errorMsg">
+          <div class="px-4 py-3 rounded-xl bg-danger-50 border border-danger-200 text-danger-700 text-sm font-medium">
+            {{ errorMsg }}
+          </div>
+        </When>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Full Name</label>
+          <input
+            type="text"
+            :value="name"
+            @input="name.set(event.target.value)"
+            placeholder="Jane Doe"
+            class="w-full px-4 py-3 rounded-xl border border-border bg-bg-primary text-foreground placeholder-neutral-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm transition-all"
+            required
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Email</label>
+          <input
+            type="email"
+            :value="email"
+            @input="email.set(event.target.value)"
+            placeholder="you@example.com"
+            class="w-full px-4 py-3 rounded-xl border border-border bg-bg-primary text-foreground placeholder-neutral-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm transition-all"
+            required
+          />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Password</label>
+          <input
+            type="password"
+            :value="password"
+            @input="password.set(event.target.value)"
+            placeholder="Min. 8 characters"
+            class="w-full px-4 py-3 rounded-xl border border-border bg-bg-primary text-foreground placeholder-neutral-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm transition-all"
+            required
+            minlength="8"
+          />
+        </div>
+        <button
+          type="submit"
+          :disabled="loading"
+          class="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm cursor-pointer shadow-md transition-all duration-200"
+        >
+          Create Account
+        </button>
+        <p class="text-center text-sm text-neutral-500">
+          Already have an account? <a href="/login" class="text-primary-500 font-semibold hover:underline">Sign in</a>
+        </p>
+      </form>
+    </div>
+  </div>
+</View>
+`
+      );
+
     } else if (template === "saas") {
       writeDefaultLayout();
 
@@ -897,14 +1381,16 @@ export default router;
       `# Main Kallo Environment Variables
 KALLO_PUBLIC_API_URL=http://localhost:4000
 DATABASE_URL=postgres://user:password@localhost:5432/kallodb
+# KALLO_AUTH_SECRET is required for auth — set it in .env.local (never commit the real value)
 `
     );
 
     fs.writeFileSync(
       path.join(targetDir, ".env.local"),
-      `# Local overrides for Kallo
-KALLO_PUBLIC_APP_TITLE=My Kallo Store (Local)
-API_SECRET_KEY=local_super_secret_api_key_12345
+      `# Local overrides for Kallo (DO NOT commit this file)
+KALLO_PUBLIC_APP_TITLE=${pkgName} (Local)
+# Auth secret — change this to a long, random string in production
+KALLO_AUTH_SECRET=change-me-to-a-long-random-secret-in-production
 `
     );
 

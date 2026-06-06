@@ -119,6 +119,17 @@ export function $sessionPush(ctx: { req: Request }, data: Record<string, any>): 
 }
 
 /**
+ * $sessionGet — read a key from the request session object (server only).
+ *
+ * Usage:
+ *   const role = $sessionGet(ctx, "role");
+ */
+export function $sessionGet<T = any>(ctx: { req: Request }, key: string): T | undefined {
+  const session = (ctx.req as any).session || {};
+  return session[key] as T | undefined;
+}
+
+/**
  * $requireAuth — throws a redirect abort if no user is logged in.
  * Use inside $serverPage to protect a page.
  *
@@ -153,3 +164,4 @@ export function $signOut(res: Response): void {
     path: "/",
   });
 }
+
