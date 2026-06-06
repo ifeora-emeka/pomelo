@@ -24,7 +24,7 @@ test("CLI dispatcher executes registered commands", () => {
   assert.strictEqual(unknownSuccess, false);
 });
 
-test("CLI create command scaffolds new app structure", () => {
+test("CLI create command scaffolds new app structure", async () => {
   const testAppName = "test-cli-scaffolded-app";
   const testAppPath = path.resolve(process.cwd(), testAppName);
 
@@ -33,7 +33,7 @@ test("CLI create command scaffolds new app structure", () => {
     fs.rmSync(testAppPath, { recursive: true, force: true });
   }
 
-  const createSuccess = handleCLI({ command: "create", args: [testAppName] });
+  const createSuccess = await handleCLI({ command: "create", args: [testAppName] });
   assert.ok(createSuccess);
   assert.ok(fs.existsSync(testAppPath));
   assert.ok(fs.existsSync(path.join(testAppPath, "package.json")));
@@ -43,23 +43,22 @@ test("CLI create command scaffolds new app structure", () => {
   fs.rmSync(testAppPath, { recursive: true, force: true });
 });
 
-test("CLI create command scaffolds ecommerce template structure", () => {
-  const testAppName = "test-cli-ecommerce-app";
+test("CLI create command scaffolds empty template structure", async () => {
+  const testAppName = "test-cli-empty-app";
   const testAppPath = path.resolve(process.cwd(), testAppName);
 
   if (fs.existsSync(testAppPath)) {
     fs.rmSync(testAppPath, { recursive: true, force: true });
   }
 
-  const createSuccess = handleCLI({
+  const createSuccess = await handleCLI({
     command: "create",
-    args: [testAppName, "--template", "ecommerce"],
+    args: [testAppName, "--template", "empty"],
   });
   assert.ok(createSuccess);
-  assert.ok(fs.existsSync(path.join(testAppPath, "src/stores/cart.ts")));
-  assert.ok(
-    fs.existsSync(path.join(testAppPath, "src/api/products/products.api.ts")),
-  );
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/stores/tasks.ts")));
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/api/index.ts")));
+  assert.ok(fs.existsSync(path.join(testAppPath, "src/components/EachTask.kal")));
   assert.ok(fs.existsSync(path.join(testAppPath, "src/view/page.kal")));
 
   fs.rmSync(testAppPath, { recursive: true, force: true });

@@ -241,7 +241,7 @@ export function setupEventDelegation(
                   if (key === "state") return stateProxy;
                   const raw = stateProxy.__raw__;
                   if (raw && key in raw && raw[key] && typeof raw[key] === "object" && typeof (raw[key] as any).get === "function") {
-                    return raw[key];
+                    return (raw[key] as any).get();
                   }
                   if (key in target) {
                     return target[key as string];
@@ -367,6 +367,15 @@ export function hydrate(
     const temp = document.createElement("div");
     temp.innerHTML = html;
 
+    const oldLoader = container.querySelector(".loader-wrap");
+    if (oldLoader) {
+      oldLoader.remove();
+    }
+    const newLoader = temp.querySelector(".loader-wrap");
+    if (newLoader) {
+      newLoader.remove();
+    }
+
     const oldChildren = Array.from(container.childNodes);
     const newChildren = Array.from(temp.childNodes);
     const maxLen = Math.max(oldChildren.length, newChildren.length);
@@ -402,6 +411,9 @@ export function hydrate(
   };
 
   activePageInstance = instance;
+  if (typeof window !== "undefined") {
+    (window as any).__kal_instance__ = instance;
+  }
   return instance;
 }
 
@@ -487,6 +499,15 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
         const temp = document.createElement("div");
         temp.innerHTML = combinedRender(combinedState);
 
+        const oldLoader = appContainer.querySelector(".loader-wrap");
+        if (oldLoader) {
+          oldLoader.remove();
+        }
+        const newLoader = temp.querySelector(".loader-wrap");
+        if (newLoader) {
+          newLoader.remove();
+        }
+
         const oldChildren = Array.from(appContainer.childNodes);
         const newChildren = Array.from(temp.childNodes);
         const maxLen = Math.max(oldChildren.length, newChildren.length);
@@ -512,6 +533,9 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
           },
           combinedState
         );
+
+        // Dispatch load event to let external scripts know navigation occurred
+        window.dispatchEvent(new Event("load"));
       }
     })
     .catch((err) => {

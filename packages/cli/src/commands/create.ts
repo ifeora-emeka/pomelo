@@ -1,19 +1,68 @@
 import { KalloLogger } from "@kallo/shared";
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline/promises";
 
-export function executeCreateCommand(args: string[]): boolean {
-  const appName = args[0] || "my-kallo-app";
+async function askQuestion(query: string, defaultValue: string): Promise<string> {
+  if (!process.stdin.isTTY) {
+    return defaultValue;
+  }
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    const answer = await rl.question(query);
+    return answer.trim() || defaultValue;
+  } catch (err) {
+    return defaultValue;
+  } finally {
+    rl.close();
+  }
+}
+
+export async function executeCreateCommand(args: string[]): Promise<boolean> {
+  const emptyIdx = args.indexOf("--empty");
+  const isEmpty = emptyIdx !== -1;
+
+  const appName = args.find(a => !a.startsWith("-")) || "my-kallo-app";
   const targetDir = path.resolve(process.cwd(), appName);
   const pkgName = path.basename(targetDir);
 
+  let packageManager = "pnpm";
+  let useTailwind = true;
+  let setupAuth = false;
+  let template = "empty";
+
   const templateIdx = args.indexOf("--template");
-  let template = "ecommerce";
-  if (templateIdx !== -1 && args[templateIdx + 1]) {
-    template = args[templateIdx + 1]!;
-  }
-  if (template === "default") {
-    template = "ecommerce";
+  const templateArgVal = templateIdx !== -1 ? args[templateIdx + 1] : undefined;
+  const templateFromArgs = templateArgVal ? templateArgVal.toLowerCase() : null;
+
+  if (isEmpty) {
+    template = "empty";
+  } else {
+    console.log("\n📦 Creating a new Kallo project...\n");
+    const pmAnswer = await askQuestion("📋 Which package manager do you want to use? (pnpm/npm/yarn) [pnpm]: ", "pnpm");
+    packageManager = pmAnswer.toLowerCase();
+    if (!["pnpm", "npm", "yarn"].includes(packageManager)) {
+      packageManager = "pnpm";
+    }
+
+    const twAnswer = await askQuestion("🎨 Do you want to use Tailwind CSS? (y/n) [y]: ", "y");
+    useTailwind = twAnswer.toLowerCase().startsWith("y");
+
+    const authAnswer = await askQuestion("🔑 Do you want to setup authentication? (y/n) [n]: ", "n");
+    setupAuth = authAnswer.toLowerCase().startsWith("y");
+
+    if (templateFromArgs && ["saas", "blog", "empty"].includes(templateFromArgs)) {
+      template = templateFromArgs;
+    } else {
+      const tempAnswer = await askQuestion("📄 Choose a template (saas/blog/empty) [empty]: ", "empty");
+      template = tempAnswer.toLowerCase();
+      if (!["saas", "blog", "empty"].includes(template)) {
+        template = "empty";
+      }
+    }
   }
 
   KalloLogger.info(
@@ -34,6 +83,14 @@ export function executeCreateCommand(args: string[]): boolean {
     fs.mkdirSync(path.join(targetDir, "public"), { recursive: true });
 
     // Write package.json
+    const devDeps: Record<string, string> = {
+      "@kallo/cli": "workspace:*",
+    };
+    if (useTailwind) {
+      devDeps["tailwindcss"] = "^4.0.0";
+      devDeps["@tailwindcss/cli"] = "^4.0.0";
+    }
+
     fs.writeFileSync(
       path.join(targetDir, "package.json"),
       JSON.stringify(
@@ -51,750 +108,496 @@ export function executeCreateCommand(args: string[]): boolean {
             "@kallo/runtime": "workspace:*",
             "@kallo/server": "workspace:*",
           },
-          devDependencies: {
-            "@kallo/cli": "workspace:*",
-            "tailwindcss": "^3.4.1",
-            "postcss": "^8.4.35",
-            "autoprefixer": "^10.4.18",
-          },
+          devDependencies: devDeps,
         },
         null,
         2,
       ),
     );
 
-    // Write Tailwind and PostCSS Configs
-    fs.writeFileSync(
-      path.join(targetDir, "tailwind.config.js"),
-      `/** @type {import('tailwindcss').Config} */
-export default {
-  content: [
-    "./src/**/*.{html,js,ts,kal}",
-    "./index.html"
-  ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
-`
-    );
-
-    fs.writeFileSync(
-      path.join(targetDir, "postcss.config.js"),
-      `export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-}
-`
-    );
-
-    fs.mkdirSync(path.join(targetDir, "src/styles"), { recursive: true });
-    fs.writeFileSync(
-      path.join(targetDir, "src/styles/global.css"),
-      `@tailwind base;
-@tailwind components;
-@tailwind utilities;
-`
-    );
-
-    if (template === "ecommerce") {
+    // Write Tailwind v4 Global CSS with Theme Config (CSS-first approach)
+    if (useTailwind) {
+      fs.mkdirSync(path.join(targetDir, "src/styles"), { recursive: true });
       fs.writeFileSync(
-        path.join(targetDir, "src/stores/cart.ts"),
+        path.join(targetDir, "src/styles/global.css"),
+                `@import "tailwindcss";
+
+@source "../**/*.kal";
+
+@theme {
+  --color-primary-50: #f5f3ff;
+  --color-primary-100: #ede9fe;
+  --color-primary-200: #ddd6fe;
+  --color-primary-300: #c4b5fd;
+  --color-primary-400: #a78bfa;
+  --color-primary-500: #8b5cf6;
+  --color-primary-600: #7c3aed;
+  --color-primary-700: #6d28d9;
+  --color-primary-800: #5b21b6;
+  --color-primary-900: #4c1d95;
+  --color-primary-950: #2e1065;
+
+  --color-secondary-50: #ecfdf5;
+  --color-secondary-100: #d1fae5;
+  --color-secondary-200: #a7f3d0;
+  --color-secondary-300: #6ee7b7;
+  --color-secondary-400: #34d399;
+  --color-secondary-500: #10b981;
+  --color-secondary-600: #059669;
+  --color-secondary-700: #047857;
+  --color-secondary-800: #065f46;
+  --color-secondary-900: #064e3b;
+  --color-secondary-950: #022c22;
+
+  --color-tertiary-50: #eff6ff;
+  --color-tertiary-100: #dbeafe;
+  --color-tertiary-200: #bfdbfe;
+  --color-tertiary-300: #93c5fd;
+  --color-tertiary-400: #60a5fa;
+  --color-tertiary-500: #3b82f6;
+  --color-tertiary-600: #2563eb;
+  --color-tertiary-700: #1d4ed8;
+  --color-tertiary-800: #1e40af;
+  --color-tertiary-900: #1e3a8a;
+  --color-tertiary-950: #172554;
+
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f4f4f5;
+  --color-neutral-200: #e4e4e7;
+  --color-neutral-300: #d4d4d8;
+  --color-neutral-400: #a1a1aa;
+  --color-neutral-500: #71717a;
+  --color-neutral-600: #52525b;
+  --color-neutral-700: #3f3f46;
+  --color-neutral-800: #27272a;
+  --color-neutral-900: #18181b;
+  --color-neutral-950: #09090b;
+
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-200: #fecaca;
+  --color-danger-300: #fca5a5;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+  --color-danger-800: #991b1b;
+  --color-danger-900: #7f1d1d;
+  --color-danger-950: #450a0a;
+
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-300: #86efac;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-800: #166534;
+  --color-success-900: #14532d;
+  --color-success-950: #052e16;
+
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+  --color-warning-950: #451a03;
+
+  --color-info-50: #ecfeff;
+  --color-info-100: #cffafe;
+  --color-info-200: #a5f3fc;
+  --color-info-300: #67e8f9;
+  --color-info-400: #22d3ee;
+  --color-info-500: #06b6d4;
+  --color-info-600: #0891b2;
+  --color-info-700: #0e7490;
+  --color-info-800: #155e75;
+  --color-info-900: #164e63;
+  --color-info-950: #083344;
+
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+}
+
+:root {
+  --bg-primary: var(--color-neutral-50);
+  --bg-secondary: var(--color-neutral-100);
+  --bg-tertiary: var(--color-neutral-200);
+  --foreground: var(--color-neutral-900);
+  --border: var(--color-neutral-300);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: var(--color-neutral-950);
+    --bg-secondary: var(--color-neutral-900);
+    --bg-tertiary: var(--color-neutral-800);
+    --foreground: var(--color-neutral-100);
+    --border: var(--color-neutral-700);
+  }
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--foreground);
+  margin: 0;
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s, color 0.2s;
+}
+`
+      );
+    }
+
+    // Write default layout.kal for templates (other than ecommerce)
+    const writeDefaultLayout = () => {
+      fs.writeFileSync(
+        path.join(targetDir, "src/view/layout.kal"),
+        `<View>
+  <html lang="en">
+    <head>
+      <title>Kallo App</title>
+      <link rel="stylesheet" href="/tailwind.css">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    </head>
+    <body class="margin-0">
+      <Slot />
+    </body>
+  </html>
+</View>
+
+<Style>
+  .margin-0 {
+    margin: 0;
+  }
+</Style>
+`
+      );
+    };
+
+    if (template === "empty") {
+      writeDefaultLayout();
+
+      fs.writeFileSync(
+        path.join(targetDir, "src/stores/tasks.ts"),
         `import { $store } from "@kallo/runtime";
 
-export const useCartStore = $store({
-  items: (typeof window !== "undefined" && localStorage.getItem("kallo_cart"))
-    ? JSON.parse(localStorage.getItem("kallo_cart") || "[]")
-    : [] as Array<{ id: string; name: string; price: number; qty: number }>,
+export interface Task {
+  id: string;
+  title: string;
+  completed: boolean;
+  priority: "low" | "medium" | "high";
+}
+
+export const useTaskStore = $store({
+  tasks: [] as Task[],
   get total() {
-    return this.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+    return this.tasks.length;
   },
-  get count() {
-    return this.items.reduce((sum, item) => sum + item.qty, 0);
+  get completedCount() {
+    return this.tasks.filter(t => t.completed).length;
   },
-  addItem(item: { id: string; name: string; price: number }) {
-    const existing = this.items.find((i) => i.id === item.id);
-    if (existing) {
-      existing.qty++;
-    } else {
-      this.items.push({ ...item, qty: 1 });
-    }
-    if (typeof window !== "undefined") {
-      localStorage.setItem("kallo_cart", JSON.stringify(this.items));
-    }
+  get pendingCount() {
+    return this.tasks.filter(t => !t.completed).length;
   },
-  removeItem(id: string) {
-    const idx = this.items.findIndex((i) => i.id === id);
-    if (idx !== -1) {
-      const item = this.items[idx];
-      if (item.qty > 1) {
-        item.qty--;
-      } else {
-        this.items.splice(idx, 1);
-      }
-      if (typeof window !== "undefined") {
-        localStorage.setItem("kallo_cart", JSON.stringify(this.items));
-      }
-    }
+  setTasks(newTasks: Task[]) {
+    this.tasks = newTasks;
   },
-  getQuantity(id: string) {
-    const found = this.items.find((i) => i.id === id);
-    return found ? found.qty : 0;
+  addTask(title: string, priority: "low" | "medium" | "high") {
+    this.tasks.push({ id: String(Date.now()), title, completed: false, priority });
+  },
+  toggleTask(id: string) {
+    const task = this.tasks.find(t => t.id === id);
+    if (task) task.completed = !task.completed;
+  },
+  deleteTask(id: string) {
+    this.tasks = this.tasks.filter(t => t.id !== id);
   }
 });
-`,
+`
       );
 
-      // 2. API Services
-      fs.mkdirSync(path.join(targetDir, "src/api/products/services"), {
-        recursive: true,
-      });
+      fs.mkdirSync(path.join(targetDir, "src/components"), { recursive: true });
+
+      // 5. EachTask Component
       fs.writeFileSync(
-        path.join(targetDir, "src/api/products/services/product.service.ts"),
-        `export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  description: string;
-  image: string;
-}
+        path.join(targetDir, "src/components/EachTask.kal"),
+        `<View>
+  <div class="flex justify-between items-center p-4 rounded-xl bg-bg-secondary border border-border hover:border-primary-400 transition-all duration-200" 
+       :class="{ 'opacity-60 bg-bg-tertiary': task.completed }">
+    <div class="flex items-center gap-3">
+      <input type="checkbox" :checked="task.completed" @change="onToggle(task.id)" 
+             class="w-5 h-5 rounded border-border text-primary-500 focus:ring-primary-500 cursor-pointer accent-primary-500" />
+      <span class="text-sm font-semibold text-foreground" :class="{ 'line-through text-neutral-400': task.completed }">
+        {{ task.title }}
+      </span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-bold uppercase px-2 py-1 rounded" 
+            :class="{
+              'bg-info-100 text-info-700 border border-info-200': task.priority === 'low',
+              'bg-warning-100 text-warning-700 border border-warning-200': task.priority === 'medium',
+              'bg-danger-100 text-danger-700 border border-danger-200': task.priority === 'high'
+            }">
+        {{ task.priority }}
+      </span>
+      <button @click="onDelete(task.id)" 
+              class="text-xs font-semibold text-danger-500 hover:text-white border border-danger-500 hover:bg-danger-500 px-3 py-1.5 rounded-lg cursor-pointer transition-all duration-200">
+        Delete
+      </button>
+    </div>
+  </div>
+</View>
+`
+      );
 
-export class ProductService {
-  private products: Product[] = [
-    {
-      id: "1",
-      name: "Quantum Wireless Headset",
-      price: 199.99,
-      description: "Experience spatial audio precision with zero-latency wireless connectivity, designed for high-fidelity gaming and audio engineering.",
-      image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=60"
-    },
-    {
-      id: "2",
-      name: "Cybernetic Mechanical Keyboard",
-      price: 159.99,
-      description: "Hot-swappable tactile switches embedded in an aircraft-grade aluminum frame, illuminated by programmable per-key dynamic RGB.",
-      image: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&auto=format&fit=crop&q=60"
-    },
-    {
-      id: "3",
-      name: "Apex 4K Curved Monitor",
-      price: 699.99,
-      description: "Immerse yourself in a 34-inch ultra-wide 120Hz display, featuring vibrant HDR600 contrast and an elegant 1500R curved profile.",
-      image: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=500&auto=format&fit=crop&q=60"
-    },
-    {
-      id: "4",
-      name: "Ergonomic Lumbar Desk Chair",
-      price: 349.99,
-      description: "Engineered with breathable mesh and adaptive lumbar support, featuring multi-dimensional armrests for sustained daily comfort.",
-      image: "https://images.unsplash.com/photo-1580481072645-022f9a6dbf27?w=500&auto=format&fit=crop&q=60"
-    }
-  ];
+      // 6. ProjectStats Component
+      fs.writeFileSync(
+        path.join(targetDir, "src/components/ProjectStats.kal"),
+        `<View>
+  <div class="p-6 rounded-2xl bg-bg-secondary border border-border shadow-sm">
+    <h3 class="text-lg font-bold text-foreground mb-4">Project Overview</h3>
+    <div class="h-2 w-full bg-bg-tertiary rounded-full overflow-hidden mb-6">
+      <div class="h-full bg-primary-500 transition-all duration-300" :style="'width: ' + completionPercentage + '%'"></div>
+    </div>
+    
+    <div class="grid grid-cols-3 gap-4 text-center mb-6">
+      <div class="flex flex-col p-2 bg-bg-primary rounded-xl border border-border">
+        <span class="text-2xl font-extrabold text-foreground">{{ total }}</span>
+        <span class="text-xs text-neutral-500 font-medium mt-1">Total Tasks</span>
+      </div>
+      <div class="flex flex-col p-2 bg-bg-primary rounded-xl border border-border">
+        <span class="text-2xl font-extrabold text-success-600">{{ completed }}</span>
+        <span class="text-xs text-neutral-500 font-medium mt-1">Completed</span>
+      </div>
+      <div class="flex flex-col p-2 bg-bg-primary rounded-xl border border-border">
+        <span class="text-2xl font-extrabold text-warning-600">{{ pending }}</span>
+        <span class="text-xs text-neutral-500 font-medium mt-1">Pending</span>
+      </div>
+    </div>
+    
+    <div class="text-sm font-semibold text-foreground flex justify-between items-center pt-4 border-t border-border">
+      <span>Completion Rate:</span>
+      <span class="text-primary-500 font-extrabold text-base">{{ completionPercentage }}%</span>
+    </div>
+  </div>
+</View>
+`
+      );
 
-  getAllProducts(): Product[] {
-    return this.products;
+      // 7. Root Layout
+      fs.writeFileSync(
+        path.join(targetDir, "src/view/layout.kal"),
+        `<View>
+  <html lang="en">
+    <head>
+      <title>Kallo Task Flow</title>
+      <link rel="stylesheet" href="/tailwind.css">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    </head>
+    <body class="bg-bg-primary text-foreground min-h-screen">
+      <div class="max-w-6xl mx-auto p-6">
+        <header class="flex justify-between items-center pb-4 border-b border-border mb-8">
+          <div class="flex items-center gap-2">
+            <svg class="w-8 h-8 text-primary-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            <span class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-primary-500 to-tertiary-500 bg-clip-text text-transparent">Kallo Task Flow</span>
+          </div>
+          <div class="flex items-center gap-2 text-xs font-semibold text-neutral-500 bg-bg-secondary px-3 py-1.5 rounded-full border border-border">
+            <span class="w-2 h-2 rounded-full bg-success-500 animate-pulse"></span>
+            System Active
+          </div>
+        </header>
+        <main>
+          <Slot />
+        </main>
+      </div>
+    </body>
+  </html>
+</View>
+`
+      );
+
+      // 8. Root Page
+      fs.writeFileSync(
+        path.join(targetDir, "src/view/page.kal"),
+        `<Client>
+  import { useTaskStore } from "../stores/tasks.js";
+  import { $local } from "@kallo/runtime";
+  import EachTask from "../components/EachTask.kal";
+  import ProjectStats from "../components/ProjectStats.kal";
+
+  const taskStore = useTaskStore;
+  const newTaskTitle = $local("");
+  const newTaskPriority = $local("medium");
+
+  function handleAddTask(e) {
+    if (e) e.preventDefault();
+    if (!newTaskTitle.get().trim()) return;
+    taskStore.addTask(newTaskTitle.get(), newTaskPriority.get());
+    newTaskTitle.set("");
   }
 
-  getProductById(id: string): Product | undefined {
-    return this.products.find((p) => p.id === id);
+  function handleToggle(id) {
+    taskStore.toggleTask(id);
   }
-}
-`,
-      );
 
-      // 3. API Controller
-      fs.mkdirSync(path.join(targetDir, "src/api/products/controllers"), {
-        recursive: true,
-      });
-      fs.writeFileSync(
-        path.join(targetDir, "src/api/products/controllers/product.controller.ts"),
-        `import { ProductService } from "../services/product.service.js";
-
-const productService = new ProductService();
-
-export function getProducts(req: any, res: any) {
-  res.ok(productService.getAllProducts());
-}
-
-export function getProduct(req: any, res: any) {
-  const product = productService.getProductById(req.params.id);
-  if (!product) {
-    return res.notFound({ message: "Product not found" });
+  function handleDelete(id) {
+    taskStore.deleteTask(id);
   }
-  res.ok(product);
-}
-`,
+</Client>
+
+<View>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div class="md:col-span-2 flex flex-col gap-6">
+      <h2 class="text-2xl font-extrabold text-foreground tracking-tight">My Tasks</h2>
+
+      <form class="p-5 rounded-2xl bg-bg-secondary border border-border shadow-sm flex flex-col gap-4" @submit="handleAddTask(event)">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Task Title</label>
+          <input 
+            type="text" 
+            :value="newTaskTitle" 
+            @input="newTaskTitle.set(event.target.value)" 
+            placeholder="What needs to be done?" 
+            class="w-full px-4 py-3 rounded-xl border border-border bg-bg-primary text-foreground placeholder-neutral-400 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm transition-all duration-200"
+            required
+          />
+        </div>
+        
+        <div class="flex justify-between items-center gap-4">
+          <div class="flex items-center gap-3">
+            <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Priority</label>
+            <select 
+              :value="newTaskPriority" 
+              @change="newTaskPriority.set(event.target.value)" 
+              class="px-3 py-2 rounded-lg border border-border bg-bg-primary text-foreground text-xs font-semibold focus:outline-none focus:border-primary-500 cursor-pointer"
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm cursor-pointer shadow-md transition-all duration-200">
+            Add Task
+          </button>
+        </div>
+      </form>
+
+      <div class="flex flex-col gap-3">
+        <When condition="taskStore.total > 0">
+          <Each of="taskStore.tasks" as="task">
+            <EachTask 
+              :task="task" 
+              :onToggle="handleToggle" 
+              :onDelete="handleDelete" 
+            />
+          </Each>
+        </When>
+        <Else>
+          <div class="text-center p-12 border-2 border-dashed border-border rounded-2xl text-neutral-500 font-semibold bg-bg-secondary/40">
+            No tasks found. Add a task to get started!
+          </div>
+        </Else>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-6">
+      <h2 class="text-2xl font-extrabold text-foreground tracking-tight">Project Status</h2>
+      <ProjectStats 
+        :total="taskStore.total" 
+        :completed="taskStore.completedCount" 
+        :pending="taskStore.pendingCount" 
+        :completionPercentage="taskStore.total > 0 ? Math.round((taskStore.completedCount / taskStore.total) * 100) : 0"
+      />
+    </div>
+  </div>
+</View>
+`
       );
 
-      // 4. API Routes
+      // 9. Root fallback: not-found.kal
       fs.writeFileSync(
-        path.join(targetDir, "src/api/products/products.api.ts"),
-        `import { $router } from "@kallo/server";
-import { getProducts, getProduct } from "./controllers/product.controller.js";
-
-const router = $router();
-
-router.get("/", getProducts);
-router.get("/:id", getProduct);
-
-export default router;
-`,
+        path.join(targetDir, "src/view/not-found.kal"),
+        `<View>
+  <div class="flex flex-col items-center justify-center text-center py-20 px-6">
+    <div class="text-6xl font-black text-danger-500 mb-4 animate-bounce">404</div>
+    <h1 class="text-3xl font-extrabold text-foreground mb-2">Page Not Found</h1>
+    <p class="text-neutral-500 max-w-md mb-8">The page you are looking for doesn't exist or has been moved.</p>
+    <a href="/" class="px-6 py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm shadow-md transition-all duration-200">
+      Go back home
+    </a>
+  </div>
+</View>
+`
       );
 
-      // 4b. API Entry Point
+      // 10. Root fallback: error.kal
+      fs.writeFileSync(
+        path.join(targetDir, "src/view/error.kal"),
+        `<View>
+  <div class="flex flex-col items-center justify-center text-center py-20 px-6">
+    <div class="text-6xl font-black text-danger-500 mb-4">500</div>
+    <h1 class="text-3xl font-extrabold text-foreground mb-2">Application Error</h1>
+    <p class="text-neutral-500 max-w-md mb-6">{{ error ? error.message : "An unexpected server-side error occurred." }}</p>
+    
+    <When condition="error && error.stack">
+      <pre class="text-left bg-bg-secondary border border-border rounded-xl p-4 max-w-2xl overflow-x-auto text-xs text-danger-600 font-mono mb-8"><code>{{ error.stack }}</code></pre>
+    </When>
+
+    <a href="/" class="px-6 py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm shadow-md transition-all duration-200">
+      Go back home
+    </a>
+  </div>
+</View>
+`
+      );
+
+      // 11. Root fallback: unauthorized.kal
+      fs.writeFileSync(
+        path.join(targetDir, "src/view/unauthorized.kal"),
+        `<View>
+  <div class="flex flex-col items-center justify-center text-center py-20 px-6">
+    <div class="text-6xl font-black text-warning-500 mb-4">403</div>
+    <h1 class="text-3xl font-extrabold text-foreground mb-2">Unauthorized Access</h1>
+    <p class="text-neutral-500 max-w-md mb-8">You do not have permission to view this resource.</p>
+    <a href="/" class="px-6 py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold text-sm shadow-md transition-all duration-200">
+      Go back home
+    </a>
+  </div>
+</View>
+`
+      );
+
       fs.writeFileSync(
         path.join(targetDir, "src/api/index.ts"),
         `import { $router } from "@kallo/server";
-import productRoutes from "./products/products.api.js";
 
 const router = $router();
 
-router.use("/products", productRoutes);
+router.get("/", (req, res) => {
+  res.ok({ message: "Welcome to Kallo API!" });
+});
 
 export default router;
-`,
+`
       );
+    } else if (template === "saas") {
+      writeDefaultLayout();
 
-      // 5. ProductCard Component
-      fs.writeFileSync(
-        path.join(targetDir, "src/components/ProductCard.kal"),
-        `<View>
-  <div class="card" :class="{ 'in-cart': inCart }">
-    <div class="img-wrapper">
-      <img :src="product.image" :alt="product.name" class="img" />
-    </div>
-    <div class="info">
-      <h3 class="title">
-        <a :href="'/products/' + product.id">{{ product.name }}</a>
-      </h3>
-      <p class="desc">{{ product.description }}</p>
-      <div class="footer">
-        <span class="price">\${{ product.price }}</span>
-        <button class="btn" @click="addToCart(product)">
-          <When condition="inCart">
-            Add More ({{ cartCount }})
-          </When>
-          <Else>
-            Add to Cart
-          </Else>
-        </button>
-      </div>
-    </div>
-  </div>
-</View>
-
-<Style>
-  .card {
-    background: rgba(30, 41, 59, 0.4);
-    border: 1px solid #334155;
-    border-radius: 16px;
-    overflow: hidden;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    backdrop-filter: blur(8px);
-  }
-  .card:hover {
-    transform: translateY(-4px);
-    border-color: #475569;
-    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.3);
-  }
-  .card.in-cart {
-    border-color: #38bdf8;
-    background: rgba(14, 165, 233, 0.05);
-  }
-  .img-wrapper {
-    height: 200px;
-    overflow: hidden;
-    background: #1e293b;
-  }
-  .img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.5s ease;
-  }
-  .card:hover .img {
-    transform: scale(1.05);
-  }
-  .info {
-    padding: 1.5rem;
-  }
-  .title {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.25rem;
-    font-weight: 700;
-  }
-  .title a {
-    color: #f8fafc;
-    text-decoration: none;
-    transition: color 0.2s;
-  }
-  .title a:hover {
-    color: #38bdf8;
-  }
-  .desc {
-    margin: 0 0 1.5rem 0;
-    color: #94a3b8;
-    font-size: 0.875rem;
-    line-height: 1.5;
-    height: 3rem;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
-  .footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .price {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #f8fafc;
-  }
-  .btn {
-    background: #1e293b;
-    border: 1px solid #334155;
-    color: #f8fafc;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .btn:hover {
-    background: #38bdf8;
-    color: #0f172a;
-    border-color: #38bdf8;
-  }
-</Style>
-`,
-      );
-
-      // 6. ProductInfo Component
-      fs.writeFileSync(
-        path.join(targetDir, "src/components/ProductInfo.kal"),
-        `<View>
-  <div class="info-block">
-    <h1 class="name">{{ product.name }}</h1>
-    <div class="price-badge">\${{ product.price }}</div>
-    <p class="description">{{ product.description }}</p>
-  </div>
-</View>
-
-<Style>
-  .info-block {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-  .name {
-    font-size: 2.5rem;
-    font-weight: 800;
-    margin: 0;
-    color: #f8fafc;
-    line-height: 1.2;
-  }
-  .price-badge {
-    font-size: 1.75rem;
-    font-weight: 800;
-    color: #38bdf8;
-  }
-  .description {
-    font-size: 1.1rem;
-    line-height: 1.6;
-    color: #94a3b8;
-    margin: 0;
-  }
-</Style>
-`,
-      );
-
-      // 7. QuantitySelector Component
-      fs.writeFileSync(
-        path.join(targetDir, "src/components/QuantitySelector.kal"),
-        `<View>
-  <div class="selector">
-    <button class="control-btn" @click="quantity.set(Math.max(1, quantity.get() - 1))">-</button>
-    <span class="value">{{ quantity }}</span>
-    <button class="control-btn" @click="quantity.set(quantity.get() + 1)">+</button>
-  </div>
-</View>
-
-<Style>
-  .selector {
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid #334155;
-    background: #1e293b;
-    border-radius: 12px;
-    overflow: hidden;
-  }
-  .control-btn {
-    background: transparent;
-    border: none;
-    color: #94a3b8;
-    width: 3rem;
-    height: 3rem;
-    font-size: 1.25rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s, color 0.2s;
-  }
-  .control-btn:hover {
-    background: #334155;
-    color: #f8fafc;
-  }
-  .value {
-    font-size: 1.1rem;
-    font-weight: 700;
-    width: 3rem;
-    text-align: center;
-    color: #f8fafc;
-  }
-</Style>
-`,
-      );
-
-      // 8. Root Layout
-      fs.writeFileSync(
-        path.join(targetDir, "src/view/layout.kal"),
-        `<Server>
-  $page(async () => {
-    return {
-      storeName: "Kallo Elite Tech Store"
-    };
-  });
-</Server>
-
-<Client>
-  import "../styles/global.css";
-  import { useCartStore } from "../stores/cart.js";
-  const cart = useCartStore;
-</Client>
-
-<View>
-  <div class="container">
-    <header class="header">
-      <div class="logo-section">
-        <a href="/" class="logo">{{ storeName }}</a>
-      </div>
-      <div class="cart-status">
-        🛒 Cart ({{ cart.count }}) - \${{ cart.total }}
-      </div>
-    </header>
-    <Slot />
-  </div>
-</View>
-
-<Style>
-  body {
-    margin: 0;
-    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: #0f172a;
-    color: #f8fafc;
-  }
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-  }
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid #334155;
-    margin-bottom: 2rem;
-  }
-  .logo {
-    font-size: 1.75rem;
-    font-weight: 800;
-    text-decoration: none;
-    background: linear-gradient(to right, #38bdf8, #818cf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  .cart-status {
-    background: linear-gradient(135deg, #0284c7, #0369a1);
-    color: white;
-    padding: 0.75rem 1.5rem;
-    border-radius: 9999px;
-    font-weight: 700;
-    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
-  }
-</Style>
-`,
-      );
-
-      // 9. Root Page
-      fs.writeFileSync(
-        path.join(targetDir, "src/view/page.kal"),
-        `<Server>
-  import { ProductService } from "../api/products/services/product.service.js";
-
-  const productService = new ProductService();
-
-  $page(async () => {
-    const products = productService.getAllProducts();
-    return {
-      products
-    };
-  });
-
-  $meta(() => {
-    return {
-      title: "Kallo Elite Tech Store - Home of Premium Tech",
-      description: "Discover our premium tech product catalog. Shop wireless headsets, mechanical keyboards, ultra-wide 4K monitors, and ergonomic furniture."
-    };
-  });
-</Server>
-
-<Client>
-  import { useCartStore } from "../stores/cart.js";
-  import ProductCard from "../components/ProductCard.kal";
-
-  const cart = useCartStore;
-
-  function addToCart(product) {
-    cart.addItem(product);
-  }
-</Client>
-
-<View>
-  <div>
-    <div class="hero">
-      <h2 class="hero-title">Elevate Your Setup</h2>
-      <p class="hero-subtitle">High-performance tools meticulously crafted for creators, developers, and gamers.</p>
-    </div>
-
-    <main class="grid">
-      <Each of="products" as="product">
-        <ProductCard
-          :product="product"
-          :inCart="cart.getQuantity(product.id) > 0"
-          :cartCount="cart.getQuantity(product.id)"
-          :addToCart="addToCart"
-        />
-      </Each>
-    </main>
-  </div>
-</View>
-
-<Style>
-  .hero {
-    text-align: center;
-    padding: 4rem 1rem;
-    background: radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
-    margin-bottom: 3rem;
-  }
-  .hero-title {
-    font-size: 3.5rem;
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    margin-bottom: 1rem;
-    background: linear-gradient(to right, #f8fafc, #cbd5e1);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  .hero-subtitle {
-    font-size: 1.25rem;
-    color: #94a3b8;
-    max-width: 600px;
-    margin: 0 auto;
-  }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 2rem;
-  }
-</Style>
-`,
-      );
-
-      // 10. Product Details Layout
-      fs.mkdirSync(path.join(targetDir, "src/view/products/[id]"), {
-        recursive: true,
-      });
-      fs.writeFileSync(
-        path.join(targetDir, "src/view/products/[id]/layout.kal"),
-        `<View>
-  <div class="details-layout">
-    <div class="back-link-container">
-      <a href="/" class="back-link">← Back to Store</a>
-    </div>
-    <Slot />
-  </div>
-</View>
-
-<Style>
-  .details-layout {
-    width: 100%;
-  }
-  .back-link-container {
-    margin-bottom: 2rem;
-  }
-  .back-link {
-    color: #38bdf8;
-    text-decoration: none;
-    font-weight: 600;
-    transition: color 0.2s ease;
-  }
-  .back-link:hover {
-    color: #7dd3fc;
-  }
-</Style>
-`,
-      );
-
-      // 11. Product Details Page
-      fs.writeFileSync(
-        path.join(targetDir, "src/view/products/[id]/page.kal"),
-        `<Server>
-  import { ProductService } from "../../../api/products/services/product.service.js";
-
-  const productService = new ProductService();
-
-  $page(async ({ params }) => {
-    const product = productService.getProductById(params.id);
-    if (!product) {
-      $abort(404, "Product not found");
-    }
-    return {
-      product
-    };
-  });
-
-  $meta((state) => {
-    return {
-      title: state.product ? state.product.name + " | Kallo Store" : "Product Not Found",
-      description: state.product ? state.product.description : "View our premium product details."
-    };
-  });
-</Server>
-
-<Client>
-  import { useCartStore } from "../../../stores/cart.js";
-  import { $local } from "@kallo/runtime";
-  import ProductInfo from "../../../components/ProductInfo.kal";
-  import QuantitySelector from "../../../components/QuantitySelector.kal";
-
-  const cart = useCartStore;
-  
-  const quantity = $local(1);
-
-  function increment() {
-    quantity.set(quantity.get() + 1);
-  }
-
-  function decrement() {
-    if (quantity.get() > 1) {
-      quantity.set(quantity.get() - 1);
-    }
-  }
-
-  function handleAddToCart(product) {
-    Array.from({ length: quantity.get() }).forEach(() => {
-      cart.addItem(product);
-    });
-    quantity.set(1);
-  }
-</Client>
-
-<View>
-  <main class="product-detail">
-    <div class="product-image-container">
-      <img :src="product.image" :alt="product.name" class="product-image" />
-    </div>
-    <div class="product-info">
-      <ProductInfo :product="product" />
-
-      <div class="add-to-cart-section">
-        <QuantitySelector :quantity="quantity" />
-        <button class="add-btn" @click="handleAddToCart(product)">
-          <When condition="cart.getQuantity(product.id) > 0">
-            Added ({{ cart.getQuantity(product.id) }} in Cart)
-          </When>
-          <Else>
-            Add to Cart
-          </Else>
-        </button>
-      </div>
-    </div>
-  </main>
-</View>
-
-<Style>
-  .product-detail {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4rem;
-    align-items: start;
-    background: rgba(30, 41, 59, 0.4);
-    border: 1px solid #334155;
-    border-radius: 24px;
-    padding: 3rem;
-    backdrop-filter: blur(12px);
-  }
-  .product-image-container {
-    border-radius: 16px;
-    overflow: hidden;
-    background: #1e293b;
-    border: 1px solid #334155;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  }
-  .product-image {
-    width: 100%;
-    height: auto;
-    display: block;
-    object-fit: cover;
-  }
-  .product-info {
-    display: flex;
-    flex-direction: column;
-  }
-  .add-to-cart-section {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    margin-top: 1rem;
-  }
-  .add-btn {
-    flex: 1;
-    background: linear-gradient(135deg, #0284c7, #0369a1);
-    color: white;
-    border: none;
-    padding: 1rem 2rem;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
-    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
-  }
-  .add-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(2, 132, 199, 0.4);
-    background: linear-gradient(135deg, #0ea5e9, #0284c7);
-  }
-  .add-btn:active {
-    transform: translateY(0);
-  }
-  @media (max-width: 768px) {
-    .product-detail {
-      grid-template-columns: 1fr;
-      gap: 2rem;
-      padding: 1.5rem;
-    }
-  }
-</Style>
-`,
-      );
-    } else if (template === "SaaS" || template === "saas") {
-      // 1. Store
       fs.writeFileSync(
         path.join(targetDir, "src/stores/user.ts"),
         `import { $store } from "@kallo/runtime";
@@ -814,7 +617,6 @@ export const useUserStore = $store({
 `,
       );
 
-      // 2. API Route & Services/Controllers
       fs.mkdirSync(path.join(targetDir, "src/api/subscription/services"), { recursive: true });
       fs.mkdirSync(path.join(targetDir, "src/api/subscription/controllers"), { recursive: true });
 
@@ -866,9 +668,8 @@ export default router;
 `
       );
 
-      // 3. Home page
       fs.writeFileSync(
-        path.join(targetDir, "src/view/index.kal"),
+        path.join(targetDir, "src/view/page.kal"),
         `<Server>
   $page(async () => {
     return {
@@ -933,7 +734,8 @@ export default router;
 `,
       );
     } else if (template === "blog") {
-      // 1. Store
+      writeDefaultLayout();
+
       fs.writeFileSync(
         path.join(targetDir, "src/stores/blog.ts"),
         `import { $store } from "@kallo/runtime";
@@ -950,7 +752,6 @@ export const useBlogStore = $store({
 `,
       );
 
-      // 2. API Route & Services/Controllers
       fs.mkdirSync(path.join(targetDir, "src/api/posts/services"), { recursive: true });
       fs.mkdirSync(path.join(targetDir, "src/api/posts/controllers"), { recursive: true });
 
@@ -1005,9 +806,8 @@ export default router;
 `
       );
 
-      // 3. Home page
       fs.writeFileSync(
-        path.join(targetDir, "src/view/index.kal"),
+        path.join(targetDir, "src/view/page.kal"),
         `<Server>
   $page(async () => {
     return {
@@ -1057,7 +857,6 @@ export default router;
 `,
       );
 
-      // 4. Dynamic post detail page
       fs.mkdirSync(path.join(targetDir, "src/view/posts/[id]"), {
         recursive: true,
       });
@@ -1090,52 +889,6 @@ export default router;
 </Style>
 `,
       );
-    } else {
-      // Default template
-      fs.writeFileSync(
-        path.join(targetDir, "src/view/index.kal"),
-        `<Server>
-  $page(async () => {
-    return { title: "Welcome to Kallo!" };
-  });
-</Server>
-
-<Client>
-  import { $local } from "@kallo/runtime";
-  const count = $local(0);
-</Client>
-
-<View>
-  <main class="container">
-    <h1>{{ title }}</h1>
-    <p>Get started by editing <code>src/view/index.kal</code></p>
-    <button @click="count = count + 1">Clicked {{ count }} times</button>
-  </main>
-</View>
-
-<Style>
-  .container {
-    font-family: system-ui, sans-serif;
-    padding: 2rem;
-    text-align: center;
-  }
-</Style>
-`,
-      );
-
-      fs.writeFileSync(
-        path.join(targetDir, "src/api/index.ts"),
-        `import { $router } from "@kallo/server";
-
-const router = $router();
-
-router.get("/", (req, res) => {
-  res.ok({ message: "Welcome to Kallo API!" });
-});
-
-export default router;
-`
-      );
     }
 
     // Write Environment Config Files (.env, .env.local, .env.test)
@@ -1150,7 +903,7 @@ DATABASE_URL=postgres://user:password@localhost:5432/kallodb
     fs.writeFileSync(
       path.join(targetDir, ".env.local"),
       `# Local overrides for Kallo
-KALLO_PUBLIC_APP_TITLE=My Kallo Ecommerce Store (Local)
+KALLO_PUBLIC_APP_TITLE=My Kallo Store (Local)
 API_SECRET_KEY=local_super_secret_api_key_12345
 `
     );
@@ -1158,12 +911,12 @@ API_SECRET_KEY=local_super_secret_api_key_12345
     fs.writeFileSync(
       path.join(targetDir, ".env.test"),
       `# Test overrides for Kallo
-KALLO_PUBLIC_APP_TITLE=My Kallo Ecommerce Store (Test)
+KALLO_PUBLIC_APP_TITLE=My Kallo Store (Test)
 API_SECRET_KEY=test_super_secret_api_key_12345
 `
     );
 
-    // Write Public Assets (custom.css, custom.js, favicon.ico)
+    // Write Public Assets (custom.css, custom.js, favicon.ico, manifest.json, robots.txt, etc.)
     fs.writeFileSync(
       path.join(targetDir, "public/custom.css"),
       `/* Kallo Custom CSS Styles */
@@ -1171,8 +924,8 @@ body {
   font-family: 'Inter', sans-serif;
   margin: 0;
   padding: 0;
-  background-color: #0b0f19;
-  color: #f3f4f6;
+  background-color: #030303;
+  color: #dcdcdc;
 }
 `
     );
@@ -1191,7 +944,128 @@ console.log('Kallo custom.js loaded successfully from public directory!');
       Buffer.from(faviconPngBase64, "base64")
     );
 
+    // Write manifest.json
+    fs.writeFileSync(
+      path.join(targetDir, "public/manifest.json"),
+      JSON.stringify(
+        {
+          name: pkgName,
+          short_name: pkgName,
+          start_url: "/",
+          display: "standalone",
+          background_color: "#030303",
+          theme_color: "#1682df",
+          icons: [
+            {
+              src: "/favicon.ico",
+              sizes: "64x64 32x32 24x24 16x16",
+              type: "image/x-icon",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Write robots.txt
+    fs.writeFileSync(
+      path.join(targetDir, "public/robots.txt"),
+      `User-agent: *
+Allow: /
+Sitemap: /sitemap.xml
+`
+    );
+
+    // Write llms.txt
+    fs.writeFileSync(
+      path.join(targetDir, "public/llms.txt"),
+      `# ${pkgName}
+
+A high-performance fullstack web application built with the Kallo framework.
+
+## Features
+- Express-powered server-side rendering
+- Tailwind CSS styling
+- File-based routing
+- Reactive store and local state management
+`
+    );
+
+    // Write sitemap.xml
+    fs.writeFileSync(
+      path.join(targetDir, "public/sitemap.xml"),
+      `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>/</loc>
+    <lastmod>${new Date().toISOString().split("T")[0]}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
+`
+    );
+
+    // Write .gitignore
+    fs.writeFileSync(
+      path.join(targetDir, ".gitignore"),
+      `node_modules
+.kallo
+.kallo-cache
+dist
+.env.local
+.DS_Store
+`
+    );
+
+    // Write README.md
+    fs.writeFileSync(
+      path.join(targetDir, "README.md"),
+      `# ${pkgName}
+
+A beautiful, TypeScript-first fullstack application powered by Kallo.
+
+## Getting Started
+
+First, install the dependencies:
+
+\`\`\`bash
+${packageManager} install
+\`\`\`
+
+Then, run the development server:
+
+\`\`\`bash
+${packageManager} dev
+\`\`\`
+
+Open [http://localhost:4000](http://localhost:4000) with your browser to see the result.
+
+## Development
+
+- Edit \`src/view/page.kal\` to update the main page.
+- Edit \`src/view/layout.kal\` to update the root layout.
+- Edit \`src/components/\` to add new reusable components.
+- Edit \`src/stores/\` to manage global state.
+- Edit \`src/api/\` to add new Express-friendly API endpoints.
+
+## Developer Note
+
+Creating a project with the \`--empty\` flag is the fastest way for developers working on the open source project to get started quickly:
+\`\`\`bash
+kallo create my-app --empty
+\`\`\`
+`
+    );
+
     KalloLogger.info(`Successfully created project ${appName}!`);
+    console.log(`\n🎉 Successfully created Kallo project: ${appName}\n`);
+    console.log(`To get started:`);
+    console.log(`  cd ${appName}`);
+    console.log(`  ${packageManager} install`);
+    console.log(`  ${packageManager} dev\n`);
+
     return true;
   } catch (err) {
     KalloLogger.error("Failed to scaffold project: " + String(err));

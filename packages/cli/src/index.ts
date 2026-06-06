@@ -7,7 +7,7 @@ import { executeCreateCommand } from "./commands/create.js";
 import { executeGenerateCommand } from "./commands/generate.js";
 import { executeHelpCommand } from "./commands/help.js";
 
-export function handleCLI(context: CLIContext): boolean {
+export function handleCLI(context: CLIContext): boolean | Promise<boolean> {
   loadEnv();
   KalloLogger.info(`Executing CLI command: ${context.command}`);
   if (context.command === "dev") {

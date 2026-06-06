@@ -338,9 +338,9 @@ export function parse(source: string): KalloAST {
       attributes,
     );
 
-    if (tagName === BLOCK_VIEW) {
+    if (tagName === BLOCK_VIEW || tagName === "Head") {
       node.children = parseHTML(content);
-      for (const child of node.children) {
+      for (const child of node.children || []) {
         validateEach(child);
       }
     }

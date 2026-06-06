@@ -50,7 +50,7 @@ test("Route scanner extracts static and dynamic routes", () => {
   assert.ok(routePaths.includes("/about"));
   assert.ok(routePaths.includes("/blog"));
   assert.ok(routePaths.includes("/blog/:id"));
-  assert.ok(routePaths.includes("/blog/:catchall(*)"));
+  assert.ok(routePaths.includes("/blog/:catchall*"));
 
   cleanupMockPages();
 });
@@ -77,7 +77,7 @@ test("Route scanner resolves layout chains", () => {
 
 test("Route sorting prioritizes static over dynamic over catchall", () => {
   const routes = [
-    { path: "/blog/:catchall(*)", isDynamic: true, isCatchAll: true },
+    { path: "/blog/:catchall*", isDynamic: true, isCatchAll: true },
     { path: "/blog/:id", isDynamic: true, isCatchAll: false },
     { path: "/blog/new", isDynamic: false, isCatchAll: false },
     { path: "/about", isDynamic: false, isCatchAll: false },
@@ -88,7 +88,7 @@ test("Route sorting prioritizes static over dynamic over catchall", () => {
   assert.strictEqual(sorted[0]!.path, "/about");
   assert.strictEqual(sorted[1]!.path, "/blog/new");
   assert.strictEqual(sorted[2]!.path, "/blog/:id");
-  assert.strictEqual(sorted[3]!.path, "/blog/:catchall(*)");
+  assert.strictEqual(sorted[3]!.path, "/blog/:catchall*");
 });
 
 test("Route sorting handles segment-by-segment specificity", () => {

@@ -216,6 +216,34 @@ class MockElement extends MockNode {
     }
     return copy;
   }
+
+  querySelector(selector: string): MockElement | null {
+    if (selector.startsWith(".")) {
+      const className = selector.slice(1);
+      const walk = (node: MockNode): MockElement | null => {
+        if (node instanceof MockElement && node.getAttribute("class")?.includes(className)) {
+          return node;
+        }
+        for (const child of node.childNodes) {
+          const res = walk(child);
+          if (res) return res;
+        }
+        return null;
+      };
+      return walk(this);
+    }
+    const walk = (node: MockNode): MockElement | null => {
+      if (node instanceof MockElement && node.tagName.toLowerCase() === selector.toLowerCase()) {
+        return node;
+      }
+      for (const child of node.childNodes) {
+        const res = walk(child);
+        if (res) return res;
+      }
+      return null;
+    };
+    return walk(this);
+  }
 }
 
 const styleStore = new Map<string, MockElement>();

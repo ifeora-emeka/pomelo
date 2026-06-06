@@ -186,8 +186,9 @@ export function transformTemplate(
 
       if (tagName === "Head") {
         const childHTML = compileChildren(n.children || [], activeLoopVars);
+        const htmlString = JSON.stringify(childHTML);
         return {
-          html: `\${(typeof globalThis !== "undefined" && (globalThis as any).__kallo_ssr_context__) ? ((globalThis as any).__kallo_ssr_context__.headTags.push(\`${childHTML}\`), "") : _injectHead(\`${childHTML}\`)}`,
+          html: `\${(typeof globalThis !== "undefined" && globalThis.__kallo_ssr_context__) ? (globalThis.__kallo_ssr_context__.headTags.push(${htmlString}), "") : _injectHead(${htmlString})}`,
           nextWhen: "",
         };
       }
@@ -360,7 +361,8 @@ export function transformTemplate(
   let headInject = "";
   if (headNode) {
     const headChildrenHTML = compileChildren(headNode.children || [], []);
-    headInject = `\${(typeof globalThis !== "undefined" && (globalThis as any).__kallo_ssr_context__) ? ((globalThis as any).__kallo_ssr_context__.headTags.push(\\\`${headChildrenHTML}\\\`), "") : _injectHead(\\\`${headChildrenHTML}\\\`)}`;
+    const htmlString = JSON.stringify(headChildrenHTML);
+    headInject = `\${(typeof globalThis !== "undefined" && globalThis.__kallo_ssr_context__) ? (globalThis.__kallo_ssr_context__.headTags.push(${htmlString}), "") : _injectHead(${htmlString})}`;
   }
 
   return `export function render(state = {}, slots = {}) {

@@ -19,6 +19,7 @@ import {
   scanRoutes,
   sortRoutesBySpecificity,
   extractParams,
+  resolveLayoutChain,
 } from "./route-scanner.js";
 import { mergeMetadata, renderMetadataHTML } from "./metadata.js";
 import { signToken, verifyToken } from "./auth.js";
@@ -29,6 +30,15 @@ function resolvePackageToAbsolute(packageName: string): string | null {
     return path.dirname(pkgJsonPath);
   } catch {
     return null;
+  }
+}
+
+function getCacheDir(): string {
+  const env = process.env.KALLO_ENV || process.env.NODE_ENV || "development";
+  if (env === "production") {
+    return path.join(process.cwd(), ".kallo");
+  } else {
+    return path.join(process.cwd(), "node_modules/.kallo-cache");
   }
 }
 
@@ -237,7 +247,11 @@ export async function handleSSR(
       const allowed = await component.$serverGuard(ctx);
       if (allowed === false) {
         if (!res.headersSent) {
-          res.forbidden();
+          if (typeof res.forbidden === "function") {
+            res.forbidden();
+          } else {
+            res.status(403).send("Forbidden");
+          }
         }
         return;
       }
@@ -293,6 +307,19 @@ export async function handleSSR(
       styleHTML = `<style id="kallo-style-${component.componentId || "app"}">${component.css}</style>`;
     }
 
+    let faviconTag = "";
+    const hasFavicon =
+      headTagsHTML.includes('rel="icon"') ||
+      headTagsHTML.includes("rel='icon'") ||
+      headTagsHTML.includes('rel="shortcut icon"') ||
+      headTagsHTML.includes("rel='shortcut icon'") ||
+      metaHTML.includes('rel="icon"') ||
+      metaHTML.includes("rel='icon'");
+
+    if (!hasFavicon) {
+      faviconTag = `\n  <link rel="icon" href="/favicon.ico">`;
+    }
+
     const routePath = req.route?.path || req.path;
     const resolvedCacheFileName =
       cacheFileName ||
@@ -305,12 +332,36 @@ export async function handleSSR(
       ? generateHydrationScript(resolvedCacheFileName, componentId, stateJSON)
       : "";
 
-    const fullHTML = `<!DOCTYPE html>
+    let fullHTML = "";
+    const hasHtmlOrBody = /<html|<body/i.test(htmlContent);
+
+    if (hasHtmlOrBody) {
+      fullHTML = htmlContent;
+      if (!/^<!DOCTYPE/i.test(fullHTML.trim())) {
+        fullHTML = "<!DOCTYPE html>\n" + fullHTML;
+      }
+      const headInject = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${metaHTML}${faviconTag}${headTagsHTML}${styleHTML}`;
+      if (/<head[^>]*>/i.test(fullHTML)) {
+        fullHTML = fullHTML.replace(/(<head[^>]*>)/i, `$1${headInject}`);
+      } else if (/<html[^>]*>/i.test(fullHTML)) {
+        fullHTML = fullHTML.replace(/(<html[^>]*>)/i, `$1<head>${headInject}</head>`);
+      }
+      const bodyInject = `${hydrationScript}`;
+      if (/<body[^>]*>/i.test(fullHTML)) {
+        if (!/id=["']app["']/i.test(fullHTML)) {
+          fullHTML = fullHTML.replace(/(<body[^>]*>)/i, `$1<div id="app">`);
+          fullHTML = fullHTML.replace(/(<\/body>)/i, `${bodyInject}</div>$1`);
+        } else {
+          fullHTML = fullHTML.replace(/(<\/body>)/i, `${bodyInject}$1`);
+        }
+      }
+    } else {
+      fullHTML = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  ${metaHTML}
+  ${metaHTML}${faviconTag}
   ${headTagsHTML}
   ${styleHTML}
 </head>
@@ -319,6 +370,7 @@ export async function handleSSR(
   ${hydrationScript}
 </body>
 </html>`;
+    }
 
     res.status(200).send(fullHTML);
   } catch (err: any) {
@@ -401,11 +453,22 @@ export async function handleSSRStream(
       styleHTML = `<style>${component.css}</style>`;
     }
 
+    let faviconTag = "";
+    const hasFavicon =
+      metaHTML.includes('rel="icon"') ||
+      metaHTML.includes("rel='icon'") ||
+      metaHTML.includes('rel="shortcut icon"') ||
+      metaHTML.includes("rel='shortcut icon'");
+
+    if (!hasFavicon) {
+      faviconTag = `<link rel="icon" href="/favicon.ico">`;
+    }
+
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Transfer-Encoding", "chunked");
 
     res.write(
-      `<!DOCTYPE html><html><head><meta charset="utf-8">${metaHTML}${styleHTML}</head><body><div id="app">`,
+      `<!DOCTYPE html><html><head><meta charset="utf-8">${metaHTML}${faviconTag}${styleHTML}</head><body><div id="app">`,
     );
     res.write(htmlContent);
     res.write(`</div></body></html>`);
@@ -564,6 +627,124 @@ function compileKalDeps(
   }
 }
 
+class UnauthorizedError extends Error {
+  constructor(message = "Unauthorized access") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
+function findSpecialFile(startDir: string, pagesDir: string, type: string): string | null {
+  let currentDir = startDir;
+  while (true) {
+    const relative = path.relative(pagesDir, currentDir);
+    const isInside =
+      currentDir === pagesDir ||
+      (!relative.startsWith("..") && !path.isAbsolute(relative));
+    if (!isInside) {
+      break;
+    }
+
+    const specialFile = path.join(currentDir, `${type}.kal`);
+    if (fs.existsSync(specialFile)) {
+      return specialFile;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) break;
+    currentDir = parentDir;
+  }
+  return null;
+}
+
+async function renderSpecialFile(
+  req: Request,
+  res: Response,
+  specialFile: string,
+  pagesDir: string,
+  statusCode: number,
+  extraState: any = {}
+) {
+  const cacheDir = getCacheDir();
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+
+  const relative = path.relative(pagesDir, specialFile);
+  const cacheFile = path.join(
+    cacheDir,
+    relative.replace(/[\/\\]/g, "_") + ".js"
+  );
+
+  const env = process.env.KALLO_ENV || process.env.NODE_ENV || "development";
+  const isDev = env === "development";
+
+  if (isDev) {
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+    const content = fs.readFileSync(specialFile, "utf-8");
+    const compiled = compile(content, specialFile);
+    const rewroteCode = rewriteRelativeImports(compiled.code, specialFile, cacheFile);
+    fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteCode));
+    compileTypeScriptDeps(cacheFile, cacheDir);
+    compileKalDeps(cacheFile, cacheDir, process.cwd());
+  }
+
+  const layoutPaths = resolveLayoutChain(specialFile, pagesDir);
+  const layoutCacheFiles: string[] = [];
+
+  for (const layoutPath of layoutPaths) {
+    const layoutRelative = path.relative(pagesDir, layoutPath);
+    const layoutCacheFile = path.join(
+      cacheDir,
+      "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js"
+    );
+    if (isDev) {
+      const layoutContent = fs.readFileSync(layoutPath, "utf-8");
+      const layoutCompiled = compile(layoutContent, layoutPath);
+      const layoutRewroteCode = rewriteRelativeImports(
+        layoutCompiled.code,
+        layoutPath,
+        layoutCacheFile
+      );
+      fs.writeFileSync(layoutCacheFile, rewriteBareModuleImports(layoutRewroteCode));
+      compileTypeScriptDeps(layoutCacheFile, cacheDir);
+      compileKalDeps(layoutCacheFile, cacheDir, process.cwd());
+    }
+    layoutCacheFiles.push(layoutCacheFile);
+  }
+
+  const component = await import(`file://${cacheFile}?t=${Date.now()}`);
+  const layouts: any[] = [];
+  for (const layoutCacheFile of layoutCacheFiles) {
+    const layout = await import(`file://${layoutCacheFile}?t=${Date.now()}`);
+    layouts.push(layout);
+  }
+
+  res.status(statusCode);
+
+  const originalServerPage = component.$serverPage;
+  component.$serverPage = async (ctx: any) => {
+    const base = originalServerPage ? await originalServerPage(ctx) : {};
+    return { ...base, ...extraState };
+  };
+
+  const cacheFileName = path.basename(cacheFile);
+  if (layouts.length > 0) {
+    await handleSSRWithLayouts(
+      req,
+      res,
+      component,
+      layouts,
+      cacheFileName,
+      layoutCacheFiles.map((f) => path.basename(f))
+    );
+  } else {
+    await handleSSR(req, res, component, cacheFileName);
+  }
+}
+
 export function registerFileSystemRoutes(
   app: express.Express,
   pagesDir: string,
@@ -571,7 +752,7 @@ export function registerFileSystemRoutes(
   if (!fs.existsSync(pagesDir)) return;
 
   const routes = sortRoutesBySpecificity(scanRoutes(pagesDir));
-  const cacheDir = path.join(process.cwd(), ".kallo-cache");
+  const cacheDir = getCacheDir();
 
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
@@ -579,46 +760,53 @@ export function registerFileSystemRoutes(
 
   const routeCacheMap = app.get("routeCacheMap") || new Map<string, string>();
 
+  const env = process.env.KALLO_ENV || process.env.NODE_ENV || "development";
+  const isDev = env === "development";
+
   for (const route of routes) {
     const relative = path.relative(pagesDir, route.filePath);
-    const content = fs.readFileSync(route.filePath, "utf-8");
-    const compiled = compile(content, route.filePath);
-
     const cacheFile = path.join(
       cacheDir,
       relative.replace(/[\/\\]/g, "_") + ".js",
     );
     const importPath = route.path === "/" ? `/index${SFC_EXTENSION}` : `${route.path}${SFC_EXTENSION}`;
     routeCacheMap.set(importPath, cacheFile);
-    const rewroteCode = rewriteRelativeImports(
-      compiled.code,
-      route.filePath,
-      cacheFile,
-    );
-    fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteCode));
-    compileTypeScriptDeps(cacheFile, cacheDir);
-    compileKalDeps(cacheFile, cacheDir, process.cwd());
+
+    if (isDev) {
+      const content = fs.readFileSync(route.filePath, "utf-8");
+      const compiled = compile(content, route.filePath);
+      const rewroteCode = rewriteRelativeImports(
+        compiled.code,
+        route.filePath,
+        cacheFile,
+      );
+      fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteCode));
+      compileTypeScriptDeps(cacheFile, cacheDir);
+      compileKalDeps(cacheFile, cacheDir, process.cwd());
+    }
 
     const layoutCacheFiles: string[] = [];
     for (const layoutPath of route.layoutPaths) {
       const layoutRelative = path.relative(pagesDir, layoutPath);
-      const layoutContent = fs.readFileSync(layoutPath, "utf-8");
-      const layoutCompiled = compile(layoutContent, layoutPath);
       const layoutCacheFile = path.join(
         cacheDir,
         "layout_" + layoutRelative.replace(/[\/\\]/g, "_") + ".js",
       );
-      const layoutRewroteCode = rewriteRelativeImports(
-        layoutCompiled.code,
-        layoutPath,
-        layoutCacheFile,
-      );
-      fs.writeFileSync(
-        layoutCacheFile,
-        rewriteBareModuleImports(layoutRewroteCode),
-      );
-      compileTypeScriptDeps(layoutCacheFile, cacheDir);
-      compileKalDeps(layoutCacheFile, cacheDir, process.cwd());
+      if (isDev) {
+        const layoutContent = fs.readFileSync(layoutPath, "utf-8");
+        const layoutCompiled = compile(layoutContent, layoutPath);
+        const layoutRewroteCode = rewriteRelativeImports(
+          layoutCompiled.code,
+          layoutPath,
+          layoutCacheFile,
+        );
+        fs.writeFileSync(
+          layoutCacheFile,
+          rewriteBareModuleImports(layoutRewroteCode),
+        );
+        compileTypeScriptDeps(layoutCacheFile, cacheDir);
+        compileKalDeps(layoutCacheFile, cacheDir, process.cwd());
+      }
       layoutCacheFiles.push(layoutCacheFile);
     }
 
@@ -628,6 +816,9 @@ export function registerFileSystemRoutes(
           process.env.NODE_ENV === "development" ||
           process.env.KALLO_ENV === "development"
         ) {
+          if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+          }
           const content = fs.readFileSync(route.filePath, "utf-8");
           const compiled = compile(content, route.filePath);
           const devRewroteCode = rewriteRelativeImports(
@@ -684,12 +875,71 @@ export function registerFileSystemRoutes(
           await handleSSR(req, res, component, cacheFileName);
         }
       } catch (err) {
+        const pagesDir = app.get("pagesDir") || path.join(process.cwd(), "src/view");
+        if (err instanceof Error && err.name === "UnauthorizedError") {
+          const specialFile = findSpecialFile(path.dirname(route.filePath), pagesDir, "unauthorized");
+          if (specialFile) {
+            try {
+              await renderSpecialFile(req, res, specialFile, pagesDir, 403, {
+                message: err.message
+              });
+              return;
+            } catch (renderErr) {
+              KalloLogger.error("Failed to render unauthorized.kal: " + String(renderErr));
+            }
+          }
+          if (!res.headersSent) {
+            if (typeof res.forbidden === "function") {
+              res.forbidden();
+            } else {
+              res.status(403).send("Forbidden");
+            }
+          }
+          return;
+        }
+
+        const specialFile = findSpecialFile(path.dirname(route.filePath), pagesDir, "error");
+        if (specialFile) {
+          try {
+            await renderSpecialFile(req, res, specialFile, pagesDir, 500, {
+              error: {
+                message: err instanceof Error ? err.message : String(err),
+                stack: process.env.NODE_ENV !== "production" && err instanceof Error ? err.stack : undefined
+              }
+            });
+            return;
+          } catch (renderErr) {
+            KalloLogger.error("Failed to render error.kal: " + String(renderErr));
+          }
+        }
         next(err);
       }
     });
 
     KalloLogger.info(`Registered route: ${route.path} → ${relative}`);
   }
+
+  // Catch-all 404 handler for unmatched pages
+  app.get("*splat", async (req, res, next) => {
+    if (req.path.startsWith("/api") || (req.accepts && !req.accepts("html"))) {
+      return next();
+    }
+    const pagesDir = app.get("pagesDir") || path.join(process.cwd(), "src/view");
+    const cleanPath = req.path.replace(/^\//, "");
+    const startDir = path.join(pagesDir, cleanPath);
+    const specialFile = findSpecialFile(startDir, pagesDir, "not-found");
+    if (specialFile) {
+      try {
+        await renderSpecialFile(req, res, specialFile, pagesDir, 404, {
+          message: "Page not found"
+        });
+        return;
+      } catch (renderErr) {
+        KalloLogger.error("Failed to render not-found.kal: " + String(renderErr));
+      }
+    }
+    next();
+  });
 }
 
 export function apiFileToRoutePath(relativePath: string): string {
@@ -777,14 +1027,14 @@ export function compileAPIRoutes(apiDir: string, cacheDir: string) {
   compileKalDeps(cacheFile, cacheDir, process.cwd());
 
   KalloLogger.info(
-    `Compiled API entry route: /api → .kallo-cache/${cacheFileName}`,
+    `Compiled API entry route: /api → ${path.basename(cacheDir)}/${cacheFileName}`,
   );
 }
 
 export function registerAPIRoutes(app: express.Express, apiDir: string) {
   if (!fs.existsSync(apiDir)) return;
 
-  const cacheDir = path.join(process.cwd(), ".kallo-cache");
+  const cacheDir = getCacheDir();
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
   }
@@ -875,14 +1125,7 @@ export async function handleSSRWithLayouts(
      if (component.$serverGuard) {
       const allowed = await component.$serverGuard(ctx);
       if (allowed === false) {
-        if (!res.headersSent) {
-          if (typeof res.forbidden === "function") {
-            res.forbidden();
-          } else {
-            res.status(403).send("Forbidden");
-          }
-        }
-        return;
+        throw new UnauthorizedError();
       }
     }
 
@@ -890,14 +1133,7 @@ export async function handleSSRWithLayouts(
       if (layout.$serverGuard) {
         const allowed = await layout.$serverGuard(ctx);
         if (allowed === false) {
-          if (!res.headersSent) {
-            if (typeof res.forbidden === "function") {
-              res.forbidden();
-            } else {
-              res.status(403).send("Forbidden");
-            }
-          }
-          return;
+          throw new UnauthorizedError();
         }
       }
     }
@@ -1049,20 +1285,79 @@ export async function handleSSRWithLayouts(
         : "";
     }
 
-    const fullHTML = `<!DOCTYPE html>
+    let faviconTag = "";
+    const hasFavicon =
+      headTagsHTML.includes('rel="icon"') ||
+      headTagsHTML.includes("rel='icon'") ||
+      headTagsHTML.includes('rel="shortcut icon"') ||
+      headTagsHTML.includes("rel='shortcut icon'") ||
+      metaHTML.includes('rel="icon"') ||
+      metaHTML.includes("rel='icon'");
+
+    if (!hasFavicon) {
+      faviconTag = `\n  <link rel="icon" href="/favicon.ico">`;
+    }
+
+    let hmrClientScript = "";
+    if (process.env.NODE_ENV === "development" || process.env.KALLO_ENV === "development") {
+      hmrClientScript = `
+<script type="module">
+  if (typeof window !== 'undefined') {
+    const es = new EventSource('/kallo-hmr');
+    es.addEventListener('message', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'reload') {
+          console.log('[Kallo HMR] Change detected, reloading page...');
+          window.location.reload();
+        }
+      } catch (err) {}
+    });
+    console.log('[Kallo HMR] Connected to dev server HMR');
+  }
+</script>
+      `;
+    }
+
+    let fullHTML = "";
+    const hasHtmlOrBody = /<html|<body/i.test(htmlContent);
+
+    if (hasHtmlOrBody) {
+      fullHTML = htmlContent;
+      if (!/^<!DOCTYPE/i.test(fullHTML.trim())) {
+        fullHTML = "<!DOCTYPE html>\n" + fullHTML;
+      }
+      const headInject = `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${metaHTML}${faviconTag}${headTagsHTML}${styleHTML}`;
+      if (/<head[^>]*>/i.test(fullHTML)) {
+        fullHTML = fullHTML.replace(/(<head[^>]*>)/i, `$1${headInject}`);
+      } else if (/<html[^>]*>/i.test(fullHTML)) {
+        fullHTML = fullHTML.replace(/(<html[^>]*>)/i, `$1<head>${headInject}</head>`);
+      }
+      const bodyInject = `${hydrationScript}${hmrClientScript}`;
+      if (/<body[^>]*>/i.test(fullHTML)) {
+        if (!/id=["']app["']/i.test(fullHTML)) {
+          fullHTML = fullHTML.replace(/(<body[^>]*>)/i, `$1<div id="app">`);
+          fullHTML = fullHTML.replace(/(<\/body>)/i, `${bodyInject}</div>$1`);
+        } else {
+          fullHTML = fullHTML.replace(/(<\/body>)/i, `${bodyInject}$1`);
+        }
+      }
+    } else {
+      fullHTML = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  ${metaHTML}
+  ${metaHTML}${faviconTag}
   ${headTagsHTML}
   ${styleHTML}
 </head>
 <body>
   <div id="app">${htmlContent}</div>
-  ${hydrationScript}
+  ${hydrationScript}${hmrClientScript}
 </body>
 </html>`;
+    }
 
     res.status(200).send(fullHTML);
   } catch (err: any) {
@@ -1182,7 +1477,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
       cacheFileName = cleanPath.replace(/[\/\\]/g, "_") + ".js";
     }
 
-    const cacheFile = path.join(process.cwd(), ".kallo-cache", cacheFileName);
+    const cacheFile = path.join(getCacheDir(), cacheFileName);
     if (fs.existsSync(cacheFile)) {
       res.setHeader("Content-Type", "application/javascript; charset=utf-8");
       const content = fs.readFileSync(cacheFile, "utf-8");
@@ -1196,7 +1491,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   // Serve compiled cache files
   app.use("/.kallo-cache", (req, res, next) => {
     const cleanPath = req.path.replace(/^\//, "");
-    const cacheFile = path.join(process.cwd(), ".kallo-cache", cleanPath);
+    const cacheFile = path.join(getCacheDir(), cleanPath);
     if (fs.existsSync(cacheFile)) {
       res.setHeader("Content-Type", "application/javascript; charset=utf-8");
       const content = fs.readFileSync(cacheFile, "utf-8");
@@ -1387,12 +1682,97 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     });
   }
 
+  app.get("/favicon.ico", (req: Request, res: Response, next: NextFunction) => {
+    const faviconPath = path.join(process.cwd(), "public/favicon.ico");
+    if (fs.existsSync(faviconPath)) {
+      res.sendFile(faviconPath);
+    } else {
+      const defaultFavicon = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMElEQVR42mP8z8BQD8AEjDqAYVAZGA2DyoBhUBkYDYPKgGFQGRgNg8qAYVAZGA2DCgCt2gf82rr1OQAAAABJRU5ErkJggg==",
+        "base64",
+      );
+      res.writeHead(200, {
+        "Content-Type": "image/x-icon",
+        "Content-Length": defaultFavicon.length,
+      });
+      res.end(defaultFavicon);
+    }
+  });
+
   const isDev = config.env === "development" || !config.env;
   if (isDev) {
     app.use((req: Request, _res: Response, next: NextFunction) => {
       KalloLogger.info(`${req.method} ${req.url}`);
       next();
     });
+
+    const hmrClients = new Set<any>();
+
+    app.get("/kallo-hmr", (req: Request, res: Response) => {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      hmrClients.add(res);
+
+      req.on("close", () => {
+        hmrClients.delete(res);
+      });
+    });
+
+    const srcDir = path.join(process.cwd(), "src");
+    if (fs.existsSync(srcDir)) {
+      let debounceTimer: NodeJS.Timeout | null = null;
+      const watchCallback = (event: string, filePath: string) => {
+        if (
+          filePath.endsWith(".kal") ||
+          filePath.endsWith(".ts") ||
+          filePath.endsWith(".js") ||
+          filePath.endsWith(".css")
+        ) {
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            KalloLogger.info(`[Kallo Dev] File change detected: ${filePath}. Notifying clients...`);
+            const msg = JSON.stringify({ type: "reload" });
+            for (const client of hmrClients) {
+              client.write(`data: ${msg}\n\n`);
+            }
+          }, 100);
+        }
+      };
+
+      const watchDir = (dirPath: string) => {
+        try {
+          fs.watch(dirPath, (event, filename) => {
+            if (filename) {
+              const fullPath = path.join(dirPath, filename);
+              try {
+                if (fs.statSync(fullPath).isDirectory()) {
+                  watchDir(fullPath);
+                }
+              } catch {}
+              watchCallback(event, fullPath);
+            }
+          });
+        } catch {}
+
+        try {
+          const files = fs.readdirSync(dirPath);
+          for (const file of files) {
+            const fullPath = path.join(dirPath, file);
+            try {
+              if (fs.statSync(fullPath).isDirectory()) {
+                watchDir(fullPath);
+              }
+            } catch {}
+          }
+        } catch {}
+      };
+
+      watchDir(srcDir);
+      KalloLogger.info(`[Kallo Dev] Watching ${srcDir} for HMR...`);
+    }
   }
 
   return {

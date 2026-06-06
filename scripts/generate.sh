@@ -6,7 +6,7 @@ rm -rf temp
 mkdir -p temp
 
 echo "[Kallo] Running CLI to create test-app inside temp/..."
-node packages/cli/dist/bin.js create temp/test-app --template ecommerce
+node packages/cli/dist/bin.js create temp/test-app
 
 # Ensure temp/* is present in pnpm-workspace.yaml
 if ! grep -q "temp/\*" pnpm-workspace.yaml; then

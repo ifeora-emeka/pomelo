@@ -208,7 +208,7 @@ For framework developers, always test features in isolation by scaffolding a tes
 2. **Scaffold a new project in the `temp/` directory**:
 
    ```bash
-   node packages/cli/dist/bin.js create temp/my-test-app --template ecommerce
+   node packages/cli/dist/bin.js create temp/test-app
    ```
 
 3. **Navigate to the project**:

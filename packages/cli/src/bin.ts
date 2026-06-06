@@ -16,11 +16,11 @@ if (isTypeScriptSource && !process.env.KALLO_CLI_RESPAWNED) {
     process.exit(code ?? 0);
   });
 } else {
-  import("./index.js").then(({ handleCLI }) => {
+  import("./index.js").then(async ({ handleCLI }) => {
     const command = process.argv[2] || "help";
     const args = process.argv.slice(3);
 
-    const success = handleCLI({ command, args });
+    const success = await handleCLI({ command, args });
     if (!success) {
       process.exit(1);
     }

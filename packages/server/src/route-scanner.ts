@@ -17,7 +17,7 @@ export function extractParams(segment: string): {
       isDynamic: true,
       isCatchAll: true,
       paramName: catchAllMatch[1],
-      expressSegment: `:${catchAllMatch[1]}(*)`,
+      expressSegment: `:${catchAllMatch[1]}*`,
     };
   }
 
@@ -81,7 +81,7 @@ function findLayoutInDir(dir: string): string | null {
   return null;
 }
 
-function resolveLayoutChain(filePath: string, pagesDir: string): string[] {
+export function resolveLayoutChain(filePath: string, pagesDir: string): string[] {
   const layouts: string[] = [];
   let currentDir = path.dirname(filePath);
 
@@ -146,7 +146,7 @@ export function scanRoutes(pagesDir: string): RouteRecord[] {
       const routePath = fileToRoutePath(relativePath);
       const paramNames = extractParamNames(routePath);
       const isDynamic = paramNames.length > 0;
-      const isCatchAll = routePath.includes("(*)");
+      const isCatchAll = routePath.includes("*");
       const layoutPaths = resolveLayoutChain(fullPath, pagesDir);
 
       const route: RouteRecord = {
@@ -184,7 +184,7 @@ export function buildManifest(pagesDir: string): RouteManifest {
 }
 
 function getSegmentType(segment: string): number {
-  if (segment.includes("(*)") || segment.startsWith("*")) {
+  if (segment.includes("*") || segment.startsWith("*")) {
     return 0; // Catch-all
   }
   if (segment.startsWith(":")) {
