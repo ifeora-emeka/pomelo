@@ -715,7 +715,7 @@ async function renderSpecialFile(
     layoutCacheFiles.push(layoutCacheFile);
   }
 
-  const component = await import(`file://${cacheFile}?t=${Date.now()}`);
+  const rawComponent = await import(`file://${cacheFile}?t=${Date.now()}`);
   const layouts: any[] = [];
   for (const layoutCacheFile of layoutCacheFiles) {
     const layout = await import(`file://${layoutCacheFile}?t=${Date.now()}`);
@@ -724,10 +724,13 @@ async function renderSpecialFile(
 
   res.status(statusCode);
 
-  const originalServerPage = component.$serverPage;
-  component.$serverPage = async (ctx: any) => {
-    const base = originalServerPage ? await originalServerPage(ctx) : {};
-    return { ...base, ...extraState };
+  const originalServerPage = rawComponent.$serverPage;
+  const component = {
+    ...rawComponent,
+    $serverPage: async (ctx: any) => {
+      const base = originalServerPage ? await originalServerPage(ctx) : {};
+      return { ...base, ...extraState };
+    },
   };
 
   const cacheFileName = path.basename(cacheFile);

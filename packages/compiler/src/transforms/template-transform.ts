@@ -9,6 +9,11 @@ import {
   TAG_SLOT,
 } from "@kallo/shared";
 
+const BOOLEAN_ATTRS = new Set([
+  "checked", "disabled", "selected", "readonly", "required",
+  "multiple", "autofocus", "open", "hidden",
+]);
+
 function extractIdentifiers(expression: string): string[] {
   const cleanExpr = expression
     .replace(/\?\.\s*[a-zA-Z_$][a-zA-Z0-9_$]*/g, "")
@@ -268,7 +273,11 @@ export function transformTemplate(
           } else if (key.startsWith(":")) {
             const propName = key.slice(1);
             attributes.push(`data-kal-bind-${propName}="${value}"`);
-            attributes.push(`${propName}="\${_unwrapSignal(${value})}"`);
+            if (BOOLEAN_ATTRS.has(propName)) {
+              attributes.push(`\${_unwrapSignal(${value}) ? "${propName}" : ""}`);
+            } else {
+              attributes.push(`${propName}="\${_unwrapSignal(${value})}"`);
+            }
           } else {
             // Static attribute (with interpolation support)
             const interpolatedValue = value.replace(

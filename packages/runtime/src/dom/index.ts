@@ -240,9 +240,6 @@ export function setupEventDelegation(
                 get(target, key) {
                   if (key === "state") return stateProxy;
                   const raw = stateProxy.__raw__;
-                  if (raw && key in raw && raw[key] && typeof raw[key] === "object" && typeof (raw[key] as any).get === "function") {
-                    return (raw[key] as any).get();
-                  }
                   if (key in target) {
                     return target[key as string];
                   }

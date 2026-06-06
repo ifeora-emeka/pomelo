@@ -1,4 +1,4 @@
-import { KalloLogger } from "@kallo/shared";
+import { KalloLogger, loadEnv } from "@kallo/shared";
 import {
   createServer,
   registerFileSystemRoutes,
@@ -16,6 +16,8 @@ export function executeDevCommand(args: string[]): boolean {
 
   process.env.NODE_ENV = "development";
   process.env.KALLO_ENV = "development";
+
+  loadEnv("development");
 
   KalloLogger.info(`Starting Kallo development server...`);
 
@@ -73,12 +75,21 @@ export function executeDevCommand(args: string[]): boolean {
   const port =
     portIndex !== -1 ? parseInt(args[portIndex + 1] || "3000") : 3000;
 
+  const authSecret = process.env.KALLO_AUTH_SECRET;
+
   try {
     const server = createServer({
       name: "Kallo App (Dev)",
       version: "1.0.0",
       port,
       env: "development",
+      ...(authSecret ? {
+        auth: {
+          secret: authSecret,
+          cookieName: "kallo.session",
+          providers: [],
+        }
+      } : {}),
     });
 
     const pagesDir = path.join(process.cwd(), "src/view");
