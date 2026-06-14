@@ -21,6 +21,8 @@ const mockLocalStorage = {
 
 globalThis.window = {
   localStorage: mockLocalStorage,
+  // Devtools instrumentation is opt-in via this hook (gated for production perf).
+  __KALLO_DEVTOOLS__: { emit: () => {} },
   dispatchEvent: (event: any) => {
     eventsDispatched.push(event);
     return true;
@@ -57,6 +59,17 @@ test("Store persistence options correctly save and load from localStorage", () =
   assert.deepStrictEqual(JSON.parse(JSON.stringify(secondCart.items)), [
     "apple",
   ]);
+});
+
+test("Store persistence is disabled when persistKey is missing", () => {
+  mockLocalStorage.clear();
+  const before = Object.keys(mockStorage).length;
+
+  const store = $store({ items: [] as string[] }, { persist: true });
+  store.items.push("x");
+
+  // No key means nothing should be written to localStorage.
+  assert.strictEqual(Object.keys(mockStorage).length, before);
 });
 
 test("Reactivity updates emit kallo:devtools custom events on window", () => {

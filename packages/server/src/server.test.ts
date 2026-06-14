@@ -23,12 +23,12 @@ test("Server router registers and dispatches routes", () => {
   let getTriggered = false;
   let postTriggered = false;
 
-  router.get("/home", (req) => {
+  router.get("/home", (req: any) => {
     getTriggered = true;
     assert.strictEqual(req.id, 1);
   });
 
-  router.post("/submit", (req, res) => {
+  router.post("/submit", (req: any, res: any) => {
     postTriggered = true;
     assert.strictEqual(res.sent, true);
   });
@@ -472,6 +472,19 @@ test("signToken and verifyToken work correctly", () => {
   const invalidToken = token + "modified";
   const verifiedInvalid = verifyToken(invalidToken, secret);
   assert.strictEqual(verifiedInvalid, null);
+});
+
+test("verifyToken rejects expired tokens", () => {
+  const secret = "super-secret-key";
+  const payload = { id: "user-123" };
+
+  // Already-expired token.
+  const expired = signToken(payload, secret, -1000);
+  assert.strictEqual(verifyToken(expired, secret), null);
+
+  // Token with a future expiry still verifies and returns the payload.
+  const valid = signToken(payload, secret, 60_000);
+  assert.deepStrictEqual(verifyToken(valid, secret), payload);
 });
 
 test("$auth middleware without provider allows authenticated session user", async () => {

@@ -18,7 +18,8 @@ function extractIdentifiers(expression: string): string[] {
   const cleanExpr = expression
     .replace(/\?\.\s*[a-zA-Z_$][a-zA-Z0-9_$]*/g, "")
     .replace(/\.\s*[a-zA-Z_$][a-zA-Z0-9_$]*/g, "");
-  const matches = cleanExpr.match(/\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g) || [];
+  const matches =
+    cleanExpr.match(/(?<![\w$])[a-zA-Z_$][a-zA-Z0-9_$]*/g) || [];
   const keywords = new Set([
     "true",
     "false",
@@ -144,15 +145,40 @@ export function transformTemplate(
     collectIdentifiers(headNode, identifiers);
   }
 
+  // Event handlers are compiled to real functions at build time (no runtime
+  // eval), so they remain valid under a strict Content-Security-Policy.
+  const eventHandlers: string[] = [];
+  function buildEventHandler(expr: string, activeLoopVars: string[]): number {
+    const idents = extractIdentifiers(expr);
+    const loopVars = idents.filter((v) => activeLoopVars.includes(v));
+    const stateVars = idents.filter((v) => !activeLoopVars.includes(v));
+    const stateDestructure = stateVars.length
+      ? `let { ${stateVars.join(", ")} } = $state;`
+      : "";
+    const loopDestructure = loopVars.length
+      ? `const { ${loopVars.join(", ")} } = $scope;`
+      : "";
+    const snapshot = stateVars.length
+      ? `const $init = [${stateVars.join(", ")}];`
+      : "";
+    const writeBack = stateVars
+      .map((v, i) => `if (${v} !== $init[${i}]) $state.${v} = ${v};`)
+      .join(" ");
+    const body = `${stateDestructure} ${loopDestructure} ${snapshot} const $r = (${expr}); ${writeBack} return $r;`;
+    eventHandlers.push(`function($state, $scope, $event) { ${body.trim()} }`);
+    return eventHandlers.length - 1;
+  }
+
   function compileNode(
     n: KalloASTNode,
     lastWhen: string,
     activeLoopVars: string[],
+    keyExpr?: string,
   ): { html: string; nextWhen: string } {
     if (n.type === NODE_TEXT) {
       const html = n.content.replace(
         /\{\{([\s\S]*?)\}\}/g,
-        (_, expr) => `\${_unwrapSignal(${expr.trim()})}`,
+        (_, expr) => `\${_escape(${expr.trim()})}`,
       );
       return { html, nextWhen: lastWhen };
     }
@@ -201,10 +227,12 @@ export function transformTemplate(
       if (tagName === TAG_EACH) {
         const ofAttr = n.attributes?.["of"];
         const asAttr = n.attributes?.["as"] || "item";
-        const childHTML = compileChildren(n.children || [], [
-          ...activeLoopVars,
-          asAttr,
-        ]);
+        const keyAttr = n.attributes?.["key"];
+        const childHTML = compileChildren(
+          n.children || [],
+          [...activeLoopVars, asAttr],
+          keyAttr,
+        );
         return {
           html: `\${(${ofAttr} || []).map((${asAttr}) => \`${childHTML}\`).join("")}`,
           nextWhen: "",
@@ -240,6 +268,9 @@ export function transformTemplate(
       // Normal HTML elements
       const attributes: string[] = [];
       attributes.push(`data-kal-${componentId}`);
+      if (keyExpr) {
+        attributes.push(`data-kal-key="\${_escapeAttr(${keyExpr})}"`);
+      }
 
       let className = "";
       let dynamicClass = "";
@@ -252,21 +283,28 @@ export function transformTemplate(
             dynamicClass = value;
           } else if (key === ":bind") {
             // Two-way binding: e.g. :bind="search"
+            const bindIndex = buildEventHandler(
+              `${value} = $event.target.value`,
+              activeLoopVars,
+            );
             attributes.push(`data-kal-bind="${value}"`);
-            attributes.push(`value="\${${value}}"`);
+            attributes.push(`value="\${_escapeAttr(${value})}"`);
             attributes.push(
-              `data-kal-event-input="${value} = $event.target.value"`,
+              `data-kal-event-input="${componentId}::${bindIndex}"`,
             );
           } else if (key.startsWith("@")) {
             const eventName = key.slice(1);
-            attributes.push(`data-kal-event-${eventName}="${value}"`);
+            const handlerIndex = buildEventHandler(value, activeLoopVars);
+            attributes.push(
+              `data-kal-event-${eventName}="${componentId}::${handlerIndex}"`,
+            );
 
             // Serialize any active loop variables used in this event handler
             for (const loopVar of activeLoopVars) {
               const rx = new RegExp(`\\b${loopVar}\\b`);
               if (rx.test(value)) {
                 attributes.push(
-                  `data-kal-loop-item-${loopVar}="\${JSON.stringify(${loopVar}).replace(/\\"/g, '&quot;')}"`,
+                  `data-kal-loop-item-${loopVar}="\${_escapeAttr(JSON.stringify(${loopVar}))}"`,
                 );
               }
             }
@@ -276,13 +314,13 @@ export function transformTemplate(
             if (BOOLEAN_ATTRS.has(propName)) {
               attributes.push(`\${_unwrapSignal(${value}) ? "${propName}" : ""}`);
             } else {
-              attributes.push(`${propName}="\${_unwrapSignal(${value})}"`);
+              attributes.push(`${propName}="\${_escapeAttr(${value})}"`);
             }
           } else {
             // Static attribute (with interpolation support)
             const interpolatedValue = value.replace(
               /\{\{([\s\S]*?)\}\}/g,
-              (_, expr) => `\${_unwrapSignal(${expr.trim()})}`,
+              (_, expr) => `\${_escapeAttr(${expr.trim()})}`,
             );
             attributes.push(`${key}="${interpolatedValue}"`);
           }
@@ -292,11 +330,11 @@ export function transformTemplate(
       // Merge class and :class
       if (className || dynamicClass) {
         if (className && dynamicClass) {
-          attributes.push(`class="${className} \${_formatClass(${dynamicClass})}"`);
+          attributes.push(`class="${className} \${_escapeAttr(_formatClass(${dynamicClass}))}"`);
         } else if (className) {
           attributes.push(`class="${className}"`);
         } else if (dynamicClass) {
-          attributes.push(`class="\${_formatClass(${dynamicClass})}"`);
+          attributes.push(`class="\${_escapeAttr(_formatClass(${dynamicClass}))}"`);
         }
       }
 
@@ -323,11 +361,12 @@ export function transformTemplate(
   function compileChildren(
     children: KalloASTNode[],
     activeLoopVars: string[],
+    keyExpr?: string,
   ): string {
     let html = "";
     let currentWhen = "";
     for (const child of children) {
-      const res = compileNode(child, currentWhen, activeLoopVars);
+      const res = compileNode(child, currentWhen, activeLoopVars, keyExpr);
       html += res.html;
       currentWhen = res.nextWhen;
     }
@@ -378,6 +417,16 @@ export function transformTemplate(
   function _unwrapSignal(v) {
     return (v !== null && v !== undefined && typeof v === "object" && typeof v.get === "function") ? v.get() : v;
   }
+  function _escape(v) {
+    v = _unwrapSignal(v);
+    if (v === null || v === undefined) return "";
+    return String(v).replace(/[&<>]/g, function(c) { return c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"; });
+  }
+  function _escapeAttr(v) {
+    v = _unwrapSignal(v);
+    if (v === null || v === undefined) return "";
+    return String(v).replace(/[&<>"']/g, function(c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]; });
+  }
   function _formatClass(value) {
     if (!value) return "";
     if (typeof value === "string") return value;
@@ -400,7 +449,7 @@ export function transformTemplate(
     var unwrappedProps = {};
     for (var _k in props) { unwrappedProps[_k] = typeof props[_k] === "function" ? props[_k] : _unwrapSignal(props[_k]); }
     var _s = C.setup ? Object.assign({}, C.setup(props), props) : props;
-    var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-kal-loop-item-' + e[0] + '="' + JSON.stringify(e[1]).replace(/"/g, '&quot;') + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
+    var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-kal-loop-item-' + e[0] + '="' + _escapeAttr(JSON.stringify(e[1])) + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
     return '<span data-kal-component style="display:contents"' + (_a ? ' ' + _a : '') + '>' + C.render(_s) + '</span>';
   }
   function _injectHead(html) {
@@ -444,6 +493,10 @@ export function transformTemplate(
     document.head.appendChild(styleEl);
   }
 ${deconstruct}  return \`${content}${headInject}\`;
+}
+export const handlers = [${eventHandlers.join(", ")}];
+if (typeof globalThis !== "undefined") {
+  (globalThis.__kal_handlers__ || (globalThis.__kal_handlers__ = {}))[${JSON.stringify(componentId)}] = handlers;
 }
 `;
 }

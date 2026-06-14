@@ -1,8 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import express from "express";
+import type { Request, Response, NextFunction } from "express";
 import { KalloLogger } from "@kallo/shared";
 
-export type Handler = (req: any, res: any, next?: any) => any;
+export type Handler = (
+  req: Request,
+  res: Response,
+  next?: NextFunction,
+) => unknown;
 
 export interface KalloRouter {
   get(path: string, ...handlers: Handler[]): void;

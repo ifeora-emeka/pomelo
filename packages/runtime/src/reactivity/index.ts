@@ -6,15 +6,22 @@ let batchDepth = 0;
 const pendingEffects = new Set<() => void>();
 let signalIdCounter = 0;
 
+interface KalloDevtoolsHook {
+  emit?: (event: string, payload: unknown) => void;
+}
+
 function notifyDevtools(type: "store" | "signal", name: string, state: any) {
-  if (typeof window !== "undefined") {
-    const event = new CustomEvent("kallo:devtools", {
-      detail: { type, name, state: JSON.parse(JSON.stringify(state)) },
-    });
-    window.dispatchEvent(event);
-    if ((window as any).__POMELO_DEVTOOLS__) {
-      (window as any).__POMELO_DEVTOOLS__.emit("change", { type, name, state });
-    }
+  if (typeof window === "undefined") return;
+  // Only pay the serialization/dispatch cost when devtools are attached.
+  const hook = (window as { __KALLO_DEVTOOLS__?: KalloDevtoolsHook })
+    .__KALLO_DEVTOOLS__;
+  if (!hook) return;
+  const event = new CustomEvent("kallo:devtools", {
+    detail: { type, name, state: JSON.parse(JSON.stringify(state)) },
+  });
+  window.dispatchEvent(event);
+  if (typeof hook.emit === "function") {
+    hook.emit("change", { type, name, state });
   }
 }
 
@@ -106,9 +113,13 @@ export function $watch<T>(
   const effectFn = () => {
     cb(signal.value);
   };
+  const previousEffect = activeEffect;
   activeEffect = effectFn;
-  effectFn();
-  activeEffect = null;
+  try {
+    effectFn();
+  } finally {
+    activeEffect = previousEffect;
+  }
   return () => signal.unsubscribe(effectFn);
 }
 
@@ -150,15 +161,25 @@ export function $store<T extends object>(
     Object.getPrototypeOf(initialObj),
     Object.getOwnPropertyDescriptors(initialObj),
   );
-  const persistKey = options?.persistKey || "kallo-store";
 
-  if (
-    options?.persist &&
-    typeof window !== "undefined" &&
-    window.localStorage
-  ) {
+  // Persistence requires an explicit, stable key. Without one, multiple
+  // persisted stores would clobber each other under a shared default key, so
+  // we disable persistence rather than silently corrupt state.
+  let persist = !!options?.persist;
+  const persistKey = options?.persistKey;
+  if (persist && !persistKey) {
+    if (typeof console !== "undefined") {
+      console.warn(
+        "[Kallo] $store({ persist: true }) requires an explicit persistKey. Persistence disabled for this store.",
+      );
+    }
+    persist = false;
+  }
+  const storeLabel = persistKey || "kallo-store";
+
+  if (persist && typeof window !== "undefined" && window.localStorage) {
     try {
-      const saved = window.localStorage.getItem(persistKey);
+      const saved = window.localStorage.getItem(persistKey!);
       if (saved) {
         Object.assign(state, JSON.parse(saved));
       }
@@ -168,25 +189,26 @@ export function $store<T extends object>(
   }
 
   const notifyChange = () => {
-    if (
-      options?.persist &&
-      typeof window !== "undefined" &&
-      window.localStorage
-    ) {
+    if (persist && typeof window !== "undefined" && window.localStorage) {
       try {
-        window.localStorage.setItem(persistKey, JSON.stringify(state));
+        window.localStorage.setItem(persistKey!, JSON.stringify(state));
       } catch (e) {
         console.error("Failed to persist store state", e);
       }
     }
-    notifyDevtools("store", persistKey, state);
+    notifyDevtools("store", storeLabel, state);
     for (const sub of subscribers) {
       enqueueEffect(sub);
     }
   };
 
+  // Cache nested proxies so repeated reads return a stable reference and we
+  // don't allocate a fresh Proxy on every property access (hot path).
+  const proxyCache = new WeakMap<object, object>();
   const createDeepProxy = <U extends object>(obj: U): U => {
-    return new Proxy(obj, {
+    const cached = proxyCache.get(obj);
+    if (cached) return cached as U;
+    const proxied = new Proxy(obj, {
       get(target, key, receiver) {
         if (activeEffect) {
           subscribers.add(activeEffect);
@@ -214,10 +236,12 @@ export function $store<T extends object>(
         return res;
       },
     });
+    proxyCache.set(obj, proxied);
+    return proxied as U;
   };
 
   const proxy = createDeepProxy(state);
-  notifyDevtools("store", persistKey, state);
+  notifyDevtools("store", storeLabel, state);
   return proxy;
 }
 

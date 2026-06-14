@@ -1,9 +1,0 @@
-# test-cli-ecommerce-app
-
-A high-performance fullstack web application built with the Kallo framework.
-
-## Features
-- Express-powered server-side rendering
-- Tailwind CSS styling
-- File-based routing
-- Reactive store and local state management

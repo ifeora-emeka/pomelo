@@ -3,8 +3,21 @@ import type { Request, Response } from "express";
 
 // === Token primitives ===
 
-export function signToken(payload: any, secret: string): string {
-  const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
+interface TokenEnvelope {
+  p: unknown;
+  exp?: number;
+}
+
+export function signToken(
+  payload: any,
+  secret: string,
+  expiresInMs?: number,
+): string {
+  const envelope: TokenEnvelope = { p: payload };
+  if (typeof expiresInMs === "number") {
+    envelope.exp = Date.now() + expiresInMs;
+  }
+  const data = Buffer.from(JSON.stringify(envelope)).toString("base64url");
   const hmac = crypto.createHmac("sha256", secret);
   hmac.update(data);
   const signature = hmac.digest("base64url");
@@ -32,11 +45,23 @@ export function verifyToken(token: string, secret: string): any | null {
   }
 
   try {
-    return JSON.parse(Buffer.from(data, "base64url").toString("utf8"));
+    const parsed = JSON.parse(Buffer.from(data, "base64url").toString("utf8"));
+    // Enveloped token with optional expiry; fall back to the raw payload for
+    // any legacy non-enveloped token.
+    if (parsed && typeof parsed === "object" && "p" in parsed) {
+      const envelope = parsed as TokenEnvelope;
+      if (typeof envelope.exp === "number" && Date.now() > envelope.exp) {
+        return null;
+      }
+      return envelope.p;
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
+
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // === Server-side auth utilities ===
 
@@ -68,13 +93,13 @@ export function $getAuthSecret(): string {
  */
 export function $setSessionCookie(res: Response, payload: Record<string, any>): void {
   const secret = $getAuthSecret();
-  const token = signToken(payload, secret);
+  const token = signToken(payload, secret, SESSION_MAX_AGE_MS);
   const isProduction = process.env.NODE_ENV === "production";
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     secure: isProduction,
     sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: SESSION_MAX_AGE_MS,
     path: "/",
   });
 }

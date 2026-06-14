@@ -139,7 +139,7 @@ src/
 Responsibility:
 
 ```text
-page.pom
+page.kal
 
 ↓
 
@@ -255,7 +255,7 @@ src/
 Responsibilities:
 
 ```text
-.pom
+.kal
 
 ↓
 

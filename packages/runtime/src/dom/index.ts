@@ -10,6 +10,26 @@ export interface ComponentInstance {
   hotUpdate: (renderFn: (state: any, slots?: any) => string) => void;
 }
 
+type EventHandler = (
+  state: Record<string, unknown>,
+  scope: Record<string, unknown>,
+  event: Event,
+) => unknown;
+
+type HandlerRegistry = Record<string, EventHandler[]>;
+
+function resolveHandler(ref: string): EventHandler | null {
+  const sep = ref.indexOf("::");
+  if (sep === -1) return null;
+  const componentId = ref.slice(0, sep);
+  const index = Number(ref.slice(sep + 2));
+  const registry = (globalThis as { __kal_handlers__?: HandlerRegistry })
+    .__kal_handlers__;
+  const handlers = registry && registry[componentId];
+  if (!handlers || !handlers[index]) return null;
+  return handlers[index];
+}
+
 export let activeInstance: ComponentInstance | null = null;
 
 export function setActiveInstance(instance: ComponentInstance | null) {
@@ -205,9 +225,9 @@ export function setupEventDelegation(
         const attrName = `data-kal-event-${eventName}`;
         while (target && target !== container.parentElement) {
           if (target.hasAttribute && target.hasAttribute(attrName)) {
-            const expr = target.getAttribute(attrName);
-            if (expr) {
-              const loopVars: Record<string, any> = {};
+            const ref = target.getAttribute(attrName);
+            if (ref) {
+              const loopScope: Record<string, any> = {};
               let current: HTMLElement | null = target;
               while (current && current !== container.parentElement) {
                 if (current.attributes) {
@@ -216,11 +236,11 @@ export function setupEventDelegation(
                       const varName = attr.name.slice(
                         "data-kal-loop-item-".length,
                       );
-                      if (!(varName in loopVars)) {
+                      if (!(varName in loopScope)) {
                         try {
-                          loopVars[varName] = JSON.parse(attr.value);
+                          loopScope[varName] = JSON.parse(attr.value);
                         } catch (e) {
-                          // Ignore
+                          // Ignore malformed loop payloads
                         }
                       }
                     }
@@ -229,57 +249,22 @@ export function setupEventDelegation(
                 current = current.parentElement;
               }
 
-              const eventState = new Proxy(loopVars, {
-                has(target, key) {
-                  return (
-                    key in target ||
-                    key === "state" ||
-                    Reflect.has(stateProxy, key)
+              const handler = resolveHandler(ref);
+              if (handler) {
+                try {
+                  // Batch all state writes in a handler into one re-render.
+                  let result: unknown;
+                  $batch(() => {
+                    result = handler(stateProxy, loopScope, event);
+                  });
+                  if (typeof result === "function") {
+                    (result as (e: Event) => void)(event);
+                  }
+                } catch (err) {
+                  KalloLogger.error(
+                    `Error in event handler "${ref}": ${(err as Error).message}`,
                   );
-                },
-                get(target, key) {
-                  if (key === "state") return stateProxy;
-                  const raw = stateProxy.__raw__;
-                  if (key in target) {
-                    return target[key as string];
-                  }
-                  if (raw && key in raw) {
-                    return raw[key];
-                  }
-                  return Reflect.get(stateProxy, key);
-                },
-                set(target, key, value) {
-                  const raw = stateProxy.__raw__;
-                  if (raw && key in raw && raw[key] && typeof raw[key] === "object" && typeof (raw[key] as any).set === "function") {
-                    (raw[key] as any).set(value);
-                    return true;
-                  }
-                  if (key in target) {
-                    target[key as string] = value;
-                    return true;
-                  }
-                  if (raw && key in raw) {
-                    raw[key] = value;
-                    return true;
-                  }
-                  return Reflect.set(stateProxy, key, value);
-                },
-              });
-
-              console.log("[Kallo Runtime] Executing event expression:", expr);
-              try {
-                const fn = new Function(
-                  "state",
-                  "$event",
-                  `with(state) { return (${expr}); }`,
-                );
-                const evaluated = fn(eventState, event);
-                if (typeof evaluated === "function") {
-                  evaluated(event);
                 }
-                console.log("[Kallo Runtime] Event executed successfully");
-              } catch (err) {
-                console.error("[Kallo Runtime] Error executing event expression:", expr, err);
               }
             }
             break;
@@ -536,7 +521,7 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
       }
     })
     .catch((err) => {
-      console.error("[Kallo Router] Navigation error, falling back:", err);
+      KalloLogger.error(`Navigation error, falling back: ${err}`);
       window.location.href = href;
     });
 }

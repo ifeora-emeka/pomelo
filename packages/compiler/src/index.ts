@@ -10,18 +10,13 @@ import {
   BLOCK_CLIENT,
   BLOCK_STYLE,
   BLOCK_VIEW,
+  hashId,
 } from "@kallo/shared";
 
 export function compile(source: string, filename: string): CompilerResult {
   KalloLogger.info(`Compiling component file: ${filename}`);
 
-  const componentId = Math.abs(
-    filename
-      .split("")
-      .reduce((hash, char) => (hash << 5) - hash + char.charCodeAt(0), 0),
-  )
-    .toString(36)
-    .slice(0, 6);
+  const componentId = hashId(filename);
 
   const ast = parse(source);
 
@@ -30,21 +25,19 @@ export function compile(source: string, filename: string): CompilerResult {
   let cssCode = "";
   let templateCode = "";
 
-  const isPageOrLayout =
-    filename.endsWith("page.kal") ||
-    filename.endsWith("layout.kal") ||
-    filename.endsWith("index.kal") ||
-    filename.includes("page.kal") ||
-    filename.includes("layout.kal") ||
-    filename.includes("index.kal") ||
-    filename === "__layout__" ||
-    filename === "page" ||
-    filename === "layout" ||
-    filename.endsWith("server.kal") ||
-    filename.endsWith("client.kal") ||
-    process.env.NODE_ENV === "test" ||
-    process.env.KALLO_TEST === "true" ||
-    process.env.KALLO_ENV === "test";
+  // <Server>/<Client>/<Head> blocks are only valid in route entry files.
+  const basename = filename.split(/[\\/]/).pop() || filename;
+  const ROUTE_ENTRY_FILES = new Set([
+    "page.kal",
+    "layout.kal",
+    "index.kal",
+    "server.kal",
+    "client.kal",
+    "__layout__",
+    "page",
+    "layout",
+  ]);
+  const isPageOrLayout = ROUTE_ENTRY_FILES.has(basename);
 
   let viewNode: any = null;
   let headNode: any = null;

@@ -1,5 +1,5 @@
 import { handleSFCCompilation, generateClientModule } from "./transform.js";
-import { KalloLogger, SFC_EXTENSION } from "@kallo/shared";
+import { KalloLogger, SFC_EXTENSION, hashId } from "@kallo/shared";
 
 const CSS_VIRTUAL_PREFIX = "\0kallo-css:";
 
@@ -111,13 +111,7 @@ export function kalloVitePlugin(options: { pagesDir?: string } = {}) {
 }
 
 function generateComponentId(filename: string): string {
-  return Math.abs(
-    filename
-      .split("")
-      .reduce((hash, char) => (hash << 5) - hash + char.charCodeAt(0), 0),
-  )
-    .toString(36)
-    .slice(0, 6);
+  return hashId(filename);
 }
 
 function generateErrorOverlay(file: string, message: string): string {

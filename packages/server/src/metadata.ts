@@ -1,4 +1,5 @@
 import type { Metadata } from "@kallo/types";
+import { escapeHtml, escapeAttr } from "@kallo/shared";
 
 export function mergeMetadata(parent: Metadata, child: Metadata): Metadata {
   const merged: Metadata = {
@@ -54,56 +55,64 @@ export function renderMetadataHTML(metadata: Metadata): string {
   let html = "";
 
   if (metadata.charset) {
-    html += `<meta charset="${metadata.charset}">\n`;
+    html += `<meta charset="${escapeAttr(metadata.charset)}">\n`;
   }
   if (metadata.viewport) {
-    html += `<meta name="viewport" content="${metadata.viewport}">\n`;
+    html += `<meta name="viewport" content="${escapeAttr(metadata.viewport)}">\n`;
   }
   if (metadata.title) {
-    html += `<title>${metadata.title}</title>\n`;
+    html += `<title>${escapeHtml(metadata.title)}</title>\n`;
   }
   if (metadata.description) {
-    html += `<meta name="description" content="${metadata.description}">\n`;
+    html += `<meta name="description" content="${escapeAttr(metadata.description)}">\n`;
   }
   if (metadata.canonical) {
-    html += `<link rel="canonical" href="${metadata.canonical}">\n`;
+    html += `<link rel="canonical" href="${escapeAttr(metadata.canonical)}">\n`;
   }
   if (metadata.robots) {
-    html += `<meta name="robots" content="${metadata.robots}">\n`;
+    html += `<meta name="robots" content="${escapeAttr(metadata.robots)}">\n`;
   }
 
   // OpenGraph
   if (metadata.openGraph) {
     const og = metadata.openGraph;
-    if (og.title) html += `<meta property="og:title" content="${og.title}">\n`;
+    if (og.title)
+      html += `<meta property="og:title" content="${escapeAttr(og.title)}">\n`;
     if (og.description)
-      html += `<meta property="og:description" content="${og.description}">\n`;
-    if (og.type) html += `<meta property="og:type" content="${og.type}">\n`;
-    if (og.url) html += `<meta property="og:url" content="${og.url}">\n`;
-    if (og.image) html += `<meta property="og:image" content="${og.image}">\n`;
+      html += `<meta property="og:description" content="${escapeAttr(og.description)}">\n`;
+    if (og.type)
+      html += `<meta property="og:type" content="${escapeAttr(og.type)}">\n`;
+    if (og.url)
+      html += `<meta property="og:url" content="${escapeAttr(og.url)}">\n`;
+    if (og.image)
+      html += `<meta property="og:image" content="${escapeAttr(og.image)}">\n`;
     if (og.siteName)
-      html += `<meta property="og:site_name" content="${og.siteName}">\n`;
+      html += `<meta property="og:site_name" content="${escapeAttr(og.siteName)}">\n`;
   }
 
   // Twitter
   if (metadata.twitter) {
     const tw = metadata.twitter;
-    if (tw.card) html += `<meta name="twitter:card" content="${tw.card}">\n`;
-    if (tw.site) html += `<meta name="twitter:site" content="${tw.site}">\n`;
+    if (tw.card)
+      html += `<meta name="twitter:card" content="${escapeAttr(tw.card)}">\n`;
+    if (tw.site)
+      html += `<meta name="twitter:site" content="${escapeAttr(tw.site)}">\n`;
     if (tw.creator)
-      html += `<meta name="twitter:creator" content="${tw.creator}">\n`;
-    if (tw.title) html += `<meta name="twitter:title" content="${tw.title}">\n`;
+      html += `<meta name="twitter:creator" content="${escapeAttr(tw.creator)}">\n`;
+    if (tw.title)
+      html += `<meta name="twitter:title" content="${escapeAttr(tw.title)}">\n`;
     if (tw.description)
-      html += `<meta name="twitter:description" content="${tw.description}">\n`;
-    if (tw.image) html += `<meta name="twitter:image" content="${tw.image}">\n`;
+      html += `<meta name="twitter:description" content="${escapeAttr(tw.description)}">\n`;
+    if (tw.image)
+      html += `<meta name="twitter:image" content="${escapeAttr(tw.image)}">\n`;
   }
 
   // Custom Metas
   if (metadata.meta) {
     for (const m of metadata.meta) {
-      const nameAttr = m.name ? ` name="${m.name}"` : "";
-      const propAttr = m.property ? ` property="${m.property}"` : "";
-      html += `<meta${nameAttr}${propAttr} content="${m.content}">\n`;
+      const nameAttr = m.name ? ` name="${escapeAttr(m.name)}"` : "";
+      const propAttr = m.property ? ` property="${escapeAttr(m.property)}"` : "";
+      html += `<meta${nameAttr}${propAttr} content="${escapeAttr(m.content)}">\n`;
     }
   }
 
@@ -111,7 +120,7 @@ export function renderMetadataHTML(metadata: Metadata): string {
   if (metadata.links) {
     for (const l of metadata.links) {
       const attrs = Object.entries(l)
-        .map(([k, v]) => `${k}="${v}"`)
+        .map(([k, v]) => `${k}="${escapeAttr(v as unknown)}"`)
         .join(" ");
       html += `<link ${attrs}>\n`;
     }

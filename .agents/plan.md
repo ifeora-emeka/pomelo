@@ -43,11 +43,11 @@ Set up monorepo and enforce strict boundaries.
 
 ## Goals
 
-Define `.pom` syntax parsing rules and AST structure.
+Define `.kal` syntax parsing rules and AST structure.
 
 ## Tasks
 
-- [x] Design `.pom` grammar
+- [x] Design `.kal` grammar
   - [x] `<Server>`
   - [x] `<Client>`
   - [x] `<View>`
@@ -65,7 +65,7 @@ Define `.pom` syntax parsing rules and AST structure.
 
 ## Exit Criteria
 
-- [x] `.pom` file can be parsed into AST
+- [x] `.kal` file can be parsed into AST
 - [x] AST is deterministic and serializable
 
 ---
@@ -91,7 +91,7 @@ Transform AST → executable JS module.
 
 ## Exit Criteria
 
-- [x] `.pom` file compiles to JS module
+- [x] `.kal` file compiles to JS module
 - [x] No framework runtime required to interpret template
 
 ---
@@ -141,7 +141,7 @@ Turn Kallo into a real SSR framework.
 
 ## Exit Criteria
 
-- [x] `.pom` page renders via Express SSR
+- [x] `.kal` page renders via Express SSR
 - [x] Dynamic routes work (`[id]` support)
 
 ---
@@ -155,7 +155,7 @@ Enable hot module development.
 ## Tasks
 
 - [x] Vite plugin:
-  - [x] `.pom` file loader
+  - [x] `.kal` file loader
   - [x] transform pipeline
 
 - [x] HMR integration
@@ -168,7 +168,7 @@ Enable hot module development.
 
 ## Exit Criteria
 
-- [x] Editing `.pom` updates UI instantly
+- [x] Editing `.kal` updates UI instantly
 - [x] No full reload required
 
 ---
@@ -186,7 +186,7 @@ File-based routing like Next.js but simpler.
   - [x] `[id]`
   - [x] `[...catchall]`
 - [x] Route → server mapping
-- [x] Layout system (`layout.pom`)
+- [x] Layout system (`layout.kal`)
 - [x] Nested routes
 
 ## Exit Criteria

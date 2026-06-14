@@ -12,6 +12,7 @@ import {
   replaceEnvVars,
   stripServerBlock,
   loadEnv,
+  serializeForScript,
 } from "@kallo/shared";
 import type { FrameworkConfig } from "@kallo/types";
 import { KalloError } from "./errors.js";
@@ -327,7 +328,7 @@ export async function handleSSR(
         ? `index${SFC_EXTENSION}.js`
         : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}${SFC_EXTENSION}.js`);
     const componentId = component.componentId || "app";
-    const stateJSON = JSON.stringify(state);
+    const stateJSON = serializeForScript(state);
     const hydrationScript = component.setup
       ? generateHydrationScript(resolvedCacheFileName, componentId, stateJSON)
       : "";
@@ -1252,7 +1253,7 @@ export async function handleSSRWithLayouts(
         ? `index${SFC_EXTENSION}.js`
         : `${routePath.replace(/^\//, "").replace(/[\/\\]/g, "_")}${SFC_EXTENSION}.js`);
     const componentId = component.componentId || "app";
-    const stateJSON = JSON.stringify(state);
+    const stateJSON = serializeForScript(state);
 
     if (req.headers && req.headers["x-kallo-navigation"]) {
       res.setHeader("Content-Type", "application/json");
@@ -1274,7 +1275,7 @@ export async function handleSSRWithLayouts(
 
     let hydrationScript = "";
     if (layouts.length > 0) {
-      const layoutStatesJSON = layoutStates.map((s) => JSON.stringify(s));
+      const layoutStatesJSON = layoutStates.map((s) => serializeForScript(s));
       hydrationScript = generateHydrationScriptWithLayouts(
         resolvedCacheFileName,
         componentId,
@@ -1431,6 +1432,8 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(responseHelpersMiddleware);
+
+  const serverCleanup: Array<() => void> = [];
 
   const routeCacheMap = new Map<string, string>();
   app.set("routeCacheMap", routeCacheMap);
@@ -1655,7 +1658,8 @@ export function createServer(config: FrameworkConfig): ServerInstance {
           return;
         }
 
-        const token = signToken(user, authOptions.secret);
+        const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+        const token = signToken(user, authOptions.secret, SESSION_MAX_AGE_MS);
         res.cookie(cookieName, token, {
           httpOnly: true,
           secure:
@@ -1663,7 +1667,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
             process.env.NODE_ENV === "production",
           path: "/",
           domain: authOptions.cookieDomain,
-          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+          maxAge: SESSION_MAX_AGE_MS,
           sameSite: "lax",
         });
 
@@ -1703,13 +1707,26 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   });
 
   const isDev = config.env === "development" || !config.env;
-  if (isDev) {
+  // Dev HMR (file watchers + SSE) is wired up lazily in start(), so merely
+  // constructing a server never spawns watchers or leaks handles.
+  const setupDevHmr = () => {
+    if (!isDev) return;
     app.use((req: Request, _res: Response, next: NextFunction) => {
       KalloLogger.info(`${req.method} ${req.url}`);
       next();
     });
 
-    const hmrClients = new Set<any>();
+    const hmrClients = new Set<Response>();
+    serverCleanup.push(() => {
+      for (const client of hmrClients) {
+        try {
+          client.end();
+        } catch {
+          // client already closed
+        }
+      }
+      hmrClients.clear();
+    });
 
     app.get("/kallo-hmr", (req: Request, res: Response) => {
       res.setHeader("Content-Type", "text/event-stream");
@@ -1726,7 +1743,19 @@ export function createServer(config: FrameworkConfig): ServerInstance {
 
     const srcDir = path.join(process.cwd(), "src");
     if (fs.existsSync(srcDir)) {
+      const watchers: fs.FSWatcher[] = [];
       let debounceTimer: NodeJS.Timeout | null = null;
+      serverCleanup.push(() => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        for (const watcher of watchers) {
+          try {
+            watcher.close();
+          } catch {
+            // watcher already closed
+          }
+        }
+        watchers.length = 0;
+      });
       const watchCallback = (event: string, filePath: string) => {
         if (
           filePath.endsWith(".kal") ||
@@ -1747,7 +1776,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
 
       const watchDir = (dirPath: string) => {
         try {
-          fs.watch(dirPath, (event, filename) => {
+          const watcher = fs.watch(dirPath, (event, filename) => {
             if (filename) {
               const fullPath = path.join(dirPath, filename);
               try {
@@ -1758,6 +1787,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
               watchCallback(event, fullPath);
             }
           });
+          watchers.push(watcher);
         } catch {}
 
         try {
@@ -1776,17 +1806,31 @@ export function createServer(config: FrameworkConfig): ServerInstance {
       watchDir(srcDir);
       KalloLogger.info(`[Kallo Dev] Watching ${srcDir} for HMR...`);
     }
-  }
+  };
 
   return {
     app,
     start() {
+      setupDevHmr();
       app.use(errorHandler);
 
       const port = config.port || 3000;
       const server = app.listen(port, () => {
         KalloLogger.info(`Kallo server running at http://localhost:${port}`);
       });
+
+      const originalClose = server.close.bind(server);
+      server.close = ((cb?: (err?: Error) => void) => {
+        for (const cleanup of serverCleanup) {
+          try {
+            cleanup();
+          } catch {
+            // ignore cleanup failures during shutdown
+          }
+        }
+        return originalClose(cb);
+      }) as typeof server.close;
+
       return server;
     },
   };

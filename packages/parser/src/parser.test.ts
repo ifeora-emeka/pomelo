@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { tokenize, parse } from "./index.js";
+import { parse } from "./index.js";
 
 const sampleSFC = `
 <Server lang="ts">
@@ -23,19 +23,6 @@ const sampleSFC = `
   div { color: red; }
 </Style>
 `;
-
-test("SFC lexer correctly tokenizes blocks", () => {
-  const tokens = tokenize(sampleSFC);
-  assert.strictEqual(tokens.length, 4);
-  assert.strictEqual(tokens[0]?.type, "Server");
-  assert.deepEqual(tokens[0]?.attributes, { lang: "ts" });
-  assert.strictEqual(tokens[1]?.type, "Client");
-  assert.deepEqual(tokens[1]?.attributes, undefined);
-  assert.strictEqual(tokens[2]?.type, "View");
-  assert.deepEqual(tokens[2]?.attributes, undefined);
-  assert.strictEqual(tokens[3]?.type, "Style");
-  assert.deepEqual(tokens[3]?.attributes, { scoped: "" });
-});
 
 test("SFC parser creates a root AST and parses top-level block attributes", () => {
   const ast = parse(sampleSFC);

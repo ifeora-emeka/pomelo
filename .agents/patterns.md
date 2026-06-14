@@ -1,6 +1,6 @@
 I would lean into a few core principles for Kallo:
 
-1. **Single File Components** (`.pom`)
+1. **Single File Components** (`.kal`)
 2. **TypeScript first**
 3. **Server by default**
 4. **No Virtual DOM exposed to developers**
@@ -36,7 +36,7 @@ _watch();
 `src/stores/cart.store.ts`
 
 ```ts
-import { $store } from "@kallo/core";
+import { $store } from "@kallo/runtime";
 
 type CartItem = {
   id: number;
@@ -88,7 +88,7 @@ cart.add(product);
 
 # Example 2 — Product Listing Page
 
-`src/pages/products/page.pom`
+`src/view/products/page.kal`
 
 ```html
 <Server lang="ts">
@@ -148,7 +148,7 @@ cart.add(product);
 
 # Example 3 — Product Details Page
 
-`src/pages/products/[id]/page.pom`
+`src/view/products/[id]/page.kal`
 
 ```html
 <Server lang="ts">
@@ -273,14 +273,14 @@ src/
 
 ├── pages/
 │
-│   ├── page.pom
+│   ├── page.kal
 │
 │   ├── products/
 │   │
-│   ├── page.pom
+│   ├── page.kal
 │   │
 │   └── [id]/
-│       └── page.pom
+│       └── page.kal
 │
 │
 ├── api/
@@ -313,14 +313,14 @@ src/
 │
 │
 ├── components/
-│   ├── ProductCard.pom
-│   ├── Navbar.pom
-│   └── Footer.pom
+│   ├── ProductCard.kal
+│   ├── Navbar.kal
+│   └── Footer.kal
 │
 │
 ├── layouts/
-│   ├── MainLayout.pom
-│   └── AuthLayout.pom
+│   ├── MainLayout.kal
+│   └── AuthLayout.kal
 │
 │
 ├── services/

@@ -17,7 +17,8 @@ export function extractParams(segment: string): {
       isDynamic: true,
       isCatchAll: true,
       paramName: catchAllMatch[1],
-      expressSegment: `:${catchAllMatch[1]}*`,
+      // Express 5 / path-to-regexp v8 named wildcard syntax.
+      expressSegment: `*${catchAllMatch[1]}`,
     };
   }
 
@@ -63,7 +64,7 @@ function fileToRoutePath(relativePath: string): string {
 
 function extractParamNames(routePath: string): string[] {
   const params: string[] = [];
-  const regex = /:([a-zA-Z0-9_]+)/g;
+  const regex = /[:*]([a-zA-Z0-9_]+)/g;
   let match;
   while ((match = regex.exec(routePath)) !== null) {
     if (match[1]) {

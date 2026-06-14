@@ -9,11 +9,11 @@
 
 ## 🚀 Key Features
 
-- **Single File Components (`.pom`)**: Clean, intuitive separation of concerns into four distinct blocks: `<Server>`, `<Client>`, `<View>`, and `<Style scoped>`.
+- **Single File Components (`.kal`)**: Clean, intuitive separation of concerns into four distinct blocks: `<Server>`, `<Client>`, `<View>`, and `<Style scoped>`.
 - **TypeScript-First**: Type safety out of the box with zero compilation configuration.
 - **Express Mental Model**: Familiar middleware, routes, and controllers on the server.
 - **Signal-Like Reactivity**: Seamless state management using `$local`, `$store`, and `$watch` without exposing virtual DOM complexities.
-- **File-Based Routing**: Zero-config path and layout resolution from the filesystem (`layout.pom`, `page.pom`).
+- **File-Based Routing**: Zero-config path and layout resolution from the filesystem (`layout.kal`, `page.kal`).
 - **Built-in Metadata / SEO**: Dynamic, SSR-safe `<head>` injection via `$meta()`.
 - **Optimized Performance**: Scoped CSS, fast server-side rendering (SSR), and lazy client-side hydration.
 
@@ -25,13 +25,13 @@ Kallo is structured as a Turborepo monorepo to maintain clean boundaries between
 
 ```text
 kallo/
-├── apps/
-│   ├── www/          # Marketing website for Kallo
-│   ├── docs/         # Documentation website
-│   └── playground/   # Interactive browser playground
+├── apps/             # (planned) demo/docs apps — currently placeholders
+│   ├── www/          # Marketing website for Kallo (planned)
+│   ├── docs/         # Documentation website (planned)
+│   └── playground/   # Interactive browser playground (planned)
 ├── packages/
-│   ├── parser/       # Parses .pom files into a deterministic AST
-│   ├── compiler/     # Compiles .pom AST into production-ready JS modules
+│   ├── parser/       # Parses .kal files into a deterministic AST
+│   ├── compiler/     # Compiles .kal AST into production-ready JS modules
 │   ├── runtime/      # Client-side reactivity, lifecycle, and hydration engine
 │   ├── server/       # SSR rendering, routing, middleware, and Express wrapper
 │   ├── vite-plugin/  # Vite integration, hot module replacement (HMR), and file-based routing sync
@@ -42,11 +42,11 @@ kallo/
 
 ---
 
-## 🛠️ The `.pom` Component Anatomy
+## 🛠️ The `.kal` Component Anatomy
 
-Kallo components use the `.pom` extension. They are compiled at build time to produce optimized, reactive client-side modules and server-side render functions.
+Kallo components use the `.kal` extension. They are compiled at build time to produce optimized, reactive client-side modules and server-side render functions.
 
-### Example: Product Detail Page (`src/pages/products/[id]/page.pom`)
+### Example: Product Detail Page (`src/view/products/[id]/page.kal`)
 
 ```jsx
 <Server lang="ts">

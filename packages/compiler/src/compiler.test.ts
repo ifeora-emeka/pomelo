@@ -87,7 +87,7 @@ test("Compiler compiles template features, directives, and slots", () => {
     <div class="box" :class="dynamicClass">
       <h1 @click="increment">{{ title }}</h1>
       <input type="text" :bind="username" />
-      <Each of="products" as="prod">
+      <Each of="products" as="prod" key="prod.id">
         <span>{{ prod.name }}</span>
       </Each>
       <When condition="showBanner">
@@ -109,20 +109,31 @@ test("Compiler compiles template features, directives, and slots", () => {
     ),
   );
 
-  // Event handlers & Bindings
-  assert.ok(result.code.includes('data-kal-event-click="increment"'));
+  // Event handlers & Bindings: handlers are compiled to a registry (CSP-safe),
+  // and elements reference them by "<componentId>::<index>".
+  assert.ok(/data-kal-event-click="[^":]+::0"/.test(result.code));
   assert.ok(result.code.includes('data-kal-bind="username"'));
+  assert.ok(/data-kal-event-input="[^":]+::\d+"/.test(result.code));
+  assert.ok(result.code.includes("export const handlers = ["));
+  assert.ok(result.code.includes("globalThis.__kal_handlers__"));
+  // No runtime eval/with in generated output.
+  assert.ok(!result.code.includes("new Function"));
+  // The bind handler writes back to component state through the proxy.
+  assert.ok(result.code.includes("$state.username = username"));
+
+  // Class merging (escaped output for security)
   assert.ok(
-    result.code.includes(
-      'data-kal-event-input="username = $event.target.value"',
-    ),
+    result.code.includes('class="box ${_escapeAttr(_formatClass(dynamicClass))}"'),
   );
 
-  // Class merging
-  assert.ok(result.code.includes('class="box ${_formatClass(dynamicClass)}"'));
+  // Text interpolation is HTML-escaped, not raw
+  assert.ok(result.code.includes("${_escape(title)}"));
+  assert.ok(!result.code.includes("${_unwrapSignal(title)}"));
 
   // Loops and Conditionals
   assert.ok(result.code.includes("(products || []).map((prod) =>"));
+  // Keyed lists emit data-kal-key for reconciliation
+  assert.ok(result.code.includes('data-kal-key="${_escapeAttr(prod.id)}"'));
   assert.ok(result.code.includes("showBanner ?"));
   assert.ok(result.code.includes("!(showBanner) ?"));
 

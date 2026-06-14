@@ -390,7 +390,16 @@ test("DOM morph function syncs elements and attributes", () => {
 
 test("Component hydration sets up reactivity, event delegation and mounts", () => {
   const mockContainer = new MockElement("div");
-  mockContainer.innerHTML = `<button data-kal-event-click="increment">0</button>`;
+  mockContainer.innerHTML = `<button data-kal-event-click="evtcmp::0">0</button>`;
+
+  // Compiled handlers live in a build-time registry (CSP-safe, no runtime eval).
+  (globalThis as any).__kal_handlers__ = {
+    evtcmp: [
+      function ($state: any) {
+        return $state.increment;
+      },
+    ],
+  };
 
   const component = {
     setup() {
@@ -405,7 +414,7 @@ test("Component hydration sets up reactivity, event delegation and mounts", () =
       return { count, increment, mounted };
     },
     render(state: any) {
-      return `<button data-kal-event-click="increment">${state.count}</button>`;
+      return `<button data-kal-event-click="evtcmp::0">${state.count}</button>`;
     },
   };
 

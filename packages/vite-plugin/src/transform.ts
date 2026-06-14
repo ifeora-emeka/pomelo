@@ -4,6 +4,7 @@ import {
   SFC_EXTENSION,
   replaceEnvVars,
   stripServerBlock,
+  hashId,
 } from "@kallo/shared";
 
 export function handleSFCCompilation(code: string, id: string) {
@@ -16,13 +17,7 @@ export function handleSFCCompilation(code: string, id: string) {
 }
 
 function computeHash(str: string): string {
-  return Math.abs(
-    str
-      .split("")
-      .reduce((hash, char) => (hash << 5) - hash + char.charCodeAt(0), 0),
-  )
-    .toString(36)
-    .slice(0, 8);
+  return hashId(str, 8);
 }
 
 export function generateClientModule(
