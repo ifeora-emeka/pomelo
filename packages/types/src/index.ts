@@ -12,6 +12,16 @@ export interface AuthConfig {
   providers: AuthProvider[];
 }
 
+export interface KalloPlugin {
+  name: string;
+  config?: (config: FrameworkConfig) => FrameworkConfig | void;
+  transform?: (
+    code: string,
+    id: string,
+  ) => string | { code: string } | void;
+  configureServer?: (app: unknown) => void;
+}
+
 export interface FrameworkConfig {
   name: string;
   version: string;
@@ -23,6 +33,7 @@ export interface FrameworkConfig {
     methods?: string[];
   };
   auth?: AuthConfig;
+  plugins?: KalloPlugin[];
 }
 
 export interface KalloASTNode {

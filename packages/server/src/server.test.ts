@@ -16,7 +16,90 @@ import {
   $guard,
   signToken,
   verifyToken,
+  clearStaticCache,
 } from "./index.js";
+
+function makeReqRes(path = "/test") {
+  const headers: Record<string, string> = {};
+  const req = {
+    params: {},
+    query: {},
+    path,
+    method: "GET",
+    route: { path },
+  } as never;
+  let bodyHTML = "";
+  const res = {
+    status() {
+      return this;
+    },
+    send(html: string) {
+      bodyHTML = html;
+      return this;
+    },
+    setHeader(k: string, v: string) {
+      headers[k] = v;
+    },
+    headersSent: false,
+  } as never;
+  return { req, res, headers, body: () => bodyHTML };
+}
+
+test("handleSSR hydrate=visible emits IntersectionObserver scheduler", async () => {
+  const component = {
+    setup: () => ({}),
+    render: () => "<p>i</p>",
+    hydrateStrategy: "visible",
+  };
+  const { req, res, body } = makeReqRes();
+  await handleSSR(req, res, component);
+  assert.ok(body().includes("IntersectionObserver"));
+  assert.ok(body().includes("_kalHydrate"));
+});
+
+test("handleSSR hydrate=idle emits requestIdleCallback scheduler", async () => {
+  const component = {
+    setup: () => ({}),
+    render: () => "<p>i</p>",
+    hydrateStrategy: "idle",
+  };
+  const { req, res, body } = makeReqRes();
+  await handleSSR(req, res, component);
+  assert.ok(body().includes("requestIdleCallback"));
+});
+
+test("handleSSR hydrate=never ships no hydration script (static island)", async () => {
+  const component = {
+    setup: () => ({}),
+    render: () => "<p>static</p>",
+    hydrateStrategy: "never",
+  };
+  const { req, res, body } = makeReqRes();
+  await handleSSR(req, res, component);
+  assert.ok(body().includes("<p>static</p>"));
+  assert.ok(!body().includes("import { hydrate }"));
+});
+
+test("handleSSR static route serves MISS then HIT from the ISR cache", async () => {
+  clearStaticCache();
+  let renders = 0;
+  const component = {
+    $serverStatic: { revalidate: 60 },
+    setup: () => ({}),
+    render: () => `<p>render-${++renders}</p>`,
+  };
+
+  const first = makeReqRes("/blog");
+  await handleSSR(first.req, first.res, component);
+  assert.strictEqual(first.headers["X-Kallo-Cache"], "MISS");
+  assert.ok(first.body().includes("render-1"));
+
+  const second = makeReqRes("/blog");
+  await handleSSR(second.req, second.res, component);
+  assert.strictEqual(second.headers["X-Kallo-Cache"], "HIT");
+  assert.ok(second.body().includes("render-1"));
+  assert.strictEqual(renders, 1);
+});
 
 test("Server router registers and dispatches routes", () => {
   const router = $router();

@@ -17,17 +17,29 @@ This document proposes features that would take Kallo from "renders an app" to "
 | #5 Input validation | P0 | **Shipped** | `$validate` + `$rule.*` + `ValidationError` |
 | #6 CSRF + security headers | P0 | **Shipped** | `$csrf`, `$securityHeaders` |
 | #7 Fine-grained reactivity | P0 | **Shipped** | compiler `fineGrained`/`bindings` + runtime `wireBindings` per-binding effects |
+| #8 Lazy hydration (islands) | P1 | **Shipped (hydration half)** | `<Client hydrate="load\|idle\|visible\|never">` → compiler `hydrateStrategy` + runtime schedulers in the hydration script. Per-route *code-splitting* still pending bundler work. |
 | #9 Prefetching | P1 | **Shipped** | `prefetch()` + hover/touch intent + `<a prefetch="none">` opt-out, consumed by `navigateTo` |
+| #10 SSG/ISR | P1 | **Shipped (runtime ISR)** | `$static({ revalidate })` + `StaticRenderStore` (TTL, stale-while-revalidate, coalescing) + blocking-ISR cache in `handleSSR` (`X-Kallo-Cache`). Build-time prerender still pending. |
 | #11 Data caching | P1 | **Shipped** | `$cache` (TTL + request coalescing) + `$revalidate` (key/tag) |
+| #12 Suspense + boundaries | P1 | **Shipped (sync)** | `<Suspense>`/`<Boundary>` compile to render-time try/catch (`#fallback`/`#error` slots). *Real* streaming SSR still buffers (audit M-7). |
+| #13 `<Image>` | P1 | **Shipped (markup)** | `<Image src :width :height sizes priority>` → responsive `srcset` (`?w=`), `loading`/`decoding`/`fetchpriority`. Build-time Sharp pipeline still pending. |
+| #17 Testing utils | P2 | **Shipped** | `@kallo/testing`: `renderToString`, `mount`, `makeEvent`, `mockAction`, `mockReactive`, `mockStore` |
+| #18 Plugin system | P2 | **Shipped** | `defineConfig`/`definePlugin` + `config`/`transform`/`configureServer` hooks (wired into `createServer`) |
+| #19 Realtime | P2 | **Shipped** | server `$channel(name).publish()` (SSE + last-value replay) + client `$subscribe(name)` reactive |
+| #20 Config/env | P2 | **Shipped** | `$env(schema)` (typed coercion, aggregated errors) + `publicEnv` PUBLIC_ boundary |
+| P3 Rate limiting | P3 | **Shipped** | `$rateLimit` + `RateLimitStore`/`MemoryRateLimitStore` |
+| P3 File uploads | P3 | **Shipped** | `parseMultipart`, `$uploads`, `$file`/`$files` (typed, tied into `$action` via `ctx.files`) |
+| P3 PWA / offline | P3 | **Shipped** | `$pwa`, `generateManifest`, `generateServiceWorker`, `pwaHeadTags`, `serviceWorkerRegistrationScript` |
 
-**Verified:** `pnpm build`, `pnpm check-types`, `pnpm lint` (0 errors), `pnpm test` (136 tests, 0 fail).
+**Verified:** `pnpm build`, `pnpm check-types` (9/9), `pnpm lint` (0 errors), `pnpm test` (220 tests, 0 fail).
 
 **Still outstanding (large, dedicated efforts — intentionally not faked here):**
-- #8 Code splitting + island/lazy hydration — needs a hydration-boundary compile pass + per-route chunking.
-- #10 SSG/ISR — needs a build-time route renderer + output adapter.
-- #12 Suspense + error boundaries + *real* streaming SSR — `renderToStream` still buffers (audit M-7); needs async-boundary support.
-- #13 `<Image>` optimization — needs a build-time image pipeline (Sharp dependency).
+- #8 Per-route **code-splitting** — needs a per-route chunking pass (lazy *hydration* is done; bundling is not).
+- #10 Build-time **static prerender** (`kallo build --static`) — the runtime ISR cache is done; an offline route renderer + output adapter is not.
+- #12 *Real* streaming SSR — `renderToStream` still buffers (audit M-7); needs async-boundary support (synchronous Suspense/boundaries are done).
+- #13 Build-time **image pipeline** (Sharp variant generation) — the responsive `<Image>` markup is done.
 - #14 Deployment adapters — needs `kallo build --target` and per-target output.
+- #15 LSP + VS Code extension, #16 browser devtools extension, #21 docs site + playground — separate surfaces, deferred.
 
 The `$action` client form-enhancement (`<form $action>` → fetch + targeted re-render with auto CSRF token) is the remaining slice of #4; the server dispatch/validation/CSRF pipeline it posts to is in place.
 

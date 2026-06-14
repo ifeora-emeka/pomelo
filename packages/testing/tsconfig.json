@@ -1,0 +1,10 @@
+{
+  "extends": "../typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "ESNext",
+    "moduleResolution": "node"
+  },
+  "include": ["src/**/*"]
+}

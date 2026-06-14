@@ -22,6 +22,10 @@ export function transformServer(node: KalloASTNode): string {
     /(?<![a-zA-Z0-9_$])\$layout\s*\(/g,
     "export const $serverLayout = (",
   );
+  content = content.replace(
+    /(?<![a-zA-Z0-9_$])\$static\s*\(/g,
+    "export const $serverStatic = (",
+  );
 
   return `// === Server Block ===\n${ABORT_HELPER}${content}\n// === End Server Block ===\n`;
 }

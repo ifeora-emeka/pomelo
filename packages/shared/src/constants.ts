@@ -20,6 +20,9 @@ export const TAG_SHOW = "Show";
 export const TAG_ELSE = "Else";
 export const TAG_SLOT = "Slot";
 export const TAG_PORTAL = "Portal";
+export const TAG_IMAGE = "Image";
+export const TAG_SUSPENSE = "Suspense";
+export const TAG_BOUNDARY = "Boundary";
 
 export const VIEW_TAGS: readonly string[] = [
   TAG_EACH,
@@ -28,6 +31,9 @@ export const VIEW_TAGS: readonly string[] = [
   TAG_ELSE,
   TAG_SLOT,
   TAG_PORTAL,
+  TAG_IMAGE,
+  TAG_SUSPENSE,
+  TAG_BOUNDARY,
 ];
 
 export const VOID_TAGS: readonly string[] = [

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction, Router } from "express";
 import { KalloError } from "./errors.js";
 import { ValidationError } from "./validate.js";
+import type { UploadedFile } from "./uploads.js";
 
 export interface ActionContext {
   req: Request;
@@ -8,6 +9,7 @@ export interface ActionContext {
   body: Record<string, unknown>;
   params: Record<string, string>;
   user?: unknown;
+  files?: UploadedFile[];
 }
 
 export type ActionHandler = (ctx: ActionContext) => unknown | Promise<unknown>;
@@ -91,6 +93,7 @@ export function registerActionRoute(
           body: (req.body as Record<string, unknown>) ?? {},
           params: (req.params as Record<string, string>) ?? {},
           user: (req as Request & { user?: unknown }).user,
+          files: (req as Request & { files?: UploadedFile[] }).files,
         };
         const { status, body } = await dispatchAction(name, ctx);
         res.status(status).json(body);

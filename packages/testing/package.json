@@ -1,0 +1,17 @@
+{
+  "name": "@kallo/testing",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "check-types": "tsc --noEmit",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "dependencies": {
+    "@kallo/types": "workspace:*",
+    "@kallo/runtime": "workspace:*"
+  }
+}

@@ -41,6 +41,8 @@ export function compile(source: string, filename: string): CompilerResult {
 
   let viewNode: KalloASTNode | null = null;
   let headNode: KalloASTNode | undefined = undefined;
+  const HYDRATE_STRATEGIES = new Set(["load", "idle", "visible", "never"]);
+  let hydrateStrategy = "";
 
   for (const node of ast.children) {
     if (node.type === BLOCK_SERVER) {
@@ -51,6 +53,15 @@ export function compile(source: string, filename: string): CompilerResult {
     } else if (node.type === BLOCK_CLIENT) {
       if (!isPageOrLayout) {
         throw new Error(`Using the <Client> block outside page.kal, layout.kal, or index.kal is not allowed (found in ${filename}).`);
+      }
+      const requested = node.attributes?.["hydrate"];
+      if (requested) {
+        if (!HYDRATE_STRATEGIES.has(requested)) {
+          throw new Error(
+            `Invalid <Client hydrate="${requested}"> in ${filename}. Use one of: load, idle, visible, never.`,
+          );
+        }
+        hydrateStrategy = requested;
       }
       clientCode += transformClient(node);
     } else if (node.type === BLOCK_STYLE) {
@@ -73,7 +84,17 @@ export function compile(source: string, filename: string): CompilerResult {
     ? `export const css = ${JSON.stringify(cssCode)};`
     : "";
   const idExport = `export const componentId = ${JSON.stringify(componentId)};`;
-  const finalCode = [serverCode, clientCode, templateCode, cssExport, idExport]
+  const hydrateExport = hydrateStrategy
+    ? `export const hydrateStrategy = ${JSON.stringify(hydrateStrategy)};`
+    : "";
+  const finalCode = [
+    serverCode,
+    clientCode,
+    templateCode,
+    cssExport,
+    idExport,
+    hydrateExport,
+  ]
     .filter(Boolean)
     .join("\n");
 

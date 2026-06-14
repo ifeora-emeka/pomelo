@@ -24,6 +24,8 @@ import {
 } from "./route-scanner.js";
 import { mergeMetadata, renderMetadataHTML } from "./metadata.js";
 import { signToken, verifyToken } from "./auth.js";
+import { applyConfigHooks, applyServerHooks } from "./plugins.js";
+import { staticStore, type StaticRenderConfig } from "./static-render.js";
 
 function resolvePackageToAbsolute(packageName: string): string | null {
   try {
@@ -165,24 +167,45 @@ export function errorHandler(
   }
 }
 
+function hydrationScheduler(strategy: string, fnName: string): string {
+  switch (strategy) {
+    case "idle":
+      return `(window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); })(${fnName});`;
+    case "visible":
+      return `if (container && 'IntersectionObserver' in window) {
+  const _kalIO = new IntersectionObserver(function(entries){
+    if (entries.some(function(e){ return e.isIntersecting; })) { _kalIO.disconnect(); ${fnName}(); }
+  });
+  _kalIO.observe(container);
+} else { ${fnName}(); }`;
+    default:
+      return `${fnName}();`;
+  }
+}
+
 function generateHydrationScript(
   cacheFileName: string,
   componentId: string,
   stateJSON: string,
+  strategy = "load",
 ): string {
+  if (strategy === "never") return "";
   return `<script type="module">
 import { hydrate } from "/@kallo/runtime/index.js";
 import * as component from "/@kallo/view/${cacheFileName}";
 const container = document.getElementById("app");
 const serverState = ${stateJSON};
-if (container && component.setup) {
-  hydrate(container, {
-    setup: component.setup,
-    render: component.render,
-    css: component.css || "",
-    componentId: "${componentId}"
-  }, serverState);
+function _kalHydrate() {
+  if (container && component.setup) {
+    hydrate(container, {
+      setup: component.setup,
+      render: component.render,
+      css: component.css || "",
+      componentId: "${componentId}"
+    }, serverState);
+  }
 }
+${hydrationScheduler(strategy, "_kalHydrate")}
 </script>`;
 }
 
@@ -192,7 +215,9 @@ function generateHydrationScriptWithLayouts(
   stateJSON: string,
   layoutCacheFileNames: string[],
   layoutStatesJSON: string[],
+  strategy = "load",
 ): string {
+  if (strategy === "never") return "";
   const imports: string[] = [];
   imports.push(`import * as component from "/@kallo/view/${cacheFileName}";`);
   for (let i = 0; i < layoutCacheFileNames.length; i++) {
@@ -236,12 +261,15 @@ if (container) {
     return html;
   };
 
-  hydrate(container, {
-    setup: () => combinedState,
-    render: combinedRender,
-    css: component.css || "",
-    componentId: "${componentId}"
-  }, combinedState);
+  function _kalHydrate() {
+    hydrate(container, {
+      setup: () => combinedState,
+      render: combinedRender,
+      css: component.css || "",
+      componentId: "${componentId}"
+    }, combinedState);
+  }
+  ${hydrationScheduler(strategy, "_kalHydrate")}
 }
 </script>`;
 }
@@ -259,6 +287,19 @@ export async function handleSSR(
       params: req.params,
       query: req.query,
     };
+
+    const staticConfig = component.$serverStatic as
+      | StaticRenderConfig
+      | undefined;
+    const staticKey = staticConfig ? req.originalUrl || req.url || req.path : "";
+    if (staticConfig && req.method === "GET") {
+      const cached = staticStore.getFresh(staticKey);
+      if (cached !== undefined) {
+        res.setHeader("X-Kallo-Cache", "HIT");
+        res.status(200).send(cached);
+        return;
+      }
+    }
 
     if (component.$serverGuard) {
       const allowed = await component.$serverGuard(ctx);
@@ -346,7 +387,12 @@ export async function handleSSR(
     const componentId = component.componentId || "app";
     const stateJSON = serializeForScript(state);
     const hydrationScript = component.setup
-      ? generateHydrationScript(resolvedCacheFileName, componentId, stateJSON)
+      ? generateHydrationScript(
+          resolvedCacheFileName,
+          componentId,
+          stateJSON,
+          component.hydrateStrategy || "load",
+        )
       : "";
 
     let fullHTML = "";
@@ -389,6 +435,10 @@ export async function handleSSR(
 </html>`;
     }
 
+    if (staticConfig && req.method === "GET") {
+      staticStore.set(staticKey, fullHTML, staticConfig);
+      res.setHeader("X-Kallo-Cache", "MISS");
+    }
     res.status(200).send(fullHTML);
   } catch (err) {
     const e = err as AbortableError;
@@ -1302,10 +1352,16 @@ export async function handleSSRWithLayouts(
         stateJSON,
         layoutCacheFileNames,
         layoutStatesJSON,
+        component.hydrateStrategy || "load",
       );
     } else {
       hydrationScript = component.setup
-        ? generateHydrationScript(resolvedCacheFileName, componentId, stateJSON)
+        ? generateHydrationScript(
+            resolvedCacheFileName,
+            componentId,
+            stateJSON,
+            component.hydrateStrategy || "load",
+          )
         : "";
     }
 
@@ -1446,6 +1502,10 @@ function rewriteBrowserImports(content: string): string {
 
 export function createServer(config: FrameworkConfig): ServerInstance {
   loadEnv(config.env);
+  const plugins = config.plugins ?? [];
+  if (plugins.length > 0) {
+    config = applyConfigHooks(config, plugins);
+  }
   const name = formatFrameworkName(config);
   KalloLogger.info(`Creating server for ${name}...`);
 
@@ -1841,6 +1901,9 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     app,
     start() {
       setupDevHmr();
+      if (plugins.length > 0) {
+        applyServerHooks(app, plugins);
+      }
       app.use(errorHandler);
 
       const port = config.port || 3000;

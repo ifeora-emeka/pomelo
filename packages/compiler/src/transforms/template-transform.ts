@@ -8,6 +8,9 @@ import {
   TAG_SHOW,
   TAG_ELSE,
   TAG_SLOT,
+  TAG_IMAGE,
+  TAG_SUSPENSE,
+  TAG_BOUNDARY,
 } from "@kallo/shared";
 
 const BOOLEAN_ATTRS = new Set([
@@ -252,6 +255,48 @@ export function transformTemplate(
     if (n.type === NODE_ELEMENT) {
       const tagName = n.tagName!;
 
+      if (tagName === TAG_IMAGE) {
+        const propsPairs: string[] = [];
+        if (n.attributes) {
+          for (const [key, value] of Object.entries(n.attributes)) {
+            if (key.startsWith(":")) {
+              propsPairs.push(`${JSON.stringify(key.slice(1))}: ${value}`);
+            } else if (!key.startsWith("@")) {
+              propsPairs.push(`${JSON.stringify(key)}: ${JSON.stringify(value)}`);
+            }
+          }
+        }
+        return {
+          html: `\${_image({ ${propsPairs.join(", ")} })}`,
+          nextWhen: "",
+        };
+      }
+
+      if (tagName === TAG_SUSPENSE) {
+        const { matched, rest } = findTemplateSlot(n.children || [], "fallback");
+        const contentHTML = compileChildren(rest, activeLoopVars);
+        const fallbackHTML = matched
+          ? compileChildren(matched.children || [], activeLoopVars)
+          : "";
+        return {
+          html: `\${_suspense(function(){ return \`${contentHTML}\`; }, function(){ return \`${fallbackHTML}\`; })}`,
+          nextWhen: "",
+        };
+      }
+
+      if (tagName === TAG_BOUNDARY) {
+        const { matched, rest } = findTemplateSlot(n.children || [], "error");
+        const contentHTML = compileChildren(rest, activeLoopVars);
+        const errVar = matched?.attributes?.["error"] || "error";
+        const errorHTML = matched
+          ? compileChildren(matched.children || [], activeLoopVars)
+          : "";
+        return {
+          html: `\${_boundary(function(){ return \`${contentHTML}\`; }, function(${errVar}){ return \`${errorHTML}\`; })}`,
+          nextWhen: "",
+        };
+      }
+
       const isComponent =
         tagName &&
         tagName.charAt(0) === tagName.charAt(0).toUpperCase() &&
@@ -260,6 +305,9 @@ export function transformTemplate(
         tagName !== TAG_SHOW &&
         tagName !== TAG_ELSE &&
         tagName !== TAG_SLOT &&
+        tagName !== TAG_IMAGE &&
+        tagName !== TAG_SUSPENSE &&
+        tagName !== TAG_BOUNDARY &&
         tagName !== "Head";
       if (isComponent) {
         const propsPairs: string[] = [];
@@ -494,6 +542,27 @@ export function transformTemplate(
     return { html: "", nextWhen: lastWhen };
   }
 
+  function findTemplateSlot(
+    children: KalloASTNode[],
+    attr: string,
+  ): { matched?: KalloASTNode; rest: KalloASTNode[] } {
+    let matched: KalloASTNode | undefined;
+    const rest: KalloASTNode[] = [];
+    for (const c of children) {
+      if (
+        c.type === NODE_ELEMENT &&
+        c.tagName === "template" &&
+        c.attributes &&
+        attr in c.attributes
+      ) {
+        matched = c;
+      } else {
+        rest.push(c);
+      }
+    }
+    return { matched, rest };
+  }
+
   function compileChildren(
     children: KalloASTNode[],
     activeLoopVars: string[],
@@ -587,6 +656,50 @@ export function transformTemplate(
     var _s = C.setup ? Object.assign({}, C.setup(props), props) : props;
     var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-kal-loop-item-' + e[0] + '="' + _escapeAttr(JSON.stringify(e[1])) + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
     return '<span data-kal-component style="display:contents"' + (_a ? ' ' + _a : '') + '>' + C.render(_s) + '</span>';
+  }
+  function _image(props) {
+    props = props || {};
+    var src = _unwrapSignal(props.src) || "";
+    var widths = _unwrapSignal(props.widths);
+    if (!Array.isArray(widths)) widths = [320, 640, 768, 1024, 1280, 1536];
+    var sizes = _unwrapSignal(props.sizes) || "100vw";
+    var alt = _unwrapSignal(props.alt) || "";
+    var width = _unwrapSignal(props.width);
+    var height = _unwrapSignal(props.height);
+    var priority = !!_unwrapSignal(props.priority);
+    var cls = _unwrapSignal(props.class);
+    function _withWidth(u, w) {
+      return u + (u.indexOf("?") === -1 ? "?" : "&") + "w=" + w;
+    }
+    var srcset = src
+      ? widths.map(function(w) { return _escapeAttr(_withWidth(src, w)) + " " + w + "w"; }).join(", ")
+      : "";
+    var attrs = ['src="' + _escapeAttr(src) + '"', 'alt="' + _escapeAttr(alt) + '"'];
+    if (srcset) {
+      attrs.push('srcset="' + srcset + '"');
+      attrs.push('sizes="' + _escapeAttr(sizes) + '"');
+    }
+    if (width !== undefined && width !== null) attrs.push('width="' + _escapeAttr(width) + '"');
+    if (height !== undefined && height !== null) attrs.push('height="' + _escapeAttr(height) + '"');
+    attrs.push('loading="' + (priority ? "eager" : "lazy") + '"');
+    attrs.push('decoding="async"');
+    if (priority) attrs.push('fetchpriority="high"');
+    if (cls) attrs.push('class="' + _escapeAttr(cls) + '"');
+    return "<img " + attrs.join(" ") + " />";
+  }
+  function _suspense(content, fallback) {
+    try {
+      return content();
+    } catch (e) {
+      return fallback ? fallback() : "";
+    }
+  }
+  function _boundary(content, onError) {
+    try {
+      return content();
+    } catch (e) {
+      return onError ? onError(e) : "";
+    }
   }
   function _injectHead(html) {
     if (typeof document === "undefined") return "";
