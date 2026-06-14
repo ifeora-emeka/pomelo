@@ -18,7 +18,7 @@ All findings below have been addressed. Verification after the work: `pnpm check
 | C-4 | Fixed | Replaced runtime `new Function`+`with` with a build-time handler registry (`globalThis.__kal_handlers__[componentId]`); event handlers are precompiled functions referenced by `cid::idx`. CSP-safe (no `eval`/`unsafe-eval`). |
 | H-1 | Fixed | Loop-item and component-prop serialization now use `_escapeAttr(JSON.stringify(...))`. |
 | H-2 | Fixed | `$store` caches nested proxies in a `WeakMap` (stable identity, no per-read allocation). |
-| H-3 | Partially fixed / deferred | Event-handler writes are now wrapped in `$batch` (one re-render per handler). True per-binding fine-grained reactivity remains a deferred architectural item — see note below. |
+| H-3 | Fixed (fine-grained for non-structural components; coarse fallback for structural) | Event-handler writes are wrapped in `$batch`. The compiler now emits per-binding read-only thunks into a `__kal_bindings__` registry (CSP-safe, mirroring `__kal_handlers__`) plus DOM markers (`data-kal-txt`, `data-kal-attr-*`, `data-kal-battr-*`, `data-kal-value`); the runtime wires one `$effect` per binding so a state change updates only the affected node — no whole-component re-render. Templates containing structural / dynamic-scope constructs (`Each`/`When`/`Show`/`Else`/`Slot`, child components, `<Head>`, dynamic `:class`) keep the coarse whole-component re-render path. See note below. |
 | H-4 | Fixed | `<Each key=...>` now emits `data-kal-key` on each iteration root, enabling keyed reconciliation. |
 | H-5 | Fixed | Devtools instrumentation gated behind an opt-in `window.__KALLO_DEVTOOLS__` hook (no hot-path clone/dispatch in prod); stale `__POMELO_DEVTOOLS__` removed. |
 | H-6 | Fixed | `createServer` no longer spawns `fs.watch` handles eagerly — dev HMR/watchers moved into `start()` and torn down on `server.close()`. Suite no longer hangs. |
@@ -29,14 +29,14 @@ All findings below have been addressed. Verification after the work: `pnpm check
 | M-6 | Fixed | Persistence requires an explicit `persistKey`; without one it is disabled (no shared-key collision). |
 | M-7 | Fixed | `renderToStream` uses ESM `import` and streams chunks via `Readable.from` (supports sync/iterable/async-iterable renderers). |
 | M-8 | Fixed | Dead `lexer.ts` / `tokenize` path removed. |
-| M-9 | Partially fixed | Public `Handler`/router types tightened; broad `any` reduction is ongoing (low-risk, deferred). |
+| M-9 | Largely fixed | Public `Handler`/router types tightened; lint warnings cut from 283 → ~123 (turbo env vars declared, `no-require-imports`/`no-namespace`/`no-unsafe-function-type`/`no-empty` cleared, `_`-prefix unused-var convention adopted). All production-source `any` eliminated except a few defensible cases (arbitrary `package.json` parsing, dynamically-imported compiled-module shapes). Remaining warnings are test-file `any` (conventionally tolerated) and pre-existing `no-useless-escape` in regexes. |
 | M-10 | Fixed | Compiler block gating uses a basename allow-list; test-env (`NODE_ENV`/`KALLO_*`) coupling removed. |
 | L-1 | Fixed | README/AGENTS/`.agents/*` updated to `.kal`, `src/view/`, `@kallo/runtime`. |
 | L-2 | Fixed | Placeholder apps marked “(planned)” in the README. |
 | L-3 | Fixed | Committed `test-cli-ecommerce-app/` fixture removed. |
 | L-4 | Fixed | Session tokens carry an optional `exp` claim verified on read; session cookies set it. |
 
-**Note on H-3 (deferred part):** the runtime renders components to an HTML string and morph-diffs the whole subtree on change. True fine-grained, per-binding updates require a DOM-building renderer rather than string + re-parse — a large, higher-risk rewrite intentionally left for a dedicated change. The `$batch` wrapper removes the most common redundant re-renders (multiple writes in one handler) in the meantime.
+**Note on H-3:** fine-grained reactivity is now implemented as an *additive* path rather than a ground-up rewrite, so the SSR string contract and the coarse renderer are preserved intact. For non-structural components the compiler emits binding thunks + markers and the runtime attaches one `$effect` per binding, so changing a signal updates only the bound text node / attribute / input value — `render()` is not re-invoked (verified by test). Structural templates (loops, conditionals, components, slots, dynamic `:class`) still use the coarse whole-component re-render + morph-diff, which is correct for them; extending fine-grained reactivity to those (keyed list bindings, conditional blocks) is the natural follow-up. Text bindings are wrapped in an inline `<span data-kal-txt>`; the rare cases where that span is invalid (e.g. as a direct child of `<table>`/`<select>`) should use the coarse path.
 
 ---
 

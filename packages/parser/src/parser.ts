@@ -16,7 +16,7 @@ export function parseAttributes(attrString: string): Record<string, string> {
   const attributes: Record<string, string> = {};
   const cleanAttr = attrString.replace(/\/$/, "").trim();
   const attrRegex =
-    /([@:]?[a-zA-Z0-9_-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s/>]+)))?/g;
+    /((?:[@:]|\$)?[a-zA-Z0-9_-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s/>]+)))?/g;
   let match;
   while ((match = attrRegex.exec(cleanAttr)) !== null) {
     const key = match[1];

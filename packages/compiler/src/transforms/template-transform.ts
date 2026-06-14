@@ -5,6 +5,7 @@ import {
   NODE_ELEMENT,
   TAG_EACH,
   TAG_WHEN,
+  TAG_SHOW,
   TAG_ELSE,
   TAG_SLOT,
 } from "@kallo/shared";
@@ -82,6 +83,46 @@ function extractIdentifiers(expression: string): string[] {
   return matches.filter((id) => !keywords.has(id));
 }
 
+// A template is eligible for fine-grained, per-binding reactivity only when it
+// contains no structural / dynamic-scope constructs. Those (loops, conditionals,
+// slots, child components, <Head>, and dynamic :class) keep the coarse
+// whole-component re-render path, which is already correct for them.
+function isFineGrainedEligible(
+  node: KalloASTNode,
+  headNode?: KalloASTNode,
+): boolean {
+  if (headNode) return false;
+  let eligible = true;
+  function visit(n: KalloASTNode): void {
+    if (!eligible || n.type !== NODE_ELEMENT) return;
+    const t = n.tagName || "";
+    if (
+      t === TAG_EACH ||
+      t === TAG_WHEN ||
+      t === TAG_ELSE ||
+      t === TAG_SLOT ||
+      t === "Head"
+    ) {
+      eligible = false;
+      return;
+    }
+    const isComponent =
+      t.charAt(0) === t.charAt(0).toUpperCase() && t.charAt(0) !== "";
+    if (isComponent) {
+      eligible = false;
+      return;
+    }
+    // Dynamic class merges static + computed parts; keep it coarse for v1.
+    if (n.attributes && ":class" in n.attributes) {
+      eligible = false;
+      return;
+    }
+    for (const child of n.children || []) visit(child);
+  }
+  for (const child of node.children || []) visit(child);
+  return eligible;
+}
+
 function collectIdentifiers(node: KalloASTNode, set: Set<string>): void {
   if (node.type === NODE_TEXT) {
     const rx = /\{\{([\s\S]*?)\}\}/g;
@@ -106,11 +147,16 @@ function collectIdentifiers(node: KalloASTNode, set: Set<string>): void {
       if (cond) {
         extractIdentifiers(cond).forEach((id) => set.add(id));
       }
+    } else if (node.tagName === TAG_SHOW) {
+      const cond = node.attributes?.["when"];
+      if (cond) {
+        extractIdentifiers(cond).forEach((id) => set.add(id));
+      }
     }
 
     if (node.attributes) {
       for (const [key, value] of Object.entries(node.attributes)) {
-        if (key.startsWith("@") || key.startsWith(":")) {
+        if (key.startsWith("@") || key.startsWith(":") || key === "$model") {
           extractIdentifiers(value).forEach((id) => set.add(id));
         } else {
           const rx = /\{\{([\s\S]*?)\}\}/g;
@@ -145,6 +191,22 @@ export function transformTemplate(
     collectIdentifiers(headNode, identifiers);
   }
 
+  const eligible = isFineGrainedEligible(node, headNode);
+
+  // Fine-grained bindings are compiled to read-only thunks (CSP-safe, like
+  // event handlers). Each returns the current value of one template expression;
+  // the runtime wires a single effect per binding so only the affected DOM node
+  // updates on change — no whole-component re-render.
+  const bindings: string[] = [];
+  function buildBinding(expr: string): number {
+    const idents = extractIdentifiers(expr);
+    const destructure = idents.length
+      ? `const { ${idents.join(", ")} } = $state;`
+      : "";
+    bindings.push(`function($state) { ${destructure} return (${expr}); }`);
+    return bindings.length - 1;
+  }
+
   // Event handlers are compiled to real functions at build time (no runtime
   // eval), so they remain valid under a strict Content-Security-Policy.
   const eventHandlers: string[] = [];
@@ -176,10 +238,14 @@ export function transformTemplate(
     keyExpr?: string,
   ): { html: string; nextWhen: string } {
     if (n.type === NODE_TEXT) {
-      const html = n.content.replace(
-        /\{\{([\s\S]*?)\}\}/g,
-        (_, expr) => `\${_escape(${expr.trim()})}`,
-      );
+      const html = n.content.replace(/\{\{([\s\S]*?)\}\}/g, (_, raw) => {
+        const expr = raw.trim();
+        if (eligible) {
+          const idx = buildBinding(expr);
+          return `<span data-kal-txt="${componentId}::${idx}">\${_escape(${expr})}</span>`;
+        }
+        return `\${_escape(${expr})}`;
+      });
       return { html, nextWhen: lastWhen };
     }
 
@@ -191,6 +257,7 @@ export function transformTemplate(
         tagName.charAt(0) === tagName.charAt(0).toUpperCase() &&
         tagName !== TAG_EACH &&
         tagName !== TAG_WHEN &&
+        tagName !== TAG_SHOW &&
         tagName !== TAG_ELSE &&
         tagName !== TAG_SLOT &&
         tagName !== "Head";
@@ -248,6 +315,15 @@ export function transformTemplate(
         };
       }
 
+      if (tagName === TAG_SHOW) {
+        const cond = n.attributes?.["when"] || "true";
+        const childHTML = compileChildren(n.children || [], activeLoopVars);
+        return {
+          html: `\${${cond} ? \`${childHTML}\` : ""}`,
+          nextWhen: cond,
+        };
+      }
+
       if (tagName === TAG_ELSE) {
         const cond = lastWhen ? `!(${lastWhen})` : "true";
         const childHTML = compileChildren(n.children || [], activeLoopVars);
@@ -281,6 +357,43 @@ export function transformTemplate(
             className = value;
           } else if (key === ":class") {
             dynamicClass = value;
+          } else if (key === "$model") {
+            // Input-type-aware two-way binding: e.g. $model="email"
+            const lowerTag = tagName.toLowerCase();
+            const typeAttr = n.attributes["type"];
+            attributes.push(`data-kal-bind="${value}"`);
+            if (lowerTag === "input" && typeAttr === "checkbox") {
+              const idx = buildEventHandler(
+                `${value} = $event.target.checked`,
+                activeLoopVars,
+              );
+              attributes.push(`\${_unwrapSignal(${value}) ? "checked" : ""}`);
+              attributes.push(
+                `data-kal-event-change="${componentId}::${idx}"`,
+              );
+            } else if (lowerTag === "input" && typeAttr === "radio") {
+              const ownValue = n.attributes["value"] ?? "";
+              const idx = buildEventHandler(
+                `${value} = $event.target.value`,
+                activeLoopVars,
+              );
+              attributes.push(
+                `\${_unwrapSignal(${value}) === ${JSON.stringify(ownValue)} ? "checked" : ""}`,
+              );
+              attributes.push(
+                `data-kal-event-change="${componentId}::${idx}"`,
+              );
+            } else {
+              const eventName = lowerTag === "select" ? "change" : "input";
+              const idx = buildEventHandler(
+                `${value} = $event.target.value`,
+                activeLoopVars,
+              );
+              attributes.push(`value="\${_escapeAttr(${value})}"`);
+              attributes.push(
+                `data-kal-event-${eventName}="${componentId}::${idx}"`,
+              );
+            }
           } else if (key === ":bind") {
             // Two-way binding: e.g. :bind="search"
             const bindIndex = buildEventHandler(
@@ -292,6 +405,10 @@ export function transformTemplate(
             attributes.push(
               `data-kal-event-input="${componentId}::${bindIndex}"`,
             );
+            if (eligible) {
+              const idx = buildBinding(value);
+              attributes.push(`data-kal-value="${componentId}::${idx}"`);
+            }
           } else if (key.startsWith("@")) {
             const eventName = key.slice(1);
             const handlerIndex = buildEventHandler(value, activeLoopVars);
@@ -310,11 +427,30 @@ export function transformTemplate(
             }
           } else if (key.startsWith(":")) {
             const propName = key.slice(1);
-            attributes.push(`data-kal-bind-${propName}="${value}"`);
-            if (BOOLEAN_ATTRS.has(propName)) {
-              attributes.push(`\${_unwrapSignal(${value}) ? "${propName}" : ""}`);
+            if (eligible) {
+              const idx = buildBinding(value);
+              if (BOOLEAN_ATTRS.has(propName)) {
+                attributes.push(
+                  `data-kal-battr-${propName}="${componentId}::${idx}"`,
+                );
+                attributes.push(
+                  `\${_unwrapSignal(${value}) ? "${propName}" : ""}`,
+                );
+              } else {
+                attributes.push(
+                  `data-kal-attr-${propName}="${componentId}::${idx}"`,
+                );
+                attributes.push(`${propName}="\${_escapeAttr(${value})}"`);
+              }
             } else {
-              attributes.push(`${propName}="\${_escapeAttr(${value})}"`);
+              attributes.push(`data-kal-bind-${propName}="${value}"`);
+              if (BOOLEAN_ATTRS.has(propName)) {
+                attributes.push(
+                  `\${_unwrapSignal(${value}) ? "${propName}" : ""}`,
+                );
+              } else {
+                attributes.push(`${propName}="\${_escapeAttr(${value})}"`);
+              }
             }
           } else {
             // Static attribute (with interpolation support)
@@ -495,8 +631,11 @@ export function transformTemplate(
 ${deconstruct}  return \`${content}${headInject}\`;
 }
 export const handlers = [${eventHandlers.join(", ")}];
+export const bindings = [${bindings.join(", ")}];
+export const fineGrained = ${eligible && bindings.length > 0};
 if (typeof globalThis !== "undefined") {
   (globalThis.__kal_handlers__ || (globalThis.__kal_handlers__ = {}))[${JSON.stringify(componentId)}] = handlers;
+  (globalThis.__kal_bindings__ || (globalThis.__kal_bindings__ = {}))[${JSON.stringify(componentId)}] = bindings;
 }
 `;
 }

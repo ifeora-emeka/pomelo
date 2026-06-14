@@ -565,3 +565,88 @@ test("destroyInstance cleans up render effect subscriptions", () => {
   count.set(2);
   assert.strictEqual(renderCalls, 2);
 });
+
+test("Fine-grained: text binding updates node without re-rendering component", () => {
+  const mockContainer = new MockElement("div");
+  const count = $local(5);
+  let renderCalls = 0;
+
+  // Compiled components register read-only binding thunks in a global registry,
+  // mirroring the event-handler registry. Presence of bindings selects the
+  // fine-grained path in hydrate().
+  (globalThis as any).__kal_bindings__ = {
+    fgtext: [
+      function ($state: any) {
+        const { count } = $state;
+        return count;
+      },
+    ],
+  };
+
+  const component = {
+    componentId: "fgtext",
+    setup() {
+      return { count };
+    },
+    render(state: any) {
+      renderCalls++;
+      return `<div data-kal-fg><span data-kal-txt="fgtext::0">${state.count}</span></div>`;
+    },
+  };
+
+  const instance = hydrate(mockContainer as any, component);
+
+  // Initial paint renders once; bindings drive all subsequent updates.
+  assert.strictEqual(renderCalls, 1);
+
+  const div = mockContainer.childNodes[0] as MockElement;
+  const span = div.childNodes[0] as MockElement;
+  assert.strictEqual(span.getAttribute("data-kal-txt"), "fgtext::0");
+  assert.strictEqual(span.textContent, "5");
+
+  count.set(9);
+  // Only the bound node updated; render() was NOT called again.
+  assert.strictEqual(span.textContent, "9");
+  assert.strictEqual(renderCalls, 1);
+
+  destroyInstance(instance);
+  count.set(12);
+  assert.strictEqual(span.textContent, "9");
+
+  delete (globalThis as any).__kal_bindings__;
+});
+
+test("Fine-grained: attribute binding updates only its attribute", () => {
+  const mockContainer = new MockElement("div");
+  const label = $local("hello");
+
+  (globalThis as any).__kal_bindings__ = {
+    fgattr: [
+      function ($state: any) {
+        const { label } = $state;
+        return label;
+      },
+    ],
+  };
+
+  const component = {
+    componentId: "fgattr",
+    setup() {
+      return { label };
+    },
+    render(state: any) {
+      return `<div data-kal-attr-title="fgattr::0" title="${state.label}">x</div>`;
+    },
+  };
+
+  const instance = hydrate(mockContainer as any, component);
+
+  const div = mockContainer.childNodes[0] as MockElement;
+  assert.strictEqual(div.getAttribute("title"), "hello");
+
+  label.set("world");
+  assert.strictEqual(div.getAttribute("title"), "world");
+
+  destroyInstance(instance);
+  delete (globalThis as any).__kal_bindings__;
+});

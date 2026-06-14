@@ -140,3 +140,108 @@ test("Compiler compiles template features, directives, and slots", () => {
   // Slots
   assert.ok(result.code.includes("slots.footer ? slots.footer() :"));
 });
+
+test("Compiler compiles <Show when> with following <Else>", () => {
+  const viewSFC = `
+  <View>
+    <div>
+      <Show when="user">
+        <p>{{ user.name }}</p>
+      </Show>
+      <Else>
+        <a href="/login">Sign in</a>
+      </Else>
+    </div>
+  </View>
+  `;
+  const result = compile(viewSFC, "view/show.kal");
+
+  assert.ok(result.code.includes("user ?"));
+  assert.ok(result.code.includes("!(user) ?"));
+  assert.ok(result.code.includes("${_escape(user.name)}"));
+  // <Show>/<Else> are control-flow tags, never rendered as components
+  assert.ok(!result.code.includes("_renderComponent(Show"));
+  assert.ok(
+    result.code.includes(
+      "const { user } = state.__raw__ || state;",
+    ),
+  );
+});
+
+test("Compiler compiles $model two-way binding by input type", () => {
+  const viewSFC = `
+  <View>
+    <form>
+      <input type="text" $model="email" />
+      <input type="checkbox" $model="agreed" />
+      <input type="radio" value="pro" $model="plan" />
+      <select $model="quantity"></select>
+      <textarea $model="bio"></textarea>
+    </form>
+  </View>
+  `;
+  const result = compile(viewSFC, "view/model.kal");
+
+  // text input: value bound + input event
+  assert.ok(result.code.includes('data-kal-bind="email"'));
+  assert.ok(result.code.includes('value="${_escapeAttr(email)}"'));
+  assert.ok(/data-kal-event-input="[^":]+::\d+"/.test(result.code));
+
+  // checkbox: checked reflection + change event
+  assert.ok(result.code.includes('data-kal-bind="agreed"'));
+  assert.ok(result.code.includes('${_unwrapSignal(agreed) ? "checked" : ""}'));
+
+  // radio: checked when model matches own value
+  assert.ok(
+    result.code.includes('${_unwrapSignal(plan) === "pro" ? "checked" : ""}'),
+  );
+
+  // select: change event
+  assert.ok(result.code.includes('data-kal-bind="quantity"'));
+  assert.ok(/data-kal-event-change="[^":]+::\d+"/.test(result.code));
+
+  // all bound identifiers are deconstructed from state
+  assert.ok(result.code.includes("email"));
+  assert.ok(result.code.includes("agreed"));
+
+  // write-back through proxy
+  assert.ok(result.code.includes("$state.email = email"));
+  assert.ok(result.code.includes("$state.agreed = agreed"));
+});
+
+test("Compiler emits fine-grained bindings for non-structural templates", () => {
+  const viewSFC = `
+  <View>
+    <div :title="tip">
+      <h1>{{ heading }}</h1>
+      <input type="text" :bind="name" />
+    </div>
+  </View>
+  `;
+  const result = compile(viewSFC, "view/leaf.kal");
+
+  // Eligible template → per-binding registry + DOM markers.
+  assert.ok(result.code.includes("export const fineGrained = true"));
+  assert.ok(result.code.includes("export const bindings = ["));
+  assert.ok(result.code.includes("globalThis.__kal_bindings__"));
+  assert.ok(/data-kal-txt="[^":]+::\d+"/.test(result.code));
+  assert.ok(/data-kal-attr-title="[^":]+::\d+"/.test(result.code));
+  assert.ok(/data-kal-value="[^":]+::\d+"/.test(result.code));
+});
+
+test("Compiler keeps structural templates on the coarse path", () => {
+  const viewSFC = `
+  <View>
+    <div>
+      <Each of="items" as="item">
+        <span>{{ item }}</span>
+      </Each>
+    </div>
+  </View>
+  `;
+  const result = compile(viewSFC, "view/loop.kal");
+
+  // Structural construct → coarse whole-component re-render, no fine-grained markers.
+  assert.ok(result.code.includes("export const fineGrained = false"));
+  assert.ok(!result.code.includes("data-kal-txt="));
+});

@@ -14,7 +14,7 @@ import {
   loadEnv,
   serializeForScript,
 } from "@kallo/shared";
-import type { FrameworkConfig } from "@kallo/types";
+import type { FrameworkConfig, Metadata } from "@kallo/types";
 import { KalloError } from "./errors.js";
 import {
   scanRoutes,
@@ -299,14 +299,14 @@ export async function handleSSR(
       },
     });
 
-    const ssrCtx = { headTags: [] as string[] };
-    (globalThis as any).__kallo_ssr_context__ = ssrCtx;
+    const ssrCtx: SSRContext = { headTags: [] };
+    (globalThis as unknown as { __kallo_ssr_context__?: SSRContext }).__kallo_ssr_context__ = ssrCtx;
 
     let htmlContent = "";
     try {
       htmlContent = component.render ? component.render(renderState) : "";
     } finally {
-      delete (globalThis as any).__kallo_ssr_context__;
+      delete (globalThis as unknown as { __kallo_ssr_context__?: SSRContext }).__kallo_ssr_context__;
     }
 
     let metaHTML = "";
@@ -390,10 +390,11 @@ export async function handleSSR(
     }
 
     res.status(200).send(fullHTML);
-  } catch (err: any) {
-    if (err.isKalloAbort === true && typeof err.statusCode === "number") {
+  } catch (err) {
+    const e = err as AbortableError;
+    if (e.isKalloAbort === true && typeof e.statusCode === "number") {
       if (!res.headersSent) {
-        res.status(err.statusCode).end();
+        res.status(e.statusCode).end();
       }
       return;
     }
@@ -402,7 +403,7 @@ export async function handleSSR(
         (err instanceof Error ? err.stack : String(err)),
     );
     if (!res.headersSent) {
-      res.serverError(err.message);
+      res.serverError(e.message);
     }
   }
 }
@@ -490,10 +491,11 @@ export async function handleSSRStream(
     res.write(htmlContent);
     res.write(`</div></body></html>`);
     res.end();
-  } catch (err: any) {
-    if (err.isKalloAbort === true && typeof err.statusCode === "number") {
+  } catch (err) {
+    const e = err as AbortableError;
+    if (e.isKalloAbort === true && typeof e.statusCode === "number") {
       if (!res.headersSent) {
-        res.status(err.statusCode).end();
+        res.status(e.statusCode).end();
       }
       return;
     }
@@ -501,7 +503,7 @@ export async function handleSSRStream(
       "SSR Stream Error: " + (err instanceof Error ? err.stack : String(err)),
     );
     if (!res.headersSent) {
-      res.serverError(err.message);
+      res.serverError(e.message);
     }
   }
 }
@@ -680,7 +682,7 @@ async function renderSpecialFile(
   specialFile: string,
   pagesDir: string,
   statusCode: number,
-  extraState: any = {}
+  extraState: Record<string, unknown> = {}
 ) {
   const cacheDir = getCacheDir();
   if (!fs.existsSync(cacheDir)) {
@@ -1159,7 +1161,7 @@ export async function handleSSRWithLayouts(
     }
 
     const layoutStates: Record<string, unknown>[] = [];
-    let mergedMeta = {};
+    let mergedMeta: Metadata = {};
 
     for (const layout of layouts) {
       const layoutState = layout.$serverPage
@@ -1207,8 +1209,8 @@ export async function handleSSRWithLayouts(
       },
     });
 
-    const ssrCtx = { headTags: [] as string[] };
-    (globalThis as any).__kallo_ssr_context__ = ssrCtx;
+    const ssrCtx: SSRContext = { headTags: [] };
+    (globalThis as unknown as { __kallo_ssr_context__?: SSRContext }).__kallo_ssr_context__ = ssrCtx;
 
     let htmlContent = "";
     try {
@@ -1238,7 +1240,7 @@ export async function handleSSRWithLayouts(
           : htmlContent;
       }
     } finally {
-      delete (globalThis as any).__kallo_ssr_context__;
+      delete (globalThis as unknown as { __kallo_ssr_context__?: SSRContext }).__kallo_ssr_context__;
     }
 
     const headTagsHTML = ssrCtx.headTags.join("\n");
@@ -1253,8 +1255,8 @@ export async function handleSSRWithLayouts(
         styleHTML += `<style id="kallo-style-${layout.componentId || "layout_" + i}">${layout.css}</style>`;
       }
     }
-    if ((ssrCtx as any).css) {
-      for (const itemStr of (ssrCtx as any).css) {
+    if (ssrCtx.css) {
+      for (const itemStr of ssrCtx.css) {
         try {
           const item = JSON.parse(itemStr);
           styleHTML += `<style id="kallo-style-${item.id}">${item.css}</style>`;
@@ -1284,7 +1286,7 @@ export async function handleSSRWithLayouts(
           layoutCacheFileNames: layoutCacheFileNames,
           componentId: component.componentId || "app",
           metadata: {
-            title: (mergedMeta as any).title || "",
+            title: mergedMeta.title || "",
           },
         })
       );
@@ -1382,10 +1384,11 @@ export async function handleSSRWithLayouts(
     }
 
     res.status(200).send(fullHTML);
-  } catch (err: any) {
-    if (err.isKalloAbort === true && typeof err.statusCode === "number") {
+  } catch (err) {
+    const e = err as AbortableError;
+    if (e.isKalloAbort === true && typeof e.statusCode === "number") {
       if (!res.headersSent) {
-        res.status(err.statusCode).end();
+        res.status(e.statusCode).end();
       }
       return;
     }
@@ -1395,9 +1398,9 @@ export async function handleSSRWithLayouts(
     );
     if (!res.headersSent) {
       if (typeof res.serverError === "function") {
-        res.serverError(err.message);
+        res.serverError(e.message);
       } else {
-        res.status(500).send(err.message || "Internal Server Error");
+        res.status(500).send(e.message || "Internal Server Error");
       }
     }
   }
@@ -1634,18 +1637,18 @@ export function createServer(config: FrameworkConfig): ServerInstance {
           }
         });
       }
-      (req as any).cookies = cookies;
+      req.cookies = cookies;
       next();
     });
 
     // 2. Session identification and context injection
     app.use((req: Request, res: Response, next: NextFunction) => {
-      const token = (req as any).cookies?.[cookieName];
+      const token = req.cookies?.[cookieName];
       if (token) {
         const user = verifyToken(token, authOptions.secret);
         if (user) {
-          (req as any).user = user;
-          (req as any).session = { user };
+          (req as SessionRequest).user = user;
+          (req as SessionRequest).session = { user };
         }
       }
       next();
@@ -1653,7 +1656,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
 
     // 3. NextAuth-like built-in auth API endpoints
     app.get("/api/auth/session", (req: Request, res: Response) => {
-      res.json({ user: (req as any).user || null });
+      res.json({ user: (req as SessionRequest).user || null });
     });
 
     app.post("/api/auth/signin", async (req: Request, res: Response) => {

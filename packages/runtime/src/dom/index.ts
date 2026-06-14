@@ -1,5 +1,11 @@
 import { KalloLogger } from "@kallo/shared";
 import { $effect, $batch, Signal } from "../reactivity/index.js";
+import {
+  prefetch,
+  consumePrefetched,
+  isInternalHref,
+  shouldPrefetch,
+} from "../prefetch.js";
 
 export type RenderState = Record<string, unknown>;
 export type SlotMap = Record<string, () => string>;
@@ -32,6 +38,39 @@ function resolveHandler(ref: string): EventHandler | null {
   const handlers = registry && registry[componentId];
   if (!handlers || !handlers[index]) return null;
   return handlers[index];
+}
+
+// Fine-grained bindings: read-only thunks returning one expression's value.
+type BindingFn = (state: Record<string, unknown>) => unknown;
+type BindingRegistry = Record<string, BindingFn[]>;
+
+function getBindings(componentId: string): BindingFn[] | null {
+  const registry = (globalThis as { __kal_bindings__?: BindingRegistry })
+    .__kal_bindings__;
+  const list = registry && registry[componentId];
+  return list && list.length > 0 ? list : null;
+}
+
+function bindingByRef(ref: string, fallback: BindingFn[]): BindingFn | null {
+  const sep = ref.indexOf("::");
+  const index = sep === -1 ? Number(ref) : Number(ref.slice(sep + 2));
+  return fallback[index] || null;
+}
+
+function unwrapSignal(v: unknown): unknown {
+  if (
+    v !== null &&
+    typeof v === "object" &&
+    typeof (v as { get?: () => unknown }).get === "function"
+  ) {
+    return (v as { get: () => unknown }).get();
+  }
+  return v;
+}
+
+function bindingToString(v: unknown): string {
+  const u = unwrapSignal(v);
+  return u === null || u === undefined ? "" : String(u);
 }
 
 export let activeInstance: ComponentInstance | null = null;
@@ -286,6 +325,92 @@ export function setupEventDelegation(
   };
 }
 
+// One-time render of an HTML string into a container via morph diffing.
+// Used for the initial paint of fine-grained components and for every change
+// in coarse (whole-component) mode.
+function morphInto(container: HTMLElement, html: string): void {
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+
+  const oldLoader = container.querySelector(".loader-wrap");
+  if (oldLoader) oldLoader.remove();
+  const newLoader = temp.querySelector(".loader-wrap");
+  if (newLoader) newLoader.remove();
+
+  const oldChildren = Array.from(container.childNodes);
+  const newChildren = Array.from(temp.childNodes);
+  const maxLen = Math.max(oldChildren.length, newChildren.length);
+  for (let i = 0; i < maxLen; i++) {
+    const oldChild = oldChildren[i];
+    const newChild = newChildren[i];
+    if (oldChild === undefined && newChild !== undefined) {
+      container.appendChild(newChild.cloneNode(true));
+    } else if (newChild === undefined && oldChild !== undefined) {
+      container.removeChild(oldChild);
+    } else if (oldChild !== undefined && newChild !== undefined) {
+      morph(oldChild, newChild);
+    }
+  }
+}
+
+// Walk the rendered DOM and wire one reactive effect per binding marker, so a
+// state change updates only the affected node — no whole-component re-render.
+function wireBindings(
+  root: HTMLElement,
+  stateProxy: Record<string, unknown>,
+  bindings: BindingFn[],
+): () => void {
+  const cleanups: (() => void)[] = [];
+
+  const wire = (apply: () => void) => {
+    cleanups.push($effect(apply));
+  };
+
+  const visit = (node: Node): void => {
+    if (node.nodeType === 1) {
+      const el = node as HTMLElement;
+      const attrs = el.attributes ? Array.from(el.attributes) : [];
+      for (const attr of attrs) {
+        const name = attr.name;
+        if (name === "data-kal-txt") {
+          const fn = bindingByRef(attr.value, bindings);
+          if (fn) wire(() => (el.textContent = bindingToString(fn(stateProxy))));
+        } else if (name === "data-kal-value") {
+          const fn = bindingByRef(attr.value, bindings);
+          if (fn) {
+            wire(() => {
+              (el as HTMLInputElement).value = bindingToString(fn(stateProxy));
+            });
+          }
+        } else if (name.startsWith("data-kal-attr-")) {
+          const prop = name.slice("data-kal-attr-".length);
+          const fn = bindingByRef(attr.value, bindings);
+          if (fn) {
+            wire(() => el.setAttribute(prop, bindingToString(fn(stateProxy))));
+          }
+        } else if (name.startsWith("data-kal-battr-")) {
+          const prop = name.slice("data-kal-battr-".length);
+          const fn = bindingByRef(attr.value, bindings);
+          if (fn) {
+            wire(() => {
+              if (unwrapSignal(fn(stateProxy))) el.setAttribute(prop, "");
+              else el.removeAttribute(prop);
+            });
+          }
+        }
+      }
+      for (const child of Array.from(el.childNodes)) visit(child);
+    }
+  };
+
+  visit(root);
+
+  return () => {
+    for (const cleanup of cleanups) cleanup();
+    cleanups.length = 0;
+  };
+}
+
 export function hydrate(
   container: HTMLElement,
   component: {
@@ -345,49 +470,47 @@ export function hydrate(
 
   let currentRender = component.render;
   const renderVersion = new Signal(0);
+  const fineGrainedBindings = getBindings(componentId);
 
-  const cleanupRenderEffect = $effect(() => {
-    renderVersion.get();
-    const html = currentRender(stateProxy);
-    const temp = document.createElement("div");
-    temp.innerHTML = html;
+  let cleanupReactivity: () => void;
 
-    const oldLoader = container.querySelector(".loader-wrap");
-    if (oldLoader) {
-      oldLoader.remove();
-    }
-    const newLoader = temp.querySelector(".loader-wrap");
-    if (newLoader) {
-      newLoader.remove();
-    }
-
-    const oldChildren = Array.from(container.childNodes);
-    const newChildren = Array.from(temp.childNodes);
-    const maxLen = Math.max(oldChildren.length, newChildren.length);
-
-    for (let i = 0; i < maxLen; i++) {
-      const oldChild = oldChildren[i];
-      const newChild = newChildren[i];
-      if (oldChild === undefined && newChild !== undefined) {
-        container.appendChild(newChild.cloneNode(true));
-      } else if (newChild === undefined && oldChild !== undefined) {
-        container.removeChild(oldChild);
-      } else if (oldChild !== undefined && newChild !== undefined) {
-        morph(oldChild, newChild);
-      }
-    }
-  });
+  if (fineGrainedBindings) {
+    // Fine-grained mode: paint once, then wire one effect per binding. Only the
+    // nodes whose dependencies change are touched — the component is never
+    // re-rendered wholesale.
+    morphInto(container, currentRender(stateProxy));
+    cleanupReactivity = wireBindings(container, stateProxy, fineGrainedBindings);
+  } else {
+    // Coarse mode: a single effect re-renders the whole component on any change
+    // and morph-diffs the result. Used for structural templates (loops,
+    // conditionals, components) where per-binding tracking does not apply.
+    cleanupReactivity = $effect(() => {
+      renderVersion.get();
+      morphInto(container, currentRender(stateProxy));
+    });
+  }
 
   instance.mounts.forEach((cb) => cb());
 
   instance.hotUpdate = (newRenderFn: RenderFn) => {
     currentRender = newRenderFn;
-    renderVersion.set(renderVersion.get() + 1);
+    if (fineGrainedBindings) {
+      // Re-paint and re-wire bindings against the replaced render function.
+      cleanupReactivity();
+      morphInto(container, currentRender(stateProxy));
+      cleanupReactivity = wireBindings(
+        container,
+        stateProxy,
+        fineGrainedBindings,
+      );
+    } else {
+      renderVersion.set(renderVersion.get() + 1);
+    }
   };
 
   instance.teardown = () => {
     instance.destroys.forEach((cb) => cb());
-    cleanupRenderEffect();
+    cleanupReactivity();
     removeEvents();
     if (component.css) {
       removeStyle(componentId);
@@ -410,14 +533,17 @@ export function destroyInstance(instance: ComponentInstance): void {
 export let activePageInstance: ComponentInstance | null = null;
 
 export function navigateTo(href: string, pushState = true): Promise<void> {
-  return fetch(href, { headers: { "X-Kallo-Navigation": "true" } })
-    .then((res) => {
-      if (!res.ok) {
-        window.location.href = href;
-        return;
-      }
-      return res.json();
-    })
+  const prefetched = consumePrefetched(href);
+  const payload = prefetched
+    ? prefetched
+    : fetch(href, { headers: { "X-Kallo-Navigation": "true" } }).then((res) => {
+        if (!res.ok) {
+          window.location.href = href;
+          return undefined;
+        }
+        return res.json();
+      });
+  return Promise.resolve(payload)
     .then(async (data) => {
       if (!data) return;
       if (pushState) {
@@ -558,4 +684,24 @@ if (typeof window !== "undefined") {
   window.addEventListener("popstate", () => {
     navigateTo(window.location.pathname, false);
   });
+
+  const prefetchOnIntent = (e: Event) => {
+    let target = e.target as HTMLElement | null;
+    while (target && target.tagName !== "A") {
+      target = target.parentElement;
+    }
+    if (target && target.tagName === "A") {
+      const href = target.getAttribute("href");
+      if (
+        isInternalHref(href) &&
+        shouldPrefetch(target) &&
+        target.getAttribute("target") !== "_blank" &&
+        !target.hasAttribute("download")
+      ) {
+        prefetch(href);
+      }
+    }
+  };
+  window.addEventListener("mouseover", prefetchOnIntent);
+  window.addEventListener("touchstart", prefetchOnIntent, { passive: true });
 }
