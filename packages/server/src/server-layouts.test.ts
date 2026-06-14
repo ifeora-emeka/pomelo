@@ -20,7 +20,7 @@ test("handleSSRWithLayouts nests layouts from outermost to innermost", async () 
   };
 
   const postPage = {
-    render(state: any) {
+    render(_state: any) {
       return `<h1>My Post</h1>`;
     },
     css: "h1 { margin: 0; }",
@@ -72,7 +72,7 @@ test("handleSSRWithLayouts runs layout $serverPage hooks and combines states", a
   };
 
   const postPage = {
-    render(state: any) {
+    render(_state: any) {
       return `<p>Page Content</p>`;
     },
   };

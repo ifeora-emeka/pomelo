@@ -1,6 +1,8 @@
 export interface AuthProvider {
   id: string;
-  authorize(credentials: Record<string, string>): Promise<any | null>;
+  authorize(
+    credentials: Record<string, string>,
+  ): Promise<Record<string, unknown> | null>;
 }
 
 export interface AuthConfig {

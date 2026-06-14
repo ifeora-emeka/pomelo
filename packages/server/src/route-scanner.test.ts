@@ -5,7 +5,6 @@ import path from "node:path";
 import {
   scanRoutes,
   sortRoutesBySpecificity,
-  buildManifest,
 } from "./route-scanner.js";
 
 const tmpDir = path.join(process.cwd(), ".test-pages");

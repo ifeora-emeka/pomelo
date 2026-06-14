@@ -1,7 +1,7 @@
 import type { ReactiveState, StoreOptions } from "@kallo/types";
 
 let activeEffect: (() => void) | null = null;
-let activeSubscriptions: Set<Signal<any>> | null = null;
+let activeSubscriptions: Set<Signal<unknown>> | null = null;
 let batchDepth = 0;
 const pendingEffects = new Set<() => void>();
 let signalIdCounter = 0;
@@ -10,7 +10,11 @@ interface KalloDevtoolsHook {
   emit?: (event: string, payload: unknown) => void;
 }
 
-function notifyDevtools(type: "store" | "signal", name: string, state: any) {
+function notifyDevtools(
+  type: "store" | "signal",
+  name: string,
+  state: unknown,
+) {
   if (typeof window === "undefined") return;
   // Only pay the serialization/dispatch cost when devtools are attached.
   const hook = (window as { __KALLO_DEVTOOLS__?: KalloDevtoolsHook })
@@ -68,7 +72,7 @@ export class Signal<T> implements ReactiveState<T> {
     if (activeEffect) {
       this.subscribers.add(activeEffect);
       if (activeSubscriptions) {
-        activeSubscriptions.add(this as Signal<any>);
+        activeSubscriptions.add(this as Signal<unknown>);
       }
     }
     return this._value;
@@ -124,7 +128,7 @@ export function $watch<T>(
 }
 
 export function $effect(cb: () => void): () => void {
-  const subscriptions = new Set<Signal<any>>();
+  const subscriptions = new Set<Signal<unknown>>();
   const effectFn = () => {
     activeEffect = effectFn;
     activeSubscriptions = subscriptions;
@@ -145,7 +149,7 @@ export function $effect(cb: () => void): () => void {
 }
 
 export function $computed<T>(fn: () => T): ReactiveState<T> {
-  const signal = new Signal<T>(undefined as any);
+  const signal = new Signal<T>(undefined as unknown as T);
   $effect(() => {
     signal.value = fn();
   });

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import { $store, $local } from "./index.js";
+import { $store } from "./index.js";
 
 // Mock localStorage in global scope for testing
 const mockStorage: Record<string, string> = {};

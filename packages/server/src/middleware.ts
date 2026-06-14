@@ -1,8 +1,16 @@
 import type { Request, Response, NextFunction } from "express";
 
-export type AuthProvider = (
-  req: Request,
-) => Promise<{ id: string; roles?: string[] } | null>;
+export interface AuthUser {
+  id: string;
+  roles?: string[];
+}
+
+interface AuthRequest extends Request {
+  user?: AuthUser;
+  session?: { user: AuthUser };
+}
+
+export type AuthProvider = (req: Request) => Promise<AuthUser | null>;
 
 export function $auth(provider?: AuthProvider) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -13,11 +21,11 @@ export function $auth(provider?: AuthProvider) {
           res.status(401).json({ error: "Unauthorized" });
           return;
         }
-        (req as any).user = user;
-        (req as any).session = { user };
+        (req as AuthRequest).user = user;
+        (req as AuthRequest).session = { user };
         next();
       } else {
-        const user = (req as any).user;
+        const user = (req as AuthRequest).user;
         if (!user) {
           res.status(401).json({ error: "Unauthorized" });
           return;
@@ -32,7 +40,7 @@ export function $auth(provider?: AuthProvider) {
 
 export function $roles(...roles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = (req as any).user;
+    const user = (req as AuthRequest).user;
     if (!user) {
       res.status(401).json({ error: "Unauthorized" });
       return;

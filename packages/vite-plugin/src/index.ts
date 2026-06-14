@@ -3,14 +3,14 @@ import { KalloLogger, SFC_EXTENSION, hashId } from "@kallo/shared";
 
 const CSS_VIRTUAL_PREFIX = "\0kallo-css:";
 
-export function kalloVitePlugin(options: { pagesDir?: string } = {}) {
+export function kalloVitePlugin(_options: { pagesDir?: string } = {}) {
   const cssMap = new Map<string, string>();
   let isServing = false;
 
   return {
     name: "vite-plugin-kallo",
 
-    configResolved(config: any) {
+    configResolved(config: { command: string }) {
       isServing = config.command === "serve";
     },
 
@@ -76,12 +76,13 @@ export function kalloVitePlugin(options: { pagesDir?: string } = {}) {
           code: output,
           map: null,
         };
-      } catch (err: any) {
-        KalloLogger.error(`Compilation error in ${id}: ${err.message}`);
+      } catch (err) {
+        const message = (err as Error).message;
+        KalloLogger.error(`Compilation error in ${id}: ${message}`);
 
         if (isServing) {
           return {
-            code: generateErrorOverlay(id, err.message),
+            code: generateErrorOverlay(id, message),
             map: null,
           };
         }
@@ -90,7 +91,10 @@ export function kalloVitePlugin(options: { pagesDir?: string } = {}) {
       }
     },
 
-    handleHotUpdate(ctx: any) {
+    handleHotUpdate(ctx: {
+      file: string;
+      modules: Array<{ file: string | null }>;
+    }) {
       if (!ctx.file.endsWith(SFC_EXTENSION)) {
         return;
       }
@@ -98,7 +102,7 @@ export function kalloVitePlugin(options: { pagesDir?: string } = {}) {
       KalloLogger.info(`HMR update: ${ctx.file}`);
 
       const affectedModules = ctx.modules.filter(
-        (mod: any) => mod.file === ctx.file,
+        (mod) => mod.file === ctx.file,
       );
 
       if (affectedModules.length > 0) {

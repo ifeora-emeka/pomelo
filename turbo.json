@@ -1,5 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV",
+    "KALLO_ENV",
+    "KALLO_TEST",
+    "KALLO_AUTH_SECRET",
+    "KALLO_CLI_RESPAWNED"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

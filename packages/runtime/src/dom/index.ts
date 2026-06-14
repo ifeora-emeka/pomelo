@@ -1,13 +1,17 @@
 import { KalloLogger } from "@kallo/shared";
 import { $effect, $batch, Signal } from "../reactivity/index.js";
 
+export type RenderState = Record<string, unknown>;
+export type SlotMap = Record<string, () => string>;
+export type RenderFn = (state?: RenderState, slots?: SlotMap) => string;
+
 export interface ComponentInstance {
   mounts: (() => void)[];
   destroys: (() => void)[];
   container: HTMLElement | null;
   teardown: () => void;
   state: Record<string, unknown>;
-  hotUpdate: (renderFn: (state: any, slots?: any) => string) => void;
+  hotUpdate: (renderFn: RenderFn) => void;
 }
 
 type EventHandler = (
@@ -139,7 +143,6 @@ function morphChildren(oldParent: HTMLElement, newParent: HTMLElement) {
     }
   }
 
-  const maxLen = Math.max(oldChildren.length, newChildren.length);
   const currentOldChildren = Array.from(oldParent.childNodes);
 
   for (let i = 0; i < newChildren.length; i++) {
@@ -209,7 +212,7 @@ const eventsToDelegate = [
 
 export function setupEventDelegation(
   container: HTMLElement,
-  stateProxy: any,
+  stateProxy: Record<string, unknown>,
 ): () => void {
   const controllers: AbortController[] = [];
 
@@ -227,7 +230,7 @@ export function setupEventDelegation(
           if (target.hasAttribute && target.hasAttribute(attrName)) {
             const ref = target.getAttribute(attrName);
             if (ref) {
-              const loopScope: Record<string, any> = {};
+              const loopScope: Record<string, unknown> = {};
               let current: HTMLElement | null = target;
               while (current && current !== container.parentElement) {
                 if (current.attributes) {
@@ -239,7 +242,7 @@ export function setupEventDelegation(
                       if (!(varName in loopScope)) {
                         try {
                           loopScope[varName] = JSON.parse(attr.value);
-                        } catch (e) {
+                        } catch {
                           // Ignore malformed loop payloads
                         }
                       }
@@ -286,12 +289,12 @@ export function setupEventDelegation(
 export function hydrate(
   container: HTMLElement,
   component: {
-    setup: (props?: any) => any;
-    render: (state?: any, slots?: any) => string;
+    setup?: (props?: RenderState) => RenderState;
+    render: RenderFn;
     css?: string;
     componentId?: string;
   },
-  props: any = {},
+  props: RenderState = {},
 ): ComponentInstance {
   const componentId = component.componentId || "global";
   if (component.css) {
@@ -314,20 +317,20 @@ export function hydrate(
   };
   instance.state = rawState;
 
-  const stateProxy = new Proxy(rawState, {
+  const stateProxy = new Proxy(rawState as Record<string | symbol, unknown>, {
     has(target, key) {
       return key in target || key === "state";
     },
     get(target, key) {
       if (key === "__raw__") return target;
-      const val = target[key];
+      const val = target[key] as { get?: () => unknown } | null;
       if (val && typeof val === "object" && typeof val.get === "function") {
         return val.get();
       }
       return val;
     },
     set(target, key, value) {
-      const val = target[key];
+      const val = target[key] as { set?: (v: unknown) => void } | null;
       if (val && typeof val === "object" && typeof val.set === "function") {
         val.set(value);
         return true;
@@ -335,7 +338,7 @@ export function hydrate(
       target[key] = value;
       return true;
     },
-  });
+  }) as Record<string, unknown>;
 
   setActiveInstance(null);
   const removeEvents = setupEventDelegation(container, stateProxy);
@@ -377,7 +380,7 @@ export function hydrate(
 
   instance.mounts.forEach((cb) => cb());
 
-  instance.hotUpdate = (newRenderFn: (state: any, slots?: any) => string) => {
+  instance.hotUpdate = (newRenderFn: RenderFn) => {
     currentRender = newRenderFn;
     renderVersion.set(renderVersion.get() + 1);
   };
@@ -394,7 +397,8 @@ export function hydrate(
 
   activePageInstance = instance;
   if (typeof window !== "undefined") {
-    (window as any).__kal_instance__ = instance;
+    (window as unknown as { __kal_instance__?: ComponentInstance }).__kal_instance__ =
+      instance;
   }
   return instance;
 }
@@ -448,7 +452,7 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
           ...(componentMod.setup ? componentMod.setup(data.state) : {}),
         };
 
-        const layoutStates: any[] = [];
+        const layoutStates: RenderState[] = [];
         for (let i = 0; i < (data.layoutStates || []).length; i++) {
           const layoutMod = layoutMods[i];
           const s = data.layoutStates[i];
@@ -464,7 +468,7 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
           Object.assign(combinedState, s);
         }
 
-        const combinedRender = (state: any) => {
+        const combinedRender = (state: RenderState = {}) => {
           let html = componentMod.render ? componentMod.render(state) : "";
           for (let i = layoutMods.length - 1; i >= 0; i--) {
             const layoutMod = layoutMods[i];

@@ -1,5 +1,3 @@
-import { KalloLogger } from "@kallo/shared";
-
 export function executeHelpCommand(args: string[]): boolean {
   const subCommand = args[0];
 

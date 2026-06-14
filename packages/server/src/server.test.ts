@@ -170,7 +170,7 @@ test("handleSSR blocks access when guard returns false", async () => {
 
   const req = { params: {}, query: {} } as any;
   let statusVal = 0;
-  let jsonVal: any = null;
+  let _jsonVal: any = null;
 
   const res = {
     status(s: number) {
@@ -178,13 +178,13 @@ test("handleSSR blocks access when guard returns false", async () => {
       return this;
     },
     json(d: any) {
-      jsonVal = d;
+      _jsonVal = d;
       return this;
     },
     headersSent: false,
     forbidden(msg?: string) {
       statusVal = 403;
-      jsonVal = { error: msg || "Forbidden" };
+      _jsonVal = { error: msg || "Forbidden" };
     },
   } as any;
 
@@ -271,7 +271,7 @@ test("$auth middleware rejects unauthenticated requests", async () => {
 
   const req = {} as any;
   let statusVal = 0;
-  let jsonVal: any = null;
+  let _jsonVal: any = null;
 
   const res = {
     status(s: number) {
@@ -279,7 +279,7 @@ test("$auth middleware rejects unauthenticated requests", async () => {
       return this;
     },
     json(d: any) {
-      jsonVal = d;
+      _jsonVal = d;
       return this;
     },
   } as any;
@@ -450,7 +450,7 @@ test("handleSSR handles $abort 403 correctly", async () => {
     },
     end() {},
     headersSent: false,
-    forbidden(msg?: string) {
+    forbidden(_msg?: string) {
       statusVal = 403;
     },
   } as any;

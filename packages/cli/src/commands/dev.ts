@@ -6,6 +6,7 @@ import {
 } from "@kallo/server";
 import fs from "node:fs";
 import path from "node:path";
+import { execSync, spawn } from "node:child_process";
 
 export function executeDevCommand(args: string[]): boolean {
   const isTest =
@@ -25,7 +26,6 @@ export function executeDevCommand(args: string[]): boolean {
   const outputCssPath = path.join(process.cwd(), "public/tailwind.css");
   if (fs.existsSync(globalCssPath)) {
     KalloLogger.info("Detected global.css, compiling initial Tailwind CSS...");
-    const { execSync, spawn } = require("node:child_process");
     try {
       execSync(`npx @tailwindcss/cli -i ${globalCssPath} -o ${outputCssPath}`, {
         stdio: "ignore",
@@ -44,12 +44,12 @@ export function executeDevCommand(args: string[]): boolean {
       }
     );
 
-    tailwindProc.stdout?.on("data", (data: any) => {
+    tailwindProc.stdout?.on("data", (data: Buffer) => {
       const msg = data.toString().trim();
       if (msg) KalloLogger.info(`[Tailwind] ${msg}`);
     });
 
-    tailwindProc.stderr?.on("data", (data: any) => {
+    tailwindProc.stderr?.on("data", (data: Buffer) => {
       const msg = data.toString().trim();
       if (msg) KalloLogger.warn(`[Tailwind] ${msg}`);
     });
@@ -57,7 +57,9 @@ export function executeDevCommand(args: string[]): boolean {
     const cleanup = () => {
       try {
         tailwindProc.kill();
-      } catch {}
+      } catch {
+        // Process already exited; nothing to kill.
+      }
     };
 
     process.on("exit", cleanup);

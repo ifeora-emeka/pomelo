@@ -3,8 +3,9 @@ import { scanRoutes, compileAPIRoutes, resolveLayoutChain } from "@kallo/server"
 import { compile } from "@kallo/compiler";
 import fs from "node:fs";
 import path from "node:path";
+import { execSync } from "node:child_process";
 
-export function executeBuildCommand(args: string[]): boolean {
+export function executeBuildCommand(_args: string[]): boolean {
   process.env.NODE_ENV = "production";
   process.env.KALLO_ENV = "production";
   KalloLogger.info("Starting compilation build...");
@@ -13,7 +14,6 @@ export function executeBuildCommand(args: string[]): boolean {
   const outputCssPath = path.join(process.cwd(), "public/tailwind.css");
   if (fs.existsSync(globalCssPath)) {
     KalloLogger.info("Compiling Tailwind CSS...");
-    const { execSync } = require("node:child_process");
     try {
       execSync(`npx @tailwindcss/cli -i ${globalCssPath} -o ${outputCssPath}`, {
         stdio: "ignore",

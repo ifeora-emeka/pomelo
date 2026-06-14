@@ -1,16 +1,22 @@
 import { $store } from "./reactivity/index.js";
 
+export interface AuthUser {
+  id: string;
+  roles?: string[];
+  [key: string]: unknown;
+}
+
 export interface AuthState {
-  user: { id: string; roles?: string[]; [key: string]: any } | null;
+  user: AuthUser | null;
   isLoggedIn: boolean;
   loading: boolean;
   error: string | null;
   signIn(
     providerId: string,
     credentials: Record<string, string>,
-  ): Promise<any | null>;
+  ): Promise<AuthUser | null>;
   signOut(): Promise<void>;
-  fetchSession(): Promise<any | null>;
+  fetchSession(): Promise<AuthUser | null>;
 }
 
 export const authStore = $store<AuthState>({
@@ -31,8 +37,8 @@ export const authStore = $store<AuthState>({
         return data.user;
       }
       return null;
-    } catch (err: any) {
-      this.error = err.message || "Failed to fetch session";
+    } catch (err) {
+      this.error = (err as Error).message || "Failed to fetch session";
       return null;
     } finally {
       this.loading = false;
@@ -58,8 +64,8 @@ export const authStore = $store<AuthState>({
         this.error = data.error || "Sign in failed";
         return null;
       }
-    } catch (err: any) {
-      this.error = err.message || "Sign in failed";
+    } catch (err) {
+      this.error = (err as Error).message || "Sign in failed";
       return null;
     } finally {
       this.loading = false;
@@ -73,8 +79,8 @@ export const authStore = $store<AuthState>({
       await fetch("/api/auth/signout", { method: "POST" });
       this.user = null;
       this.isLoggedIn = false;
-    } catch (err: any) {
-      this.error = err.message || "Sign out failed";
+    } catch (err) {
+      this.error = (err as Error).message || "Sign out failed";
     } finally {
       this.loading = false;
     }

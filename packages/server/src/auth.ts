@@ -8,8 +8,17 @@ interface TokenEnvelope {
   exp?: number;
 }
 
+interface RequestWithSession extends Request {
+  session?: Record<string, unknown>;
+}
+
+interface KalloAbortError extends Error {
+  isKalloAbort?: boolean;
+  statusCode?: number;
+}
+
 export function signToken(
-  payload: any,
+  payload: unknown,
   secret: string,
   expiresInMs?: number,
 ): string {
@@ -24,7 +33,7 @@ export function signToken(
   return `${data}.${signature}`;
 }
 
-export function verifyToken(token: string, secret: string): any | null {
+export function verifyToken(token: string, secret: string): unknown | null {
   const parts = token.split(".");
   const data = parts[0];
   const signature = parts[1];
@@ -91,7 +100,10 @@ export function $getAuthSecret(): string {
  * Usage in an API handler:
  *   $setSessionCookie(res, { id: user.id, email: user.email, name: user.name });
  */
-export function $setSessionCookie(res: Response, payload: Record<string, any>): void {
+export function $setSessionCookie(
+  res: Response,
+  payload: Record<string, unknown>,
+): void {
   const secret = $getAuthSecret();
   const token = signToken(payload, secret, SESSION_MAX_AGE_MS);
   const isProduction = process.env.NODE_ENV === "production";
@@ -111,11 +123,13 @@ export function $setSessionCookie(res: Response, payload: Record<string, any>): 
  * Usage in $serverPage:
  *   const user = $currentUser(ctx);
  */
-export function $currentUser(ctx: { req: Request }): any | null {
+export function $currentUser(
+  ctx: { req: Request },
+): Record<string, unknown> | null {
   const secret = process.env.KALLO_AUTH_SECRET;
   if (!secret) return null;
 
-  const cookies: Record<string, string> = (ctx.req as any).cookies || {};
+  const cookies: Record<string, string> = ctx.req.cookies || {};
 
   const cookieHeader = ctx.req.headers.cookie;
   if (cookieHeader && Object.keys(cookies).length === 0) {
@@ -127,7 +141,7 @@ export function $currentUser(ctx: { req: Request }): any | null {
 
   const token = cookies[COOKIE_NAME];
   if (!token) return null;
-  return verifyToken(token, secret);
+  return verifyToken(token, secret) as Record<string, unknown> | null;
 }
 
 /**
@@ -137,10 +151,14 @@ export function $currentUser(ctx: { req: Request }): any | null {
  * Usage:
  *   $sessionPush(ctx, { role: "admin" });
  */
-export function $sessionPush(ctx: { req: Request }, data: Record<string, any>): void {
-  const session = (ctx.req as any).session || {};
+export function $sessionPush(
+  ctx: { req: Request },
+  data: Record<string, unknown>,
+): void {
+  const req = ctx.req as RequestWithSession;
+  const session = req.session || {};
   Object.assign(session, data);
-  (ctx.req as any).session = session;
+  req.session = session;
 }
 
 /**
@@ -149,8 +167,11 @@ export function $sessionPush(ctx: { req: Request }, data: Record<string, any>): 
  * Usage:
  *   const role = $sessionGet(ctx, "role");
  */
-export function $sessionGet<T = any>(ctx: { req: Request }, key: string): T | undefined {
-  const session = (ctx.req as any).session || {};
+export function $sessionGet<T = unknown>(
+  ctx: { req: Request },
+  key: string,
+): T | undefined {
+  const session = (ctx.req as RequestWithSession).session || {};
   return session[key] as T | undefined;
 }
 
@@ -161,10 +182,13 @@ export function $sessionGet<T = any>(ctx: { req: Request }, key: string): T | un
  * Usage:
  *   const user = $requireAuth(ctx);
  */
-export function $requireAuth(ctx: { req: Request; res: Response }): any {
+export function $requireAuth(ctx: {
+  req: Request;
+  res: Response;
+}): Record<string, unknown> {
   const user = $currentUser(ctx);
   if (!user) {
-    const err = new Error("Unauthorized") as any;
+    const err = new Error("Unauthorized") as KalloAbortError;
     err.isKalloAbort = true;
     err.statusCode = 302;
     ctx.res.setHeader("Location", "/login");

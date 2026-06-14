@@ -6,7 +6,6 @@ import {
   $effect,
   $computed,
   $store,
-  $use,
   $batch,
   $mount,
   $destroy,
@@ -98,7 +97,7 @@ class MockElement extends MockNode {
   private _attributesMap = new Map<string, string>();
   listeners = new Map<
     string,
-    { cb: Function; controller?: AbortController }[]
+    { cb: (...args: unknown[]) => unknown; controller?: AbortController }[]
   >();
   private _value: string = "";
   private _innerHTML: string = "";
@@ -175,11 +174,15 @@ class MockElement extends MockNode {
     this._attributesMap.delete(name);
   }
 
-  addEventListener(event: string, cb: Function, opts?: any) {
+  addEventListener(
+    event: string,
+    cb: (...args: unknown[]) => unknown,
+    opts?: any,
+  ) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
-    const entry: { cb: Function; controller?: AbortController } = { cb };
+    const entry: { cb: (...args: unknown[]) => unknown; controller?: AbortController } = { cb };
     if (opts && opts.signal) {
       entry.controller = undefined;
       opts.signal.addEventListener("abort", () => {
@@ -418,7 +421,7 @@ test("Component hydration sets up reactivity, event delegation and mounts", () =
     },
   };
 
-  const instance = hydrate(mockContainer as any, component);
+  hydrate(mockContainer as any, component);
 
   const firstChild = mockContainer.childNodes[0] as MockElement;
   assert.ok(firstChild);

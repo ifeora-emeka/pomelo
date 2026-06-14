@@ -24,7 +24,7 @@ export function generateClientModule(
   code: string,
   css: string | undefined,
   componentId: string,
-  id: string,
+  _id: string,
 ): string {
   let output = "";
 

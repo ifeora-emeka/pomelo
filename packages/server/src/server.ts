@@ -74,11 +74,12 @@ function rewriteBareModuleImports(code: string): string {
 }
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace -- Express type augmentation requires the namespace form
   namespace Express {
     interface Response {
-      ok(data: any): void;
-      created(data: any): void;
-      updated(data: any): void;
+      ok(data: unknown): void;
+      created(data: unknown): void;
+      updated(data: unknown): void;
       deleted(): void;
       badRequest(message?: string): void;
       unauthorized(message?: string): void;
@@ -89,14 +90,29 @@ declare global {
   }
 }
 
+interface SSRContext {
+  headTags: string[];
+  css?: Set<string>;
+}
+
+interface SessionRequest extends Request {
+  user?: unknown;
+  session?: unknown;
+}
+
+type AbortableError = Error & {
+  isKalloAbort?: boolean;
+  statusCode?: number;
+};
+
 export function responseHelpersMiddleware(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
-  res.ok = (data: any) => res.status(200).json(data);
-  res.created = (data: any) => res.status(201).json(data);
-  res.updated = (data: any) => res.status(200).json(data);
+  res.ok = (data: unknown) => res.status(200).json(data);
+  res.created = (data: unknown) => res.status(201).json(data);
+  res.updated = (data: unknown) => res.status(200).json(data);
   res.deleted = () => {
     res.status(204).end();
   };
@@ -258,7 +274,7 @@ export async function handleSSR(
       }
     }
 
-    let state: Record<string, any> = {};
+    let state: Record<string, unknown> = {};
     if (component.$serverPage) {
       state = (await component.$serverPage(ctx)) || {};
     }
@@ -414,7 +430,7 @@ export async function handleSSRStream(
       }
     }
 
-    let state: Record<string, any> = {};
+    let state: Record<string, unknown> = {};
     if (component.$serverPage) {
       state = (await component.$serverPage(ctx)) || {};
     }
@@ -1142,7 +1158,7 @@ export async function handleSSRWithLayouts(
       }
     }
 
-    const layoutStates: Record<string, any>[] = [];
+    const layoutStates: Record<string, unknown>[] = [];
     let mergedMeta = {};
 
     for (const layout of layouts) {
@@ -1242,7 +1258,9 @@ export async function handleSSRWithLayouts(
         try {
           const item = JSON.parse(itemStr);
           styleHTML += `<style id="kallo-style-${item.id}">${item.css}</style>`;
-        } catch {}
+        } catch {
+          // Skip malformed scoped-CSS entries.
+        }
       }
     }
 
@@ -1467,7 +1485,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     }
   }
 
-  app.use("/@kallo/view", (req, res, next) => {
+  app.use("/@kallo/view", (req, res, _next) => {
     const cleanPath = decodeURIComponent(req.path).replace(/^\//, "");
     let cacheFileName = cleanPath;
     if (cleanPath.endsWith(SFC_EXTENSION)) {
@@ -1495,7 +1513,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   });
 
   // Serve compiled cache files
-  app.use("/.kallo-cache", (req, res, next) => {
+  app.use("/.kallo-cache", (req, res, _next) => {
     const cleanPath = req.path.replace(/^\//, "");
     const cacheFile = path.join(getCacheDir(), cleanPath);
     if (fs.existsSync(cacheFile)) {
@@ -1689,7 +1707,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     });
   }
 
-  app.get("/favicon.ico", (req: Request, res: Response, next: NextFunction) => {
+  app.get("/favicon.ico", (req: Request, res: Response, _next: NextFunction) => {
     const faviconPath = path.join(process.cwd(), "public/favicon.ico");
     if (fs.existsSync(faviconPath)) {
       res.sendFile(faviconPath);
@@ -1783,12 +1801,16 @@ export function createServer(config: FrameworkConfig): ServerInstance {
                 if (fs.statSync(fullPath).isDirectory()) {
                   watchDir(fullPath);
                 }
-              } catch {}
+              } catch {
+                // Path may have been removed between events; ignore.
+              }
               watchCallback(event, fullPath);
             }
           });
           watchers.push(watcher);
-        } catch {}
+        } catch {
+          // Directory may be unwatchable (permissions/removed); skip it.
+        }
 
         try {
           const files = fs.readdirSync(dirPath);
@@ -1798,9 +1820,13 @@ export function createServer(config: FrameworkConfig): ServerInstance {
               if (fs.statSync(fullPath).isDirectory()) {
                 watchDir(fullPath);
               }
-            } catch {}
+            } catch {
+              // Entry vanished or is inaccessible; skip it.
+            }
           }
-        } catch {}
+        } catch {
+          // Directory not readable; nothing to recurse into.
+        }
       };
 
       watchDir(srcDir);

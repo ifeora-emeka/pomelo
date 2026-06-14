@@ -29,7 +29,7 @@ export function $router(): KalloRouter {
   const expressRouter = express.Router();
   const customRouter: any = expressRouter;
   
-  const testRoutes: Record<string, Record<string, Function>> = {};
+  const testRoutes: Record<string, Record<string, Handler>> = {};
   const methods = ["get", "post", "put", "delete", "patch", "options", "head"];
   
   for (const m of methods) {

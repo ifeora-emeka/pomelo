@@ -14,7 +14,7 @@ async function askQuestion(query: string, defaultValue: string): Promise<string>
   try {
     const answer = await rl.question(query);
     return answer.trim() || defaultValue;
-  } catch (err) {
+  } catch {
     return defaultValue;
   } finally {
     rl.close();
@@ -31,7 +31,7 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
 
   let packageManager = "pnpm";
   let useTailwind = true;
-  let setupAuth = false;
+  let _setupAuth = false;
   let template = "empty";
 
   const templateIdx = args.indexOf("--template");
@@ -52,7 +52,7 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
     useTailwind = twAnswer.toLowerCase().startsWith("y");
 
     const authAnswer = await askQuestion("🔑 Do you want to setup authentication? (y/n) [n]: ", "n");
-    setupAuth = authAnswer.toLowerCase().startsWith("y");
+    _setupAuth = authAnswer.toLowerCase().startsWith("y");
 
     if (templateFromArgs && ["saas", "blog", "empty"].includes(templateFromArgs)) {
       template = templateFromArgs;

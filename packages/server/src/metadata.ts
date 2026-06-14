@@ -1,6 +1,9 @@
 import type { Metadata } from "@kallo/types";
 import { escapeHtml, escapeAttr } from "@kallo/shared";
 
+type MetaTag = NonNullable<Metadata["meta"]>[number];
+type LinkTag = NonNullable<Metadata["links"]>[number];
+
 export function mergeMetadata(parent: Metadata, child: Metadata): Metadata {
   const merged: Metadata = {
     ...parent,
@@ -16,8 +19,8 @@ export function mergeMetadata(parent: Metadata, child: Metadata): Metadata {
   };
 
   // Merge meta tags by deduplicating name/property
-  const metaMap = new Map<string, any>();
-  const addMetas = (metas?: any[]) => {
+  const metaMap = new Map<string, MetaTag>();
+  const addMetas = (metas?: MetaTag[]) => {
     if (!metas) return;
     for (const m of metas) {
       const key = m.name
@@ -33,8 +36,8 @@ export function mergeMetadata(parent: Metadata, child: Metadata): Metadata {
   merged.meta = Array.from(metaMap.values());
 
   // Merge link tags by deduplicating rel/href combinations
-  const linkMap = new Map<string, any>();
-  const addLinks = (links?: any[]) => {
+  const linkMap = new Map<string, LinkTag>();
+  const addLinks = (links?: LinkTag[]) => {
     if (!links) return;
     for (const l of links) {
       const key =

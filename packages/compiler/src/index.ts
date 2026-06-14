@@ -1,4 +1,4 @@
-import type { CompilerResult } from "@kallo/types";
+import type { CompilerResult, KalloASTNode } from "@kallo/types";
 import { parse } from "@kallo/parser";
 import { transformServer } from "./transforms/server-transform.js";
 import { transformClient } from "./transforms/client-transform.js";
@@ -39,8 +39,8 @@ export function compile(source: string, filename: string): CompilerResult {
   ]);
   const isPageOrLayout = ROUTE_ENTRY_FILES.has(basename);
 
-  let viewNode: any = null;
-  let headNode: any = null;
+  let viewNode: KalloASTNode | null = null;
+  let headNode: KalloASTNode | undefined = undefined;
 
   for (const node of ast.children) {
     if (node.type === BLOCK_SERVER) {
