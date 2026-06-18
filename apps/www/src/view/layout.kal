@@ -53,7 +53,7 @@
       <script>try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}</script>
     </head>
     <body class="min-h-screen bg-bg-primary text-foreground">
-      <header class="sticky top-0 z-40 backdrop-blur bg-bg-primary/80 border-b border-border">
+      <header class="sticky top-0 z-50 backdrop-blur bg-bg-primary/80 border-b border-border">
         <div class="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
           <button @click="toggleNav()" class="lg:hidden w-9 h-9 -ml-1 rounded-lg border border-border bg-bg-secondary flex items-center justify-center text-lg cursor-pointer" title="Menu">☰</button>
           <a href="/" class="flex items-center gap-2.5 font-extrabold text-lg tracking-tight">
@@ -75,7 +75,8 @@
       </header>
 
       <div class="max-w-[1400px] mx-auto px-4 sm:px-6 flex gap-8">
-        <aside :class="navOpen ? 'fixed inset-0 z-30 bg-bg-primary p-6 pt-24 overflow-y-auto kallo-scroll lg:static lg:p-0 lg:pt-8 lg:bg-transparent lg:block' : 'hidden lg:block'" class="lg:w-64 lg:shrink-0 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pb-10 kallo-scroll">
+        <div @click="closeNav()" :class="navOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'" class="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out lg:hidden"></div>
+        <aside :class="navOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'" class="fixed top-0 left-0 z-40 h-full w-72 max-w-[80vw] bg-bg-primary p-6 pt-24 overflow-y-auto kallo-scroll shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:z-auto lg:h-[calc(100vh-4rem)] lg:w-64 lg:max-w-none lg:shrink-0 lg:sticky lg:top-16 lg:p-0 lg:pt-8 lg:pb-10 lg:bg-transparent lg:shadow-none lg:overflow-y-auto">
           <nav class="flex flex-col gap-6 text-sm">
             <Each of="nav" as="group">
               <div class="flex flex-col gap-1">
