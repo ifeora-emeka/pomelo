@@ -1,5 +1,5 @@
 import { handleSFCCompilation, generateClientModule } from "./transform.js";
-import { KalloLogger, SFC_EXTENSION, hashId } from "@kallo/shared";
+import { KalloLogger, SFC_EXTENSION, hashId } from "@kallojs/shared";
 
 const CSS_VIRTUAL_PREFIX = "\0kallo-css:";
 
@@ -18,7 +18,7 @@ export function kalloVitePlugin(_options: { pagesDir?: string } = {}) {
       if (id.startsWith("kallo-css:")) {
         return CSS_VIRTUAL_PREFIX + id.slice("kallo-css:".length);
       }
-      if (id === "@kallo/runtime") {
+      if (id === "@kallojs/runtime") {
         return id;
       }
       return null;

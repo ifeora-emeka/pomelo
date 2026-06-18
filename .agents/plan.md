@@ -20,7 +20,7 @@ Set up monorepo and enforce strict boundaries.
 - [x] Configure pnpm workspaces
 - [x] Setup TypeScript base config
 - [x] Setup ESLint + Prettier
-- [x] Setup path aliases (`@kallo/*`)
+- [x] Setup path aliases (`@kallojs/*`)
 - [x] Create package skeletons:
   - [x] parser
   - [x] compiler
@@ -55,7 +55,7 @@ Define `.kal` syntax parsing rules and AST structure.
 
 - [x] Build lexer
 - [x] Build HTML-like parser
-- [x] Define AST types in `@kallo/types`
+- [x] Define AST types in `@kallojs/types`
 - [x] Parse:
   - [x] attributes
   - [x] directives (`@click`, `:class`)

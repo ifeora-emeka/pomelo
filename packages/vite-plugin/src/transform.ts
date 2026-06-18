@@ -1,11 +1,11 @@
-import { compile } from "@kallo/compiler";
+import { compile } from "@kallojs/compiler";
 import {
   KalloLogger,
   SFC_EXTENSION,
   replaceEnvVars,
   stripServerBlock,
   hashId,
-} from "@kallo/shared";
+} from "@kallojs/shared";
 
 export function handleSFCCompilation(code: string, id: string) {
   if (id.endsWith(SFC_EXTENSION)) {
@@ -28,7 +28,7 @@ export function generateClientModule(
 ): string {
   let output = "";
 
-  output += `import { hydrate, injectStyle, removeStyle, destroyInstance } from "@kallo/runtime";\n`;
+  output += `import { hydrate, injectStyle, removeStyle, destroyInstance } from "@kallojs/runtime";\n`;
 
   if (css) {
     output += `const __kal_css__ = ${JSON.stringify(css)};\n`;

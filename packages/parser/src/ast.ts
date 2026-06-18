@@ -1,5 +1,5 @@
-import type { KalloAST, KalloASTNode } from "@kallo/types";
-import { NODE_ROOT } from "@kallo/shared";
+import type { KalloAST, KalloASTNode } from "@kallojs/types";
+import { NODE_ROOT } from "@kallojs/shared";
 
 export function createASTNode(
   type: KalloASTNode["type"],

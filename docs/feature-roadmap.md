@@ -23,7 +23,7 @@ This document proposes features that would take Kallo from "renders an app" to "
 | #11 Data caching | P1 | **Shipped** | `$cache` (TTL + request coalescing) + `$revalidate` (key/tag) |
 | #12 Suspense + boundaries | P1 | **Shipped (sync)** | `<Suspense>`/`<Boundary>` compile to render-time try/catch (`#fallback`/`#error` slots). *Real* streaming SSR still buffers (audit M-7). |
 | #13 `<Image>` | P1 | **Shipped (markup)** | `<Image src :width :height sizes priority>` → responsive `srcset` (`?w=`), `loading`/`decoding`/`fetchpriority`. Build-time Sharp pipeline still pending. |
-| #17 Testing utils | P2 | **Shipped** | `@kallo/testing`: `renderToString`, `mount`, `makeEvent`, `mockAction`, `mockReactive`, `mockStore` |
+| #17 Testing utils | P2 | **Shipped** | `@kallojs/testing`: `renderToString`, `mount`, `makeEvent`, `mockAction`, `mockReactive`, `mockStore` |
 | #18 Plugin system | P2 | **Shipped** | `defineConfig`/`definePlugin` + `config`/`transform`/`configureServer` hooks (wired into `createServer`) |
 | #19 Realtime | P2 | **Shipped** | server `$channel(name).publish()` (SSE + last-value replay) + client `$subscribe(name)` reactive |
 | #20 Config/env | P2 | **Shipped** | `$env(schema)` (typed coercion, aggregated errors) + `publicEnv` PUBLIC_ boundary |
@@ -181,7 +181,7 @@ $page(async () => ({...}), { render: "static", revalidate: 3600 });
 ### 16. Browser devtools
 **Why:** The runtime already has gated devtools hooks (`window.__KALLO_DEVTOOLS__`, audit H-5). A real extension to inspect the component tree, signal/store values, and re-render causes makes debugging reactivity tractable.
 
-### 17. Testing utilities — `@kallo/testing`
+### 17. Testing utilities — `@kallojs/testing`
 **Why:** No first-party way to render a `.kal`, fire events, and assert. Without it, app authors can't test components, and Kallo can't claim a real testing story.
 **Proposed API:** `mount(Component, { props })`, `fireEvent`, store/action mocking, plus an SSR snapshot helper.
 

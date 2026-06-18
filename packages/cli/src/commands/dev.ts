@@ -1,9 +1,9 @@
-import { KalloLogger, loadEnv } from "@kallo/shared";
+import { KalloLogger, loadEnv } from "@kallojs/shared";
 import {
   createServer,
   registerFileSystemRoutes,
   registerAPIRoutes,
-} from "@kallo/server";
+} from "@kallojs/server";
 import fs from "node:fs";
 import path from "node:path";
 import { execSync, spawn } from "node:child_process";

@@ -1,4 +1,4 @@
-import type { KalloASTNode } from "@kallo/types";
+import type { KalloASTNode } from "@kallojs/types";
 
 const ABORT_HELPER = `const $abort = (statusCode, message) => { const e = Object.assign(new Error(message || "Kallo Abort"), { statusCode, isKalloAbort: true }); throw e; };\n`;
 

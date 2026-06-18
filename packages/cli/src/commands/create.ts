@@ -1,4 +1,4 @@
-import { KalloLogger } from "@kallo/shared";
+import { KalloLogger } from "@kallojs/shared";
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
@@ -83,8 +83,14 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
     fs.mkdirSync(path.join(targetDir, "public"), { recursive: true });
 
     // Write package.json
+    // Published apps depend on real version ranges from npm. When scaffolding
+    // inside the Kallo monorepo for local development, set KALLO_LOCAL_DEPS=true
+    // to wire the generated app to the workspace packages instead.
+    const kalloDep =
+      process.env.KALLO_LOCAL_DEPS === "true" ? "workspace:*" : "^0.0.1";
+
     const devDeps: Record<string, string> = {
-      "@kallo/cli": "workspace:*",
+      "@kallojs/cli": kalloDep,
     };
     if (useTailwind) {
       devDeps["tailwindcss"] = "^4.0.0";
@@ -105,8 +111,8 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
             start: "kallo start",
           },
           dependencies: {
-            "@kallo/runtime": "workspace:*",
-            "@kallo/server": "workspace:*",
+            "@kallojs/runtime": kalloDep,
+            "@kallojs/server": kalloDep,
           },
           devDependencies: devDeps,
         },
@@ -289,7 +295,7 @@ body {
       // ── Task store (API-backed, explicit state for reliable reactivity)
       fs.writeFileSync(
         path.join(targetDir, "src/stores/tasks.ts"),
-        `import { $store } from "@kallo/runtime";
+        `import { $store } from "@kallojs/runtime";
 
 export interface Task {
   id: string;
@@ -393,7 +399,7 @@ export const useTaskStore = $store({
       // ── Auth store (client-side session state)
       fs.writeFileSync(
         path.join(targetDir, "src/stores/auth.ts"),
-        `import { $store } from "@kallo/runtime";
+        `import { $store } from "@kallojs/runtime";
 
 export interface AuthUser {
   id: string;
@@ -509,7 +515,7 @@ export const useAuthStore = $store({
       fs.writeFileSync(
         path.join(targetDir, "src/view/layout.kal"),
         `<Server>
-  import { $currentUser } from "@kallo/server";
+  import { $currentUser } from "@kallojs/server";
   $page(async (ctx) => {
     const user = $currentUser(ctx);
     return { currentUser: user };
@@ -582,7 +588,7 @@ export const useAuthStore = $store({
 
 <Client>
   import { useTaskStore } from "../stores/tasks.js";
-  import { $local, $mount } from "@kallo/runtime";
+  import { $local, $mount } from "@kallojs/runtime";
   import EachTask from "../components/EachTask.kal";
   import ProjectStats from "../components/ProjectStats.kal";
 
@@ -742,7 +748,7 @@ export const useAuthStore = $store({
       fs.mkdirSync(path.join(targetDir, "src/api/tasks"), { recursive: true });
       fs.writeFileSync(
         path.join(targetDir, "src/api/tasks/tasks.api.ts"),
-        `import { $router } from "@kallo/server";
+        `import { $router } from "@kallojs/server";
 
 interface Task {
   id: string;
@@ -799,7 +805,7 @@ export default router;
       fs.mkdirSync(path.join(targetDir, "src/api/auth"), { recursive: true });
       fs.writeFileSync(
         path.join(targetDir, "src/api/auth/auth.api.ts"),
-        `import { $router, $setSessionCookie, $signOut, $currentUser } from "@kallo/server";
+        `import { $router, $setSessionCookie, $signOut, $currentUser } from "@kallojs/server";
 import crypto from "node:crypto";
 
 interface StoredUser {
@@ -853,7 +859,7 @@ export default router;
       // ── API root index
       fs.writeFileSync(
         path.join(targetDir, "src/api/index.ts"),
-        `import { $router } from "@kallo/server";
+        `import { $router } from "@kallojs/server";
 import tasksRoutes from "./tasks/tasks.api.js";
 import authRoutes from "./auth/auth.api.js";
 
@@ -871,7 +877,7 @@ export default router;
       fs.writeFileSync(
         path.join(targetDir, "src/view/login/page.kal"),
         `<Server>
-  import { $currentUser } from "@kallo/server";
+  import { $currentUser } from "@kallojs/server";
   $page(async (ctx) => {
     const user = $currentUser(ctx);
     if (user) {
@@ -883,7 +889,7 @@ export default router;
 </Server>
 
 <Client>
-  import { $local } from "@kallo/runtime";
+  import { $local } from "@kallojs/runtime";
 
   const email = $local("");
   const password = $local("");
@@ -971,7 +977,7 @@ export default router;
       fs.writeFileSync(
         path.join(targetDir, "src/view/signup/page.kal"),
         `<Server>
-  import { $currentUser } from "@kallo/server";
+  import { $currentUser } from "@kallojs/server";
   $page(async (ctx) => {
     const user = $currentUser(ctx);
     if (user) {
@@ -983,7 +989,7 @@ export default router;
 </Server>
 
 <Client>
-  import { $local } from "@kallo/runtime";
+  import { $local } from "@kallojs/runtime";
 
   const name = $local("");
   const email = $local("");
@@ -1084,7 +1090,7 @@ export default router;
 
       fs.writeFileSync(
         path.join(targetDir, "src/stores/user.ts"),
-        `import { $store } from "@kallo/runtime";
+        `import { $store } from "@kallojs/runtime";
 
 export const useUserStore = $store({
   isLoggedIn: false,
@@ -1128,7 +1134,7 @@ export function getSubscription(req: any, res: any) {
 
       fs.writeFileSync(
         path.join(targetDir, "src/api/subscription/subscription.api.ts"),
-        `import { $router } from "@kallo/server";
+        `import { $router } from "@kallojs/server";
 import { getSubscription } from "./controllers/subscription.controller.js";
 
 const router = $router();
@@ -1141,7 +1147,7 @@ export default router;
 
       fs.writeFileSync(
         path.join(targetDir, "src/api/index.ts"),
-        `import { $router } from "@kallo/server";
+        `import { $router } from "@kallojs/server";
 import subscriptionRoutes from "./subscription/subscription.api.js";
 
 const router = $router();
@@ -1164,7 +1170,7 @@ export default router;
 
 <Client>
   import { useUserStore } from "../stores/user.js";
-  import { $local } from "@kallo/runtime";
+  import { $local } from "@kallojs/runtime";
 
   const user = useUserStore;
   const emailInput = $local("");
@@ -1222,7 +1228,7 @@ export default router;
 
       fs.writeFileSync(
         path.join(targetDir, "src/stores/blog.ts"),
-        `import { $store } from "@kallo/runtime";
+        `import { $store } from "@kallojs/runtime";
 
 export const useBlogStore = $store({
   likes: {} as Record<string, number>,
@@ -1266,7 +1272,7 @@ export function getPosts(req: any, res: any) {
 
       fs.writeFileSync(
         path.join(targetDir, "src/api/posts/posts.api.ts"),
-        `import { $router } from "@kallo/server";
+        `import { $router } from "@kallojs/server";
 import { getPosts } from "./controllers/post.controller.js";
 
 const router = $router();
@@ -1279,7 +1285,7 @@ export default router;
 
       fs.writeFileSync(
         path.join(targetDir, "src/api/index.ts"),
-        `import { $router } from "@kallo/server";
+        `import { $router } from "@kallojs/server";
 import postsRoutes from "./posts/posts.api.js";
 
 const router = $router();

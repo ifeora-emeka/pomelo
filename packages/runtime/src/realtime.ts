@@ -1,4 +1,4 @@
-import type { ReactiveState } from "@kallo/types";
+import type { ReactiveState } from "@kallojs/types";
 import { $local } from "./reactivity/index.js";
 
 export interface SubscribeOptions<T> {

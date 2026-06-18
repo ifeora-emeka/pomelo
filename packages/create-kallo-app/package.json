@@ -1,0 +1,20 @@
+{
+  "name": "create-kallo-app",
+  "version": "0.0.1",
+  "description": "Scaffold a new Kallo app. Run: npm create kallo-app@latest my-app",
+  "license": "MIT",
+  "type": "module",
+  "keywords": ["kallo", "kallojs", "create", "scaffold", "framework"],
+  "bin": {
+    "create-kallo-app": "./dist/bin.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kallojs/cli": "workspace:*"
+  }
+}

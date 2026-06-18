@@ -14,7 +14,7 @@ All findings below have been addressed. Verification after the work: `pnpm check
 
 | ID | Status | Fix summary |
 |----|--------|-------------|
-| C-1/2/3 | Fixed | Added `escapeHtml` / `escapeAttr` / `serializeForScript` in `@kallo/shared`; applied to all template interpolations & attributes (inline `_escape`/`_escapeAttr` in generated render), `$meta` output, and inline-script state serialization. |
+| C-1/2/3 | Fixed | Added `escapeHtml` / `escapeAttr` / `serializeForScript` in `@kallojs/shared`; applied to all template interpolations & attributes (inline `_escape`/`_escapeAttr` in generated render), `$meta` output, and inline-script state serialization. |
 | C-4 | Fixed | Replaced runtime `new Function`+`with` with a build-time handler registry (`globalThis.__kal_handlers__[componentId]`); event handlers are precompiled functions referenced by `cid::idx`. CSP-safe (no `eval`/`unsafe-eval`). |
 | H-1 | Fixed | Loop-item and component-prop serialization now use `_escapeAttr(JSON.stringify(...))`. |
 | H-2 | Fixed | `$store` caches nested proxies in a `WeakMap` (stable identity, no per-read allocation). |
@@ -23,7 +23,7 @@ All findings below have been addressed. Verification after the work: `pnpm check
 | H-5 | Fixed | Devtools instrumentation gated behind an opt-in `window.__KALLO_DEVTOOLS__` hook (no hot-path clone/dispatch in prod); stale `__POMELO_DEVTOOLS__` removed. |
 | H-6 | Fixed | `createServer` no longer spawns `fs.watch` handles eagerly — dev HMR/watchers moved into `start()` and torn down on `server.close()`. Suite no longer hangs. |
 | M-1 | Fixed | Per-event debug `console.*` removed; navigation error routed through `KalloLogger`. |
-| M-2 / L-5 | Fixed | Single `hashId` (FNV-1a) util in `@kallo/shared` replaces the three hand-rolled hashers. |
+| M-2 / L-5 | Fixed | Single `hashId` (FNV-1a) util in `@kallojs/shared` replaces the three hand-rolled hashers. |
 | M-4 | Fixed | Catch-all routes use Express 5 `*name` wildcard syntax; param extraction updated. |
 | M-5 | Fixed | `$watch` saves/restores `activeEffect`. |
 | M-6 | Fixed | Persistence requires an explicit `persistKey`; without one it is disabled (no shared-key collision). |
@@ -31,7 +31,7 @@ All findings below have been addressed. Verification after the work: `pnpm check
 | M-8 | Fixed | Dead `lexer.ts` / `tokenize` path removed. |
 | M-9 | Largely fixed | Public `Handler`/router types tightened; lint warnings cut from 283 → ~123 (turbo env vars declared, `no-require-imports`/`no-namespace`/`no-unsafe-function-type`/`no-empty` cleared, `_`-prefix unused-var convention adopted). All production-source `any` eliminated except a few defensible cases (arbitrary `package.json` parsing, dynamically-imported compiled-module shapes). Remaining warnings are test-file `any` (conventionally tolerated) and pre-existing `no-useless-escape` in regexes. |
 | M-10 | Fixed | Compiler block gating uses a basename allow-list; test-env (`NODE_ENV`/`KALLO_*`) coupling removed. |
-| L-1 | Fixed | README/AGENTS/`.agents/*` updated to `.kal`, `src/view/`, `@kallo/runtime`. |
+| L-1 | Fixed | README/AGENTS/`.agents/*` updated to `.kal`, `src/view/`, `@kallojs/runtime`. |
 | L-2 | Fixed | Placeholder apps marked “(planned)” in the README. |
 | L-3 | Fixed | Committed `test-cli-ecommerce-app/` fixture removed. |
 | L-4 | Fixed | Session tokens carry an optional `exp` claim verified on read; session cookies set it. |
@@ -126,7 +126,7 @@ Any server- or user-supplied value rendered through `{{ }}` or `:attr` is a stor
 `AGENTS.md` calls `.agents/*.md` the "source of truth," yet:
 - `.pom` extension is referenced 29× across README/AGENTS/.agents, but the real extension is `.kal` ([constants.ts:50](packages/shared/src/constants.ts#L50)).
 - Docs use `src/pages/`; the code scans `src/view/` ([server.ts:881](packages/server/src/server.ts#L881)).
-- `.agents/patterns.md` imports from `@kallo/core`; the real package is `@kallo/runtime`.
+- `.agents/patterns.md` imports from `@kallojs/core`; the real package is `@kallojs/runtime`.
 - `.agents/architecture.md` lists packages that don't exist (`router`, `reactivity`, `state`, `auth`, `metadata`, `css`, `create-kallo`).
 
 These mislead any contributor (human or agent) told to treat them as canonical.

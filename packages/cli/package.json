@@ -1,6 +1,6 @@
 {
-  "name": "@kallo/cli",
-  "version": "0.1.0",
+  "name": "@kallojs/cli",
+  "version": "0.0.1",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
@@ -14,12 +14,12 @@
     "test": "NODE_ENV=test node --test dist/**/*.test.js"
   },
   "dependencies": {
-    "@kallo/types": "workspace:*",
-    "@kallo/shared": "workspace:*",
-    "@kallo/parser": "workspace:*",
-    "@kallo/compiler": "workspace:*",
-    "@kallo/runtime": "workspace:*",
-    "@kallo/server": "workspace:*",
-    "@kallo/vite-plugin": "workspace:*"
+    "@kallojs/types": "workspace:*",
+    "@kallojs/shared": "workspace:*",
+    "@kallojs/parser": "workspace:*",
+    "@kallojs/compiler": "workspace:*",
+    "@kallojs/runtime": "workspace:*",
+    "@kallojs/server": "workspace:*",
+    "@kallojs/vite-plugin": "workspace:*"
   }
 }

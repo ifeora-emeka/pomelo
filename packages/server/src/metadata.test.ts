@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { mergeMetadata, renderMetadataHTML } from "./metadata.js";
-import type { Metadata } from "@kallo/types";
+import type { Metadata } from "@kallojs/types";
 
 test("mergeMetadata merges flat SEO properties and overrides correctly", () => {
   const parent: Metadata = {

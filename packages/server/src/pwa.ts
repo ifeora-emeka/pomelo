@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { escapeAttr, serializeForScript } from "@kallo/shared";
+import { escapeAttr, serializeForScript } from "@kallojs/shared";
 
 export type PWADisplay =
   | "standalone"

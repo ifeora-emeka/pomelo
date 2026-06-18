@@ -1,5 +1,5 @@
-import type { Metadata } from "@kallo/types";
-import { escapeHtml, escapeAttr } from "@kallo/shared";
+import type { Metadata } from "@kallojs/types";
+import { escapeHtml, escapeAttr } from "@kallojs/shared";
 
 type MetaTag = NonNullable<Metadata["meta"]>[number];
 type LinkTag = NonNullable<Metadata["links"]>[number];

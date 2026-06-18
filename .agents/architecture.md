@@ -179,7 +179,7 @@ src/
 This becomes:
 
 ```ts
-import { $local } from "@kallo/runtime";
+import { $local } from "@kallojs/runtime";
 ```
 
 ---
@@ -231,7 +231,7 @@ src/
 Usage:
 
 ```ts
-import { createServer } from "@kallo/server";
+import { createServer } from "@kallojs/server";
 ```
 
 ---
@@ -445,12 +445,12 @@ which becomes painful after 6–12 months.
 If I were building Kallo for real, my first six packages would be:
 
 ```text
-@kallo/parser
-@kallo/compiler
-@kallo/runtime
-@kallo/server
-@kallo/vite-plugin
-@kallo/cli
+@kallojs/parser
+@kallojs/compiler
+@kallojs/runtime
+@kallojs/server
+@kallojs/vite-plugin
+@kallojs/cli
 ```
 
 Everything else would be layered on top of those. That gives you a clean separation between syntax, compilation, runtime behavior, server behavior, and developer tooling—the same boundaries that tend to survive long-term as frameworks grow.

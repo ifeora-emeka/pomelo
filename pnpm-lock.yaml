@@ -29,39 +29,45 @@ importers:
 
   packages/cli:
     dependencies:
-      '@kallo/compiler':
+      '@kallojs/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@kallo/parser':
+      '@kallojs/parser':
         specifier: workspace:*
         version: link:../parser
-      '@kallo/runtime':
+      '@kallojs/runtime':
         specifier: workspace:*
         version: link:../runtime
-      '@kallo/server':
+      '@kallojs/server':
         specifier: workspace:*
         version: link:../server
-      '@kallo/shared':
+      '@kallojs/shared':
         specifier: workspace:*
         version: link:../shared
-      '@kallo/types':
+      '@kallojs/types':
         specifier: workspace:*
         version: link:../types
-      '@kallo/vite-plugin':
+      '@kallojs/vite-plugin':
         specifier: workspace:*
         version: link:../vite-plugin
 
   packages/compiler:
     dependencies:
-      '@kallo/parser':
+      '@kallojs/parser':
         specifier: workspace:*
         version: link:../parser
-      '@kallo/shared':
+      '@kallojs/shared':
         specifier: workspace:*
         version: link:../shared
-      '@kallo/types':
+      '@kallojs/types':
         specifier: workspace:*
         version: link:../types
+
+  packages/create-kallo-app:
+    dependencies:
+      '@kallojs/cli':
+        specifier: workspace:*
+        version: link:../cli
 
   packages/eslint-config:
     devDependencies:
@@ -101,31 +107,31 @@ importers:
 
   packages/parser:
     dependencies:
-      '@kallo/shared':
+      '@kallojs/shared':
         specifier: workspace:*
         version: link:../shared
-      '@kallo/types':
+      '@kallojs/types':
         specifier: workspace:*
         version: link:../types
 
   packages/runtime:
     dependencies:
-      '@kallo/shared':
+      '@kallojs/shared':
         specifier: workspace:*
         version: link:../shared
-      '@kallo/types':
+      '@kallojs/types':
         specifier: workspace:*
         version: link:../types
 
   packages/server:
     dependencies:
-      '@kallo/compiler':
+      '@kallojs/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@kallo/shared':
+      '@kallojs/shared':
         specifier: workspace:*
         version: link:../shared
-      '@kallo/types':
+      '@kallojs/types':
         specifier: workspace:*
         version: link:../types
       express:
@@ -141,16 +147,16 @@ importers:
 
   packages/shared:
     dependencies:
-      '@kallo/types':
+      '@kallojs/types':
         specifier: workspace:*
         version: link:../types
 
   packages/testing:
     dependencies:
-      '@kallo/runtime':
+      '@kallojs/runtime':
         specifier: workspace:*
         version: link:../runtime
-      '@kallo/types':
+      '@kallojs/types':
         specifier: workspace:*
         version: link:../types
 
@@ -160,13 +166,13 @@ importers:
 
   packages/vite-plugin:
     dependencies:
-      '@kallo/compiler':
+      '@kallojs/compiler':
         specifier: workspace:*
         version: link:../compiler
-      '@kallo/shared':
+      '@kallojs/shared':
         specifier: workspace:*
         version: link:../shared
-      '@kallo/types':
+      '@kallojs/types':
         specifier: workspace:*
         version: link:../types
 

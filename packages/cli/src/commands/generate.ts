@@ -1,4 +1,4 @@
-import { KalloLogger } from "@kallo/shared";
+import { KalloLogger } from "@kallojs/shared";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -123,7 +123,7 @@ export async function getHello(req: any, res: any) {
     // 3. Write Routes
     fs.writeFileSync(
       apiPath,
-      `import { $router } from "@kallo/server";
+      `import { $router } from "@kallojs/server";
 import { getHello } from "./controllers/${name}.controller.js";
 
 const router = $router();
@@ -139,7 +139,7 @@ export default router;
     if (!fs.existsSync(entryPath)) {
       fs.writeFileSync(
         entryPath,
-        `import { $router } from "@kallo/server";
+        `import { $router } from "@kallojs/server";
 import ${name}Routes from "./${name}/${name}.api.js";
 
 const router = $router();
@@ -182,7 +182,7 @@ export default router;
     const storePascal = name.charAt(0).toUpperCase() + name.slice(1);
     fs.writeFileSync(
       storePath,
-      `import { $store } from "@kallo/runtime";
+      `import { $store } from "@kallojs/runtime";
 
 export const use${storePascal}Store = $store(
   {

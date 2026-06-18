@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import { KalloLogger } from "@kallo/shared";
+import { KalloLogger } from "@kallojs/shared";
 
 export type Handler = (
   req: Request,

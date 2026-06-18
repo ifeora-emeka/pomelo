@@ -1,9 +1,9 @@
-import { KalloLogger } from "@kallo/shared";
+import { KalloLogger } from "@kallojs/shared";
 import {
   createServer,
   registerFileSystemRoutes,
   registerAPIRoutes,
-} from "@kallo/server";
+} from "@kallojs/server";
 import path from "node:path";
 
 export function executeStartCommand(args: string[]): boolean {

@@ -238,7 +238,7 @@ test("handleSSR injects hydration script when component has setup function", asy
 
   assert.ok(bodyHTML.includes('<script type="module">'));
   assert.ok(bodyHTML.includes("hydrate"));
-  assert.ok(bodyHTML.includes("/@kallo/runtime"));
+  assert.ok(bodyHTML.includes("/@kallojs/runtime"));
 });
 
 test("handleSSR blocks access when guard returns false", async () => {

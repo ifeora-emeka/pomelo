@@ -5,6 +5,47 @@
 > **TypeScript-First, HTML-First Fullstack Framework built on Express.**
 > Kallo combines the server-side simplicity and familiarity of Express with a powerful compiler, reactive client-side runtime, and modern file-based routing.
 
+[![npm](https://img.shields.io/npm/v/@kallojs/cli.svg)](https://www.npmjs.com/package/@kallojs/cli)
+[![license](https://img.shields.io/npm/l/@kallojs/cli.svg)](./LICENSE)
+
+> **Current version: `0.0.1`** — Kallo is in early development. APIs may change between releases.
+
+---
+
+## ⚡ Getting Started
+
+Scaffold a new Kallo app with the CLI (no global install required):
+
+```bash
+npx @kallojs/cli create my-app
+cd my-app
+pnpm install
+pnpm dev
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+### Installed packages
+
+Kallo is published to npm under the `@kallojs` scope. A typical app depends on:
+
+```bash
+pnpm add @kallojs/runtime @kallojs/server
+pnpm add -D @kallojs/cli
+```
+
+| Package            | Purpose                                                |
+| ------------------ | ------------------------------------------------------ |
+| `@kallojs/cli`       | `kallo` CLI — `create`, `dev`, `build`, `start`        |
+| `@kallojs/server`    | SSR, routing, middleware, and the Express wrapper      |
+| `@kallojs/runtime`   | Client-side reactivity, lifecycle, and hydration       |
+| `@kallojs/compiler`  | Compiles `.kal` AST into production JS modules          |
+| `@kallojs/parser`    | Parses `.kal` files into a deterministic AST           |
+| `@kallojs/vite-plugin` | Vite integration, HMR, and file-based routing sync   |
+| `@kallojs/testing`   | Test utilities for `.kal` components and routes        |
+| `@kallojs/shared`    | Cross-package utility functions                        |
+| `@kallojs/types`     | Unified TypeScript typings for the framework           |
+
 ---
 
 ## 🚀 Key Features
@@ -36,6 +77,7 @@ kallo/
 │   ├── server/       # SSR rendering, routing, middleware, and Express wrapper
 │   ├── vite-plugin/  # Vite integration, hot module replacement (HMR), and file-based routing sync
 │   ├── cli/          # Kallo CLI tools (dev, build, start, create)
+│   ├── testing/      # Test utilities for .kal components and routes
 │   ├── shared/       # Cross-package utility functions
 │   └── types/        # Unified TypeScript typings for the framework
 ```
@@ -114,7 +156,7 @@ Kallo relies on an Express-compatible router and standard request/response handl
 ### Example: Product Router (`src/api/products/products.api.ts`)
 
 ```ts
-import { $router } from "@kallo/server";
+import { $router } from "@kallojs/server";
 import { auth, admin } from "@/middleware/auth";
 import { listProducts, getProduct, createProduct } from "./controllers";
 
@@ -136,7 +178,7 @@ State management in Kallo is handled via reactive stores defined with `$store()`
 ### Example: Global Cart Store (`src/stores/cart.store.ts`)
 
 ```ts
-import { $store } from "@kallo/runtime";
+import { $store } from "@kallojs/runtime";
 
 export const cartStore = $store({
   items: [] as CartItem[],

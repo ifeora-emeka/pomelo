@@ -1,5 +1,5 @@
-import type { CLIContext } from "@kallo/types";
-import { KalloLogger, loadEnv } from "@kallo/shared";
+import type { CLIContext } from "@kallojs/types";
+import { KalloLogger, loadEnv } from "@kallojs/shared";
 import { executeDevCommand } from "./commands/dev.js";
 import { executeBuildCommand } from "./commands/build.js";
 import { executeStartCommand } from "./commands/start.js";
@@ -31,7 +31,7 @@ export function handleCLI(context: CLIContext): boolean | Promise<boolean> {
     context.command === "--version" ||
     context.command === "-v"
   ) {
-    console.log("0.1.0");
+    console.log("0.0.1");
     return true;
   } else {
     KalloLogger.warn(`Unknown command: ${context.command}`);

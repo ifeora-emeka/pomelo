@@ -1,6 +1,6 @@
 import type { Express } from "express";
-import type { FrameworkConfig, KalloPlugin } from "@kallo/types";
-import { KalloLogger } from "@kallo/shared";
+import type { FrameworkConfig, KalloPlugin } from "@kallojs/types";
+import { KalloLogger } from "@kallojs/shared";
 
 /**
  * defineConfig — identity helper that gives kallo.config.ts full type-checking

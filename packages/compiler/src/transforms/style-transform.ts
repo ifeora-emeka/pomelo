@@ -1,5 +1,5 @@
-import type { KalloASTNode } from "@kallo/types";
-import { SCOPED_CSS_PREFIX } from "@kallo/shared";
+import type { KalloASTNode } from "@kallojs/types";
+import { SCOPED_CSS_PREFIX } from "@kallojs/shared";
 
 function scopeSelector(selector: string, componentId: string): string {
   const trimmed = selector.trim();

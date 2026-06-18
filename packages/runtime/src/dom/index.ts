@@ -1,4 +1,4 @@
-import { KalloLogger } from "@kallo/shared";
+import { KalloLogger } from "@kallojs/shared";
 import { $effect, $batch, Signal } from "../reactivity/index.js";
 import {
   prefetch,
@@ -554,8 +554,8 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
       }
 
       const [componentMod, ...layoutMods] = await Promise.all([
-        import(`/@kallo/view/${data.cacheFileName}`),
-        ...(data.layoutCacheFileNames || []).map((f: string) => import(`/@kallo/view/${f}`))
+        import(`/@kallojs/view/${data.cacheFileName}`),
+        ...(data.layoutCacheFileNames || []).map((f: string) => import(`/@kallojs/view/${f}`))
       ]);
 
       if (activePageInstance) {

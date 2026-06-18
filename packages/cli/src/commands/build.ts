@@ -1,6 +1,6 @@
-import { KalloLogger, rewriteRelativeImports } from "@kallo/shared";
-import { scanRoutes, compileAPIRoutes, resolveLayoutChain } from "@kallo/server";
-import { compile } from "@kallo/compiler";
+import { KalloLogger, rewriteRelativeImports } from "@kallojs/shared";
+import { scanRoutes, compileAPIRoutes, resolveLayoutChain } from "@kallojs/server";
+import { compile } from "@kallojs/compiler";
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";

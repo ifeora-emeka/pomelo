@@ -1,4 +1,4 @@
-import type { FrameworkConfig } from "@kallo/types";
+import type { FrameworkConfig } from "@kallojs/types";
 import {
   FRAMEWORK_NAME,
   COLOR_RESET,

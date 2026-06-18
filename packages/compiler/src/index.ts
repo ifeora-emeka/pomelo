@@ -1,5 +1,5 @@
-import type { CompilerResult, KalloASTNode } from "@kallo/types";
-import { parse } from "@kallo/parser";
+import type { CompilerResult, KalloASTNode } from "@kallojs/types";
+import { parse } from "@kallojs/parser";
 import { transformServer } from "./transforms/server-transform.js";
 import { transformClient } from "./transforms/client-transform.js";
 import { transformStyle } from "./transforms/style-transform.js";
@@ -11,7 +11,7 @@ import {
   BLOCK_STYLE,
   BLOCK_VIEW,
   hashId,
-} from "@kallo/shared";
+} from "@kallojs/shared";
 
 export function compile(source: string, filename: string): CompilerResult {
   KalloLogger.info(`Compiling component file: ${filename}`);

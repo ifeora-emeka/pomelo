@@ -1,4 +1,4 @@
-import type { KalloASTNode } from "@kallo/types";
+import type { KalloASTNode } from "@kallojs/types";
 
 export function transformClient(node: KalloASTNode): string {
   // Extract imports to place them at the top level

@@ -1,4 +1,4 @@
-import type { ReactiveState, StoreOptions } from "@kallo/types";
+import type { ReactiveState, StoreOptions } from "@kallojs/types";
 
 let activeEffect: (() => void) | null = null;
 let activeSubscriptions: Set<Signal<unknown>> | null = null;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert";
-import type { FrameworkConfig, KalloPlugin } from "@kallo/types";
+import type { FrameworkConfig, KalloPlugin } from "@kallojs/types";
 import {
   defineConfig,
   definePlugin,

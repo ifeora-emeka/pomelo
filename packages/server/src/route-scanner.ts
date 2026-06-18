@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { KalloLogger, SFC_EXTENSION } from "@kallo/shared";
-import type { RouteRecord, RouteManifest } from "@kallo/types";
+import { KalloLogger, SFC_EXTENSION } from "@kallojs/shared";
+import type { RouteRecord, RouteManifest } from "@kallojs/types";
 
 const LAYOUT_FILENAME = "layout.kal";
 

@@ -1,4 +1,4 @@
-import type { KalloAST, KalloASTNode } from "@kallo/types";
+import type { KalloAST, KalloASTNode } from "@kallojs/types";
 import { createAST, createASTNode } from "./ast.js";
 import {
   KalloLogger,
@@ -10,7 +10,7 @@ import {
   NODE_TEXT,
   ATTR_EACH_OF,
   ATTR_EACH_AS,
-} from "@kallo/shared";
+} from "@kallojs/shared";
 
 export function parseAttributes(attrString: string): Record<string, string> {
   const attributes: Record<string, string> = {};

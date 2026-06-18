@@ -36,7 +36,7 @@ _watch();
 `src/stores/cart.store.ts`
 
 ```ts
-import { $store } from "@kallo/runtime";
+import { $store } from "@kallojs/runtime";
 
 type CartItem = {
   id: number;
@@ -215,7 +215,7 @@ use actual Express-style syntax.
 `src/api/products/products.api.ts`
 
 ```ts
-import { $router } from "@kallo/server";
+import { $router } from "@kallojs/server";
 
 const router = $router();
 

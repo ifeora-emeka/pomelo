@@ -1,4 +1,4 @@
-import type { KalloASTNode } from "@kallo/types";
+import type { KalloASTNode } from "@kallojs/types";
 import {
   VOID_TAGS,
   NODE_TEXT,
@@ -11,7 +11,7 @@ import {
   TAG_IMAGE,
   TAG_SUSPENSE,
   TAG_BOUNDARY,
-} from "@kallo/shared";
+} from "@kallojs/shared";
 
 const BOOLEAN_ATTRS = new Set([
   "checked", "disabled", "selected", "readonly", "required",

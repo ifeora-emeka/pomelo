@@ -1,6 +1,6 @@
 {
-  "name": "@kallo/runtime",
-  "version": "0.1.0",
+  "name": "@kallojs/runtime",
+  "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,7 +12,7 @@
     "test": "node --test dist/**/*.test.js"
   },
   "dependencies": {
-    "@kallo/types": "workspace:*",
-    "@kallo/shared": "workspace:*"
+    "@kallojs/types": "workspace:*",
+    "@kallojs/shared": "workspace:*"
   }
 }

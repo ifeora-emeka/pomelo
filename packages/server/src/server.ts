@@ -3,7 +3,7 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import { compile } from "@kallo/compiler";
+import { compile } from "@kallojs/compiler";
 import {
   KalloLogger,
   formatFrameworkName,
@@ -13,8 +13,8 @@ import {
   stripServerBlock,
   loadEnv,
   serializeForScript,
-} from "@kallo/shared";
-import type { FrameworkConfig, Metadata } from "@kallo/types";
+} from "@kallojs/shared";
+import type { FrameworkConfig, Metadata } from "@kallojs/types";
 import { KalloError } from "./errors.js";
 import {
   scanRoutes,
@@ -46,7 +46,7 @@ function getCacheDir(): string {
 }
 
 function rewriteBareModuleImports(code: string): string {
-  const pomPackages = ["@kallo/runtime", "@kallo/shared", "@kallo/types"];
+  const pomPackages = ["@kallojs/runtime", "@kallojs/shared", "@kallojs/types"];
   let result = code;
   for (const pkg of pomPackages) {
     const pkgDir = resolvePackageToAbsolute(pkg);
@@ -191,8 +191,8 @@ function generateHydrationScript(
 ): string {
   if (strategy === "never") return "";
   return `<script type="module">
-import { hydrate } from "/@kallo/runtime/index.js";
-import * as component from "/@kallo/view/${cacheFileName}";
+import { hydrate } from "/@kallojs/runtime/index.js";
+import * as component from "/@kallojs/view/${cacheFileName}";
 const container = document.getElementById("app");
 const serverState = ${stateJSON};
 function _kalHydrate() {
@@ -219,15 +219,15 @@ function generateHydrationScriptWithLayouts(
 ): string {
   if (strategy === "never") return "";
   const imports: string[] = [];
-  imports.push(`import * as component from "/@kallo/view/${cacheFileName}";`);
+  imports.push(`import * as component from "/@kallojs/view/${cacheFileName}";`);
   for (let i = 0; i < layoutCacheFileNames.length; i++) {
     imports.push(
-      `import * as layout_${i} from "/@kallo/view/${layoutCacheFileNames[i]}";`,
+      `import * as layout_${i} from "/@kallojs/view/${layoutCacheFileNames[i]}";`,
     );
   }
 
   return `<script type="module">
-import { hydrate } from "/@kallo/runtime/index.js";
+import { hydrate } from "/@kallojs/runtime/index.js";
 ${imports.join("\n")}
 
 const container = document.getElementById("app");
@@ -1470,10 +1470,10 @@ export interface ServerInstance {
 function rewriteBrowserImports(content: string): string {
   let result = content.replace(
     /(\b(?:import|export)\s+[\s\S]*?\s+from\s+['"]|import\s+['"])@kallo\/runtime(['"])/g,
-    "$1/@kallo/runtime/index.js$2",
+    "$1/@kallojs/runtime/index.js$2",
   );
 
-  const pomPackages = ["@kallo/runtime", "@kallo/shared", "@kallo/types"];
+  const pomPackages = ["@kallojs/runtime", "@kallojs/shared", "@kallojs/types"];
   for (const pkg of pomPackages) {
     const pkgDir = resolvePackageToAbsolute(pkg);
     if (!pkgDir) continue;
@@ -1485,13 +1485,13 @@ function rewriteBrowserImports(content: string): string {
       "g",
     );
 
-    const shortName = pkg.replace("@kallo/", "");
+    const shortName = pkg.replace("@kallojs/", "");
     result = result.replace(regex, (match, prefix, subpath, suffix) => {
-      let targetPath = `/@kallo/${shortName}${subpath}`;
+      let targetPath = `/@kallojs/${shortName}${subpath}`;
       if (subpath.startsWith("/dist/")) {
-        targetPath = `/@kallo/${shortName}/${subpath.slice(6)}`;
+        targetPath = `/@kallojs/${shortName}/${subpath.slice(6)}`;
       } else if (subpath === "/dist/index.js") {
-        targetPath = `/@kallo/${shortName}/index.js`;
+        targetPath = `/@kallojs/${shortName}/index.js`;
       }
       return `${prefix}${targetPath}${suffix}`;
     });
@@ -1519,13 +1519,13 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   const routeCacheMap = new Map<string, string>();
   app.set("routeCacheMap", routeCacheMap);
 
-  // Serve @kallo/runtime client-side files
+  // Serve @kallojs/runtime client-side files
   try {
-    const runtimePkgPath = require.resolve("@kallo/runtime/package.json", {
+    const runtimePkgPath = require.resolve("@kallojs/runtime/package.json", {
       paths: [process.cwd()],
     });
     const runtimeDir = path.dirname(runtimePkgPath);
-    app.use("/@kallo/runtime", express.static(path.join(runtimeDir, "dist")));
+    app.use("/@kallojs/runtime", express.static(path.join(runtimeDir, "dist")));
   } catch (err) {
     let resolved = false;
     const pathsToTry = [
@@ -1535,20 +1535,20 @@ export function createServer(config: FrameworkConfig): ServerInstance {
     ];
     for (const p of pathsToTry) {
       if (fs.existsSync(path.join(p, "package.json"))) {
-        app.use("/@kallo/runtime", express.static(path.join(p, "dist")));
+        app.use("/@kallojs/runtime", express.static(path.join(p, "dist")));
         resolved = true;
         break;
       }
     }
     if (!resolved) {
       KalloLogger.warn(
-        "Could not resolve @kallo/runtime path for static serving: " +
+        "Could not resolve @kallojs/runtime path for static serving: " +
           String(err),
       );
     }
   }
 
-  app.use("/@kallo/view", (req, res, _next) => {
+  app.use("/@kallojs/view", (req, res, _next) => {
     const cleanPath = decodeURIComponent(req.path).replace(/^\//, "");
     let cacheFileName = cleanPath;
     if (cleanPath.endsWith(SFC_EXTENSION)) {
