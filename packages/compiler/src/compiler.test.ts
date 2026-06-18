@@ -379,3 +379,14 @@ test("Compiler rejects an invalid hydrate strategy", () => {
     /Invalid <Client hydrate/,
   );
 });
+
+test("Compiler registers child component function props for delegated handlers", () => {
+  const result = compile(
+    `<View><Card :onAction="handleAction" :label="title" /></View>`,
+    "page.kal",
+  );
+  // _renderComponent must record the instance's function props so a delegated
+  // handler inside the child can resolve them at click time (client-only).
+  assert.ok(result.code.includes("__kal_instance_props__"));
+  assert.ok(result.code.includes('typeof window !== "undefined"'));
+});

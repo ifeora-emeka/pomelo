@@ -654,6 +654,11 @@ export function transformTemplate(
     var unwrappedProps = {};
     for (var _k in props) { unwrappedProps[_k] = typeof props[_k] === "function" ? props[_k] : _unwrapSignal(props[_k]); }
     var _s = C.setup ? Object.assign({}, C.setup(props), props) : props;
+    if (typeof window !== "undefined" && C.componentId) {
+      var _fp = {};
+      for (var _fk in _s) { if (typeof _s[_fk] === "function") _fp[_fk] = _s[_fk]; }
+      (globalThis.__kal_instance_props__ || (globalThis.__kal_instance_props__ = {}))[C.componentId] = _fp;
+    }
     var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-kal-loop-item-' + e[0] + '="' + _escapeAttr(JSON.stringify(e[1])) + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
     return '<span data-kal-component style="display:contents"' + (_a ? ' ' + _a : '') + '>' + C.render(_s) + '</span>';
   }

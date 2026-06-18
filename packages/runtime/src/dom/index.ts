@@ -43,6 +43,48 @@ function resolveHandler(ref: string): EventHandler | null {
   return handlers[index];
 }
 
+type InstancePropsRegistry = Record<string, Record<string, unknown>>;
+
+// Build the $state a delegated handler runs against. Compiled handlers read
+// component props and loop variables from $state, but the live proxy only holds
+// the root component's state. Overlay the handler's component-instance function
+// props (registered during render) and the loop scope on top of the proxy;
+// reads/writes for keys not in the overlay fall through to the reactive proxy.
+function buildHandlerState(
+  ref: string,
+  stateProxy: Record<string, unknown>,
+  loopScope: Record<string, unknown>,
+): Record<string, unknown> {
+  const sep = ref.indexOf("::");
+  const componentId = sep === -1 ? ref : ref.slice(0, sep);
+  const registry = (globalThis as { __kal_instance_props__?: InstancePropsRegistry })
+    .__kal_instance_props__;
+  const instanceProps = registry && registry[componentId];
+
+  const overlay: Record<string, unknown> = {};
+  if (instanceProps) Object.assign(overlay, instanceProps);
+  if (loopScope) Object.assign(overlay, loopScope);
+  if (Object.keys(overlay).length === 0) return stateProxy;
+
+  return new Proxy(stateProxy, {
+    has(target, key) {
+      return key in overlay || key in target;
+    },
+    get(target, key) {
+      if (key in overlay) return overlay[key as string];
+      return target[key as string];
+    },
+    set(target, key, value) {
+      if (key in overlay) {
+        overlay[key as string] = value;
+        return true;
+      }
+      target[key as string] = value;
+      return true;
+    },
+  }) as Record<string, unknown>;
+}
+
 // Fine-grained bindings: read-only thunks returning one expression's value.
 type BindingFn = (state: Record<string, unknown>) => unknown;
 type BindingRegistry = Record<string, BindingFn[]>;
@@ -297,10 +339,21 @@ export function setupEventDelegation(
               const handler = resolveHandler(ref);
               if (handler) {
                 try {
+                  // Compiled handlers read everything (component props, loop
+                  // vars) from $state. Overlay the component instance's
+                  // function props and the loop scope onto the live root proxy
+                  // so a handler in a nested component (or inside a loop)
+                  // resolves the right values while root reads/writes stay
+                  // reactive.
+                  const handlerState = buildHandlerState(
+                    ref,
+                    stateProxy,
+                    loopScope,
+                  );
                   // Batch all state writes in a handler into one re-render.
                   let result: unknown;
                   $batch(() => {
-                    result = handler(stateProxy, loopScope, event);
+                    result = handler(handlerState, loopScope, event);
                   });
                   if (typeof result === "function") {
                     (result as (e: Event) => void)(event);
@@ -331,9 +384,20 @@ export function setupEventDelegation(
 // One-time render of an HTML string into a container via morph diffing.
 // Used for the initial paint of fine-grained components and for every change
 // in coarse (whole-component) mode.
+// A layout's render produces a full `<html><head>…</head><body>…</body></html>`
+// document, but the hydration container (#app) holds only the body's inner
+// content. Re-rendering the whole document into #app would leak <head> nodes and
+// wipe the page, so extract the body's inner HTML when a full document is seen.
+function extractAppHtml(html: string): string {
+  if (typeof DOMParser === "undefined") return html;
+  if (!/<html[\s>]/i.test(html) && !/<body[\s>]/i.test(html)) return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return doc.body ? doc.body.innerHTML : html;
+}
+
 function morphInto(container: HTMLElement, html: string): void {
   const temp = document.createElement("div");
-  temp.innerHTML = html;
+  temp.innerHTML = extractAppHtml(html);
 
   const oldLoader = container.querySelector(".loader-wrap");
   if (oldLoader) oldLoader.remove();
@@ -612,7 +676,7 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
         };
 
         const temp = document.createElement("div");
-        temp.innerHTML = combinedRender(combinedState);
+        temp.innerHTML = extractAppHtml(combinedRender(combinedState));
 
         const oldLoader = appContainer.querySelector(".loader-wrap");
         if (oldLoader) {
