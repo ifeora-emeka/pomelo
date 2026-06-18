@@ -1,0 +1,62 @@
+<Server>
+  $meta(() => ({
+    title: "Kallo — TypeScript-first fullstack framework on Express",
+    description:
+      "Build server-rendered apps with HTML-first templating, a reactive client runtime, file-based routing, and an Express mental model. TypeScript from end to end.",
+    canonical: "https://kallo.idegin.com/",
+  }));
+</Server>
+
+<View>
+  <section class="text-center max-w-3xl mx-auto pt-10 pb-16">
+    <img src="/kallo-128.png" alt="Kallo" class="w-20 h-20 mx-auto rounded-2xl shadow-lg mb-6" />
+    <span class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-700 bg-primary-100 dark:bg-primary-950/60 dark:text-primary-300 px-3 py-1 rounded-full mb-5">TypeScript-first · HTML-first</span>
+    <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] mb-5">
+      The fullstack framework that feels like <span class="text-primary-600">Express</span>.
+    </h1>
+    <p class="text-lg text-muted leading-relaxed mb-8 max-w-2xl mx-auto">
+      Kallo pairs the simplicity of Express with a compiler, a tiny reactive client runtime, and modern file-based routing — so you ship server-rendered apps without leaving HTML and TypeScript behind.
+    </p>
+    <div class="flex flex-wrap items-center justify-center gap-3 mb-8">
+      <a href="/docs/introduction" class="px-6 py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold transition-colors">Get started →</a>
+      <a href="https://github.com/ifeora-emeka/kallo" target="_blank" class="px-6 py-3 rounded-xl border border-border bg-bg-secondary hover:bg-bg-tertiary font-semibold transition-colors">View on GitHub</a>
+    </div>
+    <div class="inline-flex items-center gap-3 px-4 py-2.5 rounded-xl bg-secondary-950 text-neutral-100 font-mono text-sm">
+      <span class="text-primary-400">$</span>
+      <span>npm create kallo-app@latest my-app</span>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto pb-10">
+    <div class="rounded-2xl border border-border bg-bg-secondary p-6">
+      <div class="text-2xl mb-3">🧩</div>
+      <h3 class="font-bold text-lg mb-1.5">Single-file components</h3>
+      <p class="text-sm text-muted leading-relaxed">Compose <code class="text-primary-600">&lt;Server&gt;</code>, <code class="text-primary-600">&lt;Client&gt;</code>, <code class="text-primary-600">&lt;View&gt;</code> and <code class="text-primary-600">&lt;Style&gt;</code> in one <code class="text-primary-600">.kal</code> file.</p>
+    </div>
+    <div class="rounded-2xl border border-border bg-bg-secondary p-6">
+      <div class="text-2xl mb-3">🗂️</div>
+      <h3 class="font-bold text-lg mb-1.5">File-based routing</h3>
+      <p class="text-sm text-muted leading-relaxed">The file system is the router — with nested layouts, dynamic params, and catch-all routes.</p>
+    </div>
+    <div class="rounded-2xl border border-border bg-bg-secondary p-6">
+      <div class="text-2xl mb-3">⚡</div>
+      <h3 class="font-bold text-lg mb-1.5">Reactive runtime</h3>
+      <p class="text-sm text-muted leading-relaxed">A tiny runtime hydrates SSR HTML and keeps <code class="text-primary-600">$store</code> / <code class="text-primary-600">$local</code> state in sync.</p>
+    </div>
+    <div class="rounded-2xl border border-border bg-bg-secondary p-6">
+      <div class="text-2xl mb-3">🚀</div>
+      <h3 class="font-bold text-lg mb-1.5">Server-side data</h3>
+      <p class="text-sm text-muted leading-relaxed">Fetch data in <code class="text-primary-600">$page</code> and set SEO with <code class="text-primary-600">$meta</code> — rendered on the server.</p>
+    </div>
+    <div class="rounded-2xl border border-border bg-bg-secondary p-6">
+      <div class="text-2xl mb-3">🎨</div>
+      <h3 class="font-bold text-lg mb-1.5">Tailwind built-in</h3>
+      <p class="text-sm text-muted leading-relaxed">Tailwind CSS v4 is wired up out of the box, with theme tokens and dark mode.</p>
+    </div>
+    <div class="rounded-2xl border border-border bg-bg-secondary p-6">
+      <div class="text-2xl mb-3">🛠️</div>
+      <h3 class="font-bold text-lg mb-1.5">Great DX</h3>
+      <p class="text-sm text-muted leading-relaxed">A first-class VS Code extension brings highlighting, IntelliSense, and diagnostics to <code class="text-primary-600">.kal</code>.</p>
+    </div>
+  </section>
+</View>

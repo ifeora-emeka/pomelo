@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+@source "../**/*.kal";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Primary — Kallo orange (#fd8d35) */
+  --color-primary-50: #fff7ed;
+  --color-primary-100: #ffedd5;
+  --color-primary-200: #fed7aa;
+  --color-primary-300: #fdba74;
+  --color-primary-400: #fba94f;
+  --color-primary-500: #fd8d35;
+  --color-primary-600: #ea700f;
+  --color-primary-700: #c2540f;
+  --color-primary-800: #9a4314;
+  --color-primary-900: #7c3a14;
+  --color-primary-950: #431b07;
+
+  /* Secondary — slate teal (#2f4858) */
+  --color-secondary-50: #f2f6f8;
+  --color-secondary-100: #dde8ed;
+  --color-secondary-200: #bfd2db;
+  --color-secondary-300: #95b1bf;
+  --color-secondary-400: #65899c;
+  --color-secondary-500: #4b6e80;
+  --color-secondary-600: #3f5b6b;
+  --color-secondary-700: #2f4858;
+  --color-secondary-800: #2a3d49;
+  --color-secondary-900: #26343d;
+  --color-secondary-950: #131d24;
+
+  /* Accent — deep maroon (#610200) */
+  --color-accent-50: #fef2f2;
+  --color-accent-100: #fde3e3;
+  --color-accent-200: #fbcbcb;
+  --color-accent-300: #f7a3a3;
+  --color-accent-400: #f06d6d;
+  --color-accent-500: #e23f3f;
+  --color-accent-600: #c52424;
+  --color-accent-700: #a31c1c;
+  --color-accent-800: #861c1c;
+  --color-accent-900: #610200;
+  --color-accent-950: #3d0100;
+
+  /* Neutral — warm gray tuned to the brand surface (#dfe0df) */
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f4f5f4;
+  --color-neutral-200: #dfe0df;
+  --color-neutral-300: #c9cbc9;
+  --color-neutral-400: #a3a6a4;
+  --color-neutral-500: #7a7d7b;
+  --color-neutral-600: #5b5f5d;
+  --color-neutral-700: #434745;
+  --color-neutral-800: #2b2e2d;
+  --color-neutral-900: #1a1c1b;
+  --color-neutral-950: #0e0f0f;
+
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+
+  --font-sans: "Outfit", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f8f8;
+  --bg-tertiary: #eef0ef;
+  --foreground: #1a1c1b;
+  --muted: #5b5f5d;
+  --border: #e3e5e3;
+}
+
+.dark {
+  --bg-primary: #0e0f0f;
+  --bg-secondary: #16181a;
+  --bg-tertiary: #1f2224;
+  --foreground: #ececeb;
+  --muted: #9aa0a0;
+  --border: #2a2e30;
+}
+
+html { color-scheme: light dark; scroll-behavior: smooth; scroll-padding-top: 6rem; }
+
+body {
+  margin: 0;
+  background-color: var(--bg-primary);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+* { box-sizing: border-box; }
+a { text-decoration: none; color: inherit; }
+
+.kallo-scroll { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.kallo-scroll::-webkit-scrollbar { width: 8px; }
+.kallo-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
+
+/* Rendered markdown */
+.docs-content { font-size: 1rem; line-height: 1.75; color: var(--foreground); }
+.docs-content > *:first-child { margin-top: 0; }
+.docs-content h1 { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 1.25rem; }
+.docs-content h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; margin: 2.5rem 0 1rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); scroll-margin-top: 6rem; }
+.docs-content h3 { font-size: 1.2rem; font-weight: 700; margin: 1.75rem 0 0.75rem; scroll-margin-top: 6rem; }
+.docs-content p { margin: 0 0 1.15rem; }
+.docs-content a { color: var(--color-primary-600); font-weight: 500; border-bottom: 1px solid color-mix(in srgb, var(--color-primary-500) 35%, transparent); transition: border-color 0.15s ease; }
+.docs-content a:hover { border-bottom-color: var(--color-primary-500); }
+.dark .docs-content a { color: var(--color-primary-400); }
+.docs-content ul, .docs-content ol { margin: 0 0 1.15rem; padding-left: 1.4rem; }
+.docs-content li { margin: 0.4rem 0; }
+.docs-content li::marker { color: var(--color-primary-500); }
+.docs-content blockquote { margin: 1.25rem 0; padding: 0.75rem 1.1rem; border-left: 3px solid var(--color-primary-500); background: var(--bg-secondary); border-radius: 0 0.5rem 0.5rem 0; color: var(--muted); }
+.docs-content blockquote p { margin: 0; }
+.docs-content :not(pre) > code { font-family: var(--font-mono); font-size: 0.85em; background: var(--bg-tertiary); border: 1px solid var(--border); padding: 0.12rem 0.4rem; border-radius: 0.4rem; color: var(--color-accent-700); }
+.dark .docs-content :not(pre) > code { color: var(--color-primary-300); }
+.docs-content pre { margin: 0 0 1.25rem; padding: 1.1rem 1.25rem; background: #131d24; border: 1px solid var(--color-secondary-800); border-radius: 0.75rem; overflow-x: auto; font-size: 0.875rem; line-height: 1.7; }
+.docs-content pre code { font-family: var(--font-mono); color: #e6edf3; background: none; padding: 0; border: 0; }
+.docs-content table { width: 100%; border-collapse: collapse; margin: 0 0 1.25rem; font-size: 0.925rem; }
+.docs-content th, .docs-content td { text-align: left; padding: 0.6rem 0.85rem; border: 1px solid var(--border); }
+.docs-content th { background: var(--bg-secondary); font-weight: 600; }
+.docs-content hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+.docs-content img { max-width: 100%; border-radius: 0.75rem; }
+.heading-anchor { color: var(--muted); margin-right: 0.4rem; opacity: 0; transition: opacity 0.15s ease; }
+.docs-content h2:hover .heading-anchor, .docs-content h3:hover .heading-anchor { opacity: 1; }
+
+/* highlight.js */
+.hljs-comment, .hljs-quote { color: #7d8b99; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-type { color: #fd8d35; }
+.hljs-string, .hljs-attr, .hljs-template-tag { color: #7ee787; }
+.hljs-number, .hljs-symbol, .hljs-built_in { color: #f0a55a; }
+.hljs-title, .hljs-title.function_, .hljs-section { color: #79c0ff; }
+.hljs-name, .hljs-tag { color: #ffa657; }
+.hljs-attribute, .hljs-variable { color: #d2a8ff; }
+.hljs-meta { color: #8b949e; }

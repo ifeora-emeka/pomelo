@@ -1,0 +1,92 @@
+<Server>
+  import { getDoc, getOrderedDocs } from "../../../lib/docs.js";
+
+  $page(async ({ params }) => {
+    const slug = String(params.slug || "").replace(/\/+$/, "");
+    const doc = getDoc(slug);
+    if (!doc) return { doc: null, slug };
+
+    const ordered = getOrderedDocs();
+    const idx = ordered.findIndex((d) => d.slug === doc.slug);
+    return {
+      doc,
+      slug,
+      prev: idx > 0 ? ordered[idx - 1] : null,
+      next: idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null,
+    };
+  });
+
+  $meta((state) => {
+    if (!state.doc) {
+      return { title: "Not found — Kallo", robots: "noindex,follow" };
+    }
+    const url = "https://kallo.idegin.com/docs/" + state.doc.slug;
+    return {
+      title: state.doc.title + " — Kallo",
+      description: state.doc.description,
+      canonical: url,
+      robots: "index,follow",
+      openGraph: {
+        title: state.doc.title + " — Kallo",
+        description: state.doc.description,
+        type: "article",
+        url,
+      },
+      twitter: { card: "summary_large_image", title: state.doc.title + " — Kallo", description: state.doc.description },
+    };
+  });
+</Server>
+
+<View>
+  <When condition="doc">
+    <div class="flex gap-10">
+      <article class="docs-content min-w-0 flex-1 max-w-3xl">
+        <nav class="not-prose mb-6 text-xs font-medium text-muted flex items-center gap-2">
+          <a href="/docs/introduction" class="hover:text-foreground">Docs</a>
+          <span>/</span>
+          <span class="text-primary-600">{{ doc.category }}</span>
+        </nav>
+        {{{ doc.html }}}
+
+        <div class="flex items-center justify-between gap-4 mt-12 pt-6 border-t border-border not-prose">
+          <When condition="prev">
+            <a :href="'/docs/' + prev.slug" class="group flex-1 rounded-xl border border-border bg-bg-secondary hover:border-primary-400 p-4 transition-colors">
+              <span class="block text-xs text-muted mb-1">← Previous</span>
+              <span class="block font-semibold text-foreground group-hover:text-primary-600">{{ prev.title }}</span>
+            </a>
+          </When>
+          <When condition="next">
+            <a :href="'/docs/' + next.slug" class="group flex-1 text-right rounded-xl border border-border bg-bg-secondary hover:border-primary-400 p-4 transition-colors">
+              <span class="block text-xs text-muted mb-1">Next →</span>
+              <span class="block font-semibold text-foreground group-hover:text-primary-600">{{ next.title }}</span>
+            </a>
+          </When>
+        </div>
+      </article>
+
+      <aside class="hidden xl:block w-56 shrink-0">
+        <div class="sticky top-24">
+          <When condition="doc.headings.length > 0">
+            <h5 class="text-[11px] font-bold uppercase tracking-wider text-muted mb-3">On this page</h5>
+            <nav class="flex flex-col gap-1.5 text-sm border-l border-border">
+              <Each of="doc.headings" as="h">
+                <a :href="'#' + h.id"
+                  :class="h.level === 3 ? 'pl-6 py-0.5 -ml-px border-l border-transparent text-muted hover:text-primary-600 hover:border-primary-400 transition-colors' : 'pl-3 py-0.5 -ml-px border-l border-transparent text-foreground/80 hover:text-primary-600 hover:border-primary-400 transition-colors'">
+                  {{ h.text }}
+                </a>
+              </Each>
+            </nav>
+          </When>
+        </div>
+      </aside>
+    </div>
+  </When>
+  <Else>
+    <div class="max-w-xl mx-auto text-center py-24">
+      <p class="text-6xl mb-4">🍊</p>
+      <h1 class="text-3xl font-extrabold mb-2">Page not found</h1>
+      <p class="text-muted mb-6">No documentation page exists for <code class="px-1.5 py-0.5 rounded bg-bg-tertiary border border-border">{{ slug }}</code>.</p>
+      <a href="/docs/introduction" class="inline-block px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold transition-colors">Back to the docs</a>
+    </div>
+  </Else>
+</View>

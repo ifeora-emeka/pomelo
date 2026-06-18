@@ -1,6 +1,6 @@
 {
   "name": "@kallojs/server",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "license": "MIT",
@@ -19,5 +19,6 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6"
-  }
+  },
+  "homepage": "https://kallo.idegin.com"
 }

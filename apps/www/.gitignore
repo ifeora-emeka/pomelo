@@ -1,0 +1,7 @@
+node_modules
+.kallo
+.kallo-cache
+dist
+.env.local
+.DS_Store
+public/tailwind.css

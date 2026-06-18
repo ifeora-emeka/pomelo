@@ -1,0 +1,8 @@
+<View>
+  <div class="flex flex-col items-center justify-center text-center py-24 gap-4">
+    <div class="text-7xl font-black text-primary-600">404</div>
+    <h1 class="text-3xl font-extrabold">Page not found</h1>
+    <p class="text-muted max-w-md">The page you're looking for doesn't exist or has moved.</p>
+    <a href="/" class="px-6 py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold transition-colors">Back to shop</a>
+  </div>
+</View>

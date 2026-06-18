@@ -7,8 +7,16 @@
 
 [![npm](https://img.shields.io/npm/v/@kallojs/cli.svg)](https://www.npmjs.com/package/@kallojs/cli)
 [![license](https://img.shields.io/npm/l/@kallojs/cli.svg)](./LICENSE)
+[![docs](https://img.shields.io/badge/docs-kallo.idegin.com-fd8d35)](https://kallo.idegin.com)
 
-> **Current version: `0.0.2`** — Kallo is in early development. APIs may change between releases.
+> **Current version: `0.0.4`** — Kallo is in early development. APIs may change between releases.
+
+## 📚 Documentation
+
+**Full documentation lives at [kallo.idegin.com](https://kallo.idegin.com).**
+
+The docs content is maintained in [`apps/docs`](./apps/docs) (Markdown) and rendered by the
+Kallo-powered docs site in [`apps/www`](./apps/www) — Kallo's docs are built with Kallo.
 
 ---
 
@@ -68,9 +76,9 @@ Kallo is structured as a Turborepo monorepo to maintain clean boundaries between
 
 ```text
 kallo/
-├── apps/             # (planned) demo/docs apps — currently placeholders
-│   ├── www/          # Marketing website for Kallo (planned)
-│   ├── docs/         # Documentation website (planned)
+├── apps/
+│   ├── docs/         # Documentation content (Markdown — source of truth)
+│   ├── www/          # Docs website (a Kallo app that renders apps/docs) → kallo.idegin.com
 │   └── playground/   # Interactive browser playground (planned)
 ├── packages/
 │   ├── parser/       # Parses .kal files into a deterministic AST
