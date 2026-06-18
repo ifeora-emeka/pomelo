@@ -1,5 +1,12 @@
 import { KalloLogger, rewriteRelativeImports } from "@kallojs/shared";
-import { scanRoutes, compileAPIRoutes, resolveLayoutChain } from "@kallojs/server";
+import {
+  scanRoutes,
+  compileAPIRoutes,
+  resolveLayoutChain,
+  rewriteBareModuleImports,
+  compileTypeScriptDeps,
+  compileKalDeps,
+} from "@kallojs/server";
 import { compile } from "@kallojs/compiler";
 import fs from "node:fs";
 import path from "node:path";
@@ -55,7 +62,9 @@ export function executeBuildCommand(_args: string[]): boolean {
         route.filePath,
         cacheFile,
       );
-      fs.writeFileSync(cacheFile, rewroteCode);
+      fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteCode));
+      compileTypeScriptDeps(cacheFile, cacheDir);
+      compileKalDeps(cacheFile, cacheDir, process.cwd());
       if (compiled.css) {
         combinedCSS += compiled.css + "\n";
       }
@@ -73,7 +82,9 @@ export function executeBuildCommand(_args: string[]): boolean {
           layoutPath,
           layoutCacheFile,
         );
-        fs.writeFileSync(layoutCacheFile, layoutRewroteCode);
+        fs.writeFileSync(layoutCacheFile, rewriteBareModuleImports(layoutRewroteCode));
+        compileTypeScriptDeps(layoutCacheFile, cacheDir);
+        compileKalDeps(layoutCacheFile, cacheDir, process.cwd());
         if (layoutCompiled.css) {
           combinedCSS += layoutCompiled.css + "\n";
         }
@@ -111,7 +122,9 @@ export function executeBuildCommand(_args: string[]): boolean {
         specialFile,
         cacheFile
       );
-      fs.writeFileSync(cacheFile, rewroteCode);
+      fs.writeFileSync(cacheFile, rewriteBareModuleImports(rewroteCode));
+      compileTypeScriptDeps(cacheFile, cacheDir);
+      compileKalDeps(cacheFile, cacheDir, process.cwd());
       if (compiled.css) {
         combinedCSS += compiled.css + "\n";
       }
@@ -131,7 +144,9 @@ export function executeBuildCommand(_args: string[]): boolean {
           layoutPath,
           layoutCacheFile
         );
-        fs.writeFileSync(layoutCacheFile, layoutRewroteCode);
+        fs.writeFileSync(layoutCacheFile, rewriteBareModuleImports(layoutRewroteCode));
+        compileTypeScriptDeps(layoutCacheFile, cacheDir);
+        compileKalDeps(layoutCacheFile, cacheDir, process.cwd());
         if (layoutCompiled.css) {
           combinedCSS += layoutCompiled.css + "\n";
         }

@@ -31,7 +31,7 @@ export function handleCLI(context: CLIContext): boolean | Promise<boolean> {
     context.command === "--version" ||
     context.command === "-v"
   ) {
-    console.log("0.0.1");
+    console.log("0.0.2");
     return true;
   } else {
     KalloLogger.warn(`Unknown command: ${context.command}`);

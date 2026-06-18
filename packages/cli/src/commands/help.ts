@@ -3,15 +3,21 @@ export function executeHelpCommand(args: string[]): boolean {
 
   if (subCommand === "create") {
     console.log(`
-Usage: kallo create <project-name>
+Usage: kallo create <project-name> [options]
 
-Scaffold a new fullstack Kallo project in the target directory.
+Scaffold a new fullstack Kallo ecommerce starter in the target directory.
 
 Arguments:
   <project-name>  The directory name to create for the project (required)
 
+Options:
+  --name <text>     Store / brand display name
+  --accent <color>  Accent color: violet | blue | emerald | rose (default: violet)
+  --pm <manager>    Package manager: pnpm | npm | yarn (default: pnpm)
+  -y, --yes         Skip prompts and accept defaults
+
 Example:
-  kallo create my-app
+  kallo create my-shop --accent emerald --pm npm
 `);
     return true;
   }

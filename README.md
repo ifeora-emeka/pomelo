@@ -8,20 +8,22 @@
 [![npm](https://img.shields.io/npm/v/@kallojs/cli.svg)](https://www.npmjs.com/package/@kallojs/cli)
 [![license](https://img.shields.io/npm/l/@kallojs/cli.svg)](./LICENSE)
 
-> **Current version: `0.0.1`** — Kallo is in early development. APIs may change between releases.
+> **Current version: `0.0.2`** — Kallo is in early development. APIs may change between releases.
 
 ---
 
 ## ⚡ Getting Started
 
-Scaffold a new Kallo app with the CLI (no global install required):
+Scaffold a new Kallo app with the official `create` command — it generates a complete, server-rendered **ecommerce starter** that showcases SSR data fetching, SEO metadata, file-based routing, reactive stores, dark mode, and Tailwind:
 
 ```bash
-npx @kallojs/cli create my-app
-cd my-app
+npm create kallo-app@latest my-store
+cd my-store
 pnpm install
 pnpm dev
 ```
+
+Customize the scaffold with flags: `--accent violet|blue|emerald|rose`, `--name "My Store"`, `--pm pnpm|npm|yarn`, `-y` to skip prompts.
 
 Then open [http://localhost:3000](http://localhost:3000).
 

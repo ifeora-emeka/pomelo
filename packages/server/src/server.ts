@@ -45,7 +45,7 @@ function getCacheDir(): string {
   }
 }
 
-function rewriteBareModuleImports(code: string): string {
+export function rewriteBareModuleImports(code: string): string {
   const pomPackages = ["@kallojs/runtime", "@kallojs/shared", "@kallojs/types"];
   let result = code;
   for (const pkg of pomPackages) {
@@ -558,7 +558,7 @@ export async function handleSSRStream(
   }
 }
 
-function compileTypeScriptDeps(
+export function compileTypeScriptDeps(
   cacheFile: string,
   cacheDir: string,
   visited: Set<string> = new Set(),
@@ -625,7 +625,7 @@ function compileTypeScriptDeps(
   }
 }
 
-function compileKalDeps(
+export function compileKalDeps(
   cacheFile: string,
   cacheDir: string,
   projectRoot: string,
