@@ -8,6 +8,83 @@ function runCmd(pm: string, script: string): string {
   return pm === "npm" ? `npm run ${script}` : `${pm} ${script}`;
 }
 
+// Locate the docs bundled into the published CLI (dist/kallo-docs), with a
+// monorepo fallback for running against source.
+function resolveBundledDocsDir(): string | null {
+  const bundled = path.join(__dirname, "..", "kallo-docs");
+  if (fs.existsSync(bundled)) return bundled;
+  const repoDocs = path.resolve(process.cwd(), "apps/docs");
+  if (fs.existsSync(repoDocs)) return repoDocs;
+  return null;
+}
+
+// Files added to every scaffolded app regardless of template: brand icons, an
+// AGENT.md guide, and the bundled docs (so developers and AI agents have local
+// documentation alongside the live docs at kallo.idegin.com).
+function addSharedScaffoldFiles(
+  files: Record<string, string | Buffer>,
+  opts: BuildOpts,
+): void {
+  const icon = Buffer.from(KALLO_ICON_B64, "base64");
+  files["public/kallo-128.png"] = icon;
+  files["public/favicon.ico"] = icon;
+  files["AGENT.md"] = agentMd(opts);
+
+  const docsDir = resolveBundledDocsDir();
+  if (docsDir) {
+    for (const entry of fs.readdirSync(docsDir)) {
+      if (!entry.endsWith(".md")) continue;
+      files[".agents/kallo-docs/" + entry] = fs.readFileSync(
+        path.join(docsDir, entry),
+        "utf-8",
+      );
+    }
+  }
+}
+
+function agentMd(opts: BuildOpts): string {
+  return `# ${opts.storeName}
+
+This project was scaffolded with **Kallo** — a TypeScript-first, HTML-first
+fullstack framework built on Express. This file orients human contributors and
+AI coding agents.
+
+## Where the docs live
+
+- **Online:** https://kallo.idegin.com
+- **Local copy:** [\`.agents/kallo-docs/\`](./.agents/kallo-docs) — the full Kallo
+  documentation in Markdown, bundled with this project. Start with
+  [\`introduction.md\`](./.agents/kallo-docs/introduction.md).
+
+When you need to understand a Kallo concept (routing, \`<Server>\`/\`<Client>\`/\`<View>\`
+blocks, \`$page\`, \`$meta\`, \`$store\`, \`$local\`, templating, styling), read the
+relevant file in \`.agents/kallo-docs/\` before guessing.
+
+## Project shape
+
+- \`src/view/\` — file-based routes. \`page.kal\` = a route, \`layout.kal\` = a shell,
+  \`[param]\` = dynamic, \`[...param]\` = catch-all.
+- \`src/components/\` — reusable \`.kal\` components.
+- \`src/stores/\` — shared reactive \`$store\` state.
+- \`src/api/\` — \`$router\` HTTP endpoints.
+- \`src/styles/global.css\` — Tailwind v4 entry + theme tokens.
+- \`public/\` — static assets served at \`/\`.
+
+## Commands
+
+- \`${runCmd(opts.packageManager, "dev")}\` — dev server (HMR + Tailwind watch)
+- \`${runCmd(opts.packageManager, "build")}\` — production build
+- \`${runCmd(opts.packageManager, "start")}\` — run the production server
+
+## Conventions
+
+- Single-file components use the \`.kal\` extension.
+- Escaped interpolation is \`{{ expr }}\`; raw HTML is \`{{{ expr }}}\` (use only with
+  trusted HTML).
+- Server-only code goes in \`<Server>\` blocks; it is stripped from the client bundle.
+`;
+}
+
 // ---------------------------------------------------------------------------
 // Prompt helper — falls back to the default in non-interactive environments.
 // ---------------------------------------------------------------------------
@@ -102,6 +179,7 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
   try {
     const opts: BuildOpts = { pkgName, storeName, accent, packageManager };
     const files = template === "empty" ? buildEmptyFiles(opts) : buildStoreFiles(opts);
+    addSharedScaffoldFiles(files, opts);
     for (const [rel, content] of Object.entries(files)) {
       const full = path.join(targetDir, rel);
       fs.mkdirSync(path.dirname(full), { recursive: true });
@@ -199,7 +277,7 @@ function buildStoreFiles(opts: BuildOpts): Record<string, string | Buffer> {
   files["public/robots.txt"] = `User-agent: *\nAllow: /\nSitemap: /sitemap.xml\n`;
   files["public/sitemap.xml"] =
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>/</loc><lastmod>${today}</lastmod><priority>1.0</priority></url>\n</urlset>\n`;
-  files["public/favicon.ico"] = Buffer.from(FAVICON_B64, "base64");
+  files["public/favicon.ico"] = Buffer.from(KALLO_ICON_B64, "base64");
 
   // ---- meta ---------------------------------------------------------------
   files[".gitignore"] = `node_modules\n.kallo\n.kallo-cache\ndist\n.env.local\n.DS_Store\n`;
@@ -377,6 +455,7 @@ function emptyLayoutKal(storeName: string): string {
 <View>
   <html lang="en">
     <head>
+      <link rel="icon" type="image/png" href="/kallo-128.png">
       <link rel="stylesheet" href="/tailwind.css">
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1089,6 +1168,7 @@ function layoutKal(storeName: string): string {
 <View>
   <html lang="en">
     <head>
+      <link rel="icon" type="image/png" href="/kallo-128.png">
       <link rel="stylesheet" href="/tailwind.css">
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1359,9 +1439,9 @@ const ERROR_KAL = `<View>
 </View>
 `;
 
-// A tiny valid 16x16 PNG used as the favicon.
-const FAVICON_B64 =
-  "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMElEQVR42mP8z8BQD8AEjDqAYVAZGA2DyoBhUBkYDYPKgGFQGRgNg8qAYVAZGA2DCgCt2gf82rr1OQAAAABJRU5ErkJggg==";
+// The Kallo logo, embedded so scaffolded apps ship a real favicon + icon.
+const KALLO_ICON_B64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAEEUlEQVR4nO3d+U4UQRTF4XkXd1FZBH0qRFxQEVRURGWRt52NSZOuTvWsRKa7qm6de89J7v/Q3y8hYTrQ6XAcx3Ecx3Ecx5na1elmIf01cBE2Ot8q3J1Vd3W2Ob7TBff3+fT9mT/p74m7YaOLrcLd+cwFxL/6vTF/JxuMQmqjixdFDS+E7294sl4Mf60zhtgb/SvR/eWFP3vSz0rVHDwQ/vB4fNLPDno1PCj+8Hitup9rDGGZTcErwJ886Web9ebgleEPf/hbZQiTG10ugFeMX993hmAa35+0gdiIbzQCB0/88R2tFoOjZ+6kbaKP+Dfju/umOALi/x/fn7RV8CHhrx7e/mLgq4pgdPmyQMFfBn5hCAHxB1+f1idt2HhW8OsIIuDDRmANfxxBePzBl+qkTZeaRfw6ggj4UAFYxl8YQQB8d4dP8o+A+DMRBMT3J21841DwkwUQAT/bCIi/+GLgDw6qkzafGgp++Ru+5AFEwM8qACT88te5SQOIhN8/WCn6n1fkI0DDFw8gIL4/4i/5wY5YABHwRSNAxBcLICJ+f18gAFR8kQAi4/uTDQAEv/wcP2kAifD7+4/TBYCMLx5AJHx3nxJFgIwvGkBk/CQBoOOXr3CJBJAAP0kE6Pj+HT6t+P2PEQPQgp80gMT41T2KE4EW/BQRSOJHCUAbvn+BUyO+uw+BI9CI79/f04gfKQB9+P4FTm34QQPQjh/jBU5p/KAREB8Tv78XOgDiQ+H39h62D4D4uPj+2gdAfFj83vu2ARAfGj9sAMSHww8XAPEh8VsFQHx8fHfvHjSLgPg68JsHQHwV+K0CID4+fuMAiK8Dv30AxIfG771tEwDx4fGbB0B8FfjhAiA+JH6YAIgPi997c3/5AIivB99fswiIbxPfBUB8FfhhAiA+LH77AIgPjd/bbRMA8eHxmwdAfBX44QIgPiR+mACID4vf3b3XMgDiQ+N3X7cJgPjw+I0DcBEQ3y7+XADEh8MPFwDxIfHDBEB8WPzuTtsAiA+N3zoAHwHxjeKXIz4mfrgAiA+J3925G+4PRRHfMP5UAMSHwI8TAPFh8LuvAgfgIiC+XfxxAMTPHT9aAFUExDeL7wIgftb40QOYioD49vDrAIifHX6yAFwExLeLXwVA/JzwkwdQR0B8m/guAOJngd/dFgpgLgLi28KfioD4NvH9iG8YvzMZAPGT4GcXQDniG8b3I75hfD/iG8b3I75h/M5sAMRvjd/dvoMVQMdHQHyb+H7EN4w/OeIr/5l/mxHfML4f8Q3j+xHfMP7kiJ/pBzspR3zD+H7E59ws4Us/66ynGV/62UJNE770s4QeMr70s1M1JHzpZ6V+OeJLPxOzg/87fFz4xcCX/p64COs1/ZdqHMdxHMdxHIe6a9H0KNf75ZrOAAAAAElFTkSuQmCC";
 
 // ===========================================================================
 // README

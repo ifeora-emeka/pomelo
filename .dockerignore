@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.kallo
+**/.kallo-cache
+**/.turbo
+**/*.vsix
+**/public/tailwind.css
+.git
+.github
+*.log
