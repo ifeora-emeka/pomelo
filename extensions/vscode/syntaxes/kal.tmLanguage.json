@@ -1,0 +1,213 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Kallo",
+  "scopeName": "source.kal",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#server-block" },
+    { "include": "#client-block" },
+    { "include": "#view-block" },
+    { "include": "#style-block" },
+    { "include": "#head-block" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.block.html.kal",
+      "begin": "<!--",
+      "end": "-->",
+      "captures": {
+        "0": { "name": "punctuation.definition.comment.kal" }
+      }
+    },
+    "kallo-keywords": {
+      "match": "(?<![\\w$])(\\$(?:page|layout|meta|static|action|validate|rule|cache|revalidate|csrf|securityHeaders|rateLimit|uploads|files|file|router|guard|requireAuth|roles|auth|currentUser|abort|redirect|env|channel|pwa|local|store|use|watch|effect|computed|batch|model|subscribe|mount|destroy))\\b",
+      "name": "support.function.kallo.kal"
+    },
+    "server-block": {
+      "begin": "(<)(Server)\\b([^>]*)(>)",
+      "end": "(</)(Server)\\s*(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "patterns": [{ "include": "#tag-attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "name": "meta.block.server.kal",
+      "contentName": "meta.embedded.block.ts.kal",
+      "patterns": [
+        { "include": "#kallo-keywords" },
+        { "include": "source.ts" }
+      ]
+    },
+    "client-block": {
+      "begin": "(<)(Client)\\b([^>]*)(>)",
+      "end": "(</)(Client)\\s*(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "patterns": [{ "include": "#tag-attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "name": "meta.block.client.kal",
+      "contentName": "meta.embedded.block.ts.kal",
+      "patterns": [
+        { "include": "#kallo-keywords" },
+        { "include": "source.ts" }
+      ]
+    },
+    "head-block": {
+      "begin": "(<)(Head)\\b([^>]*)(>)",
+      "end": "(</)(Head)\\s*(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "patterns": [{ "include": "#tag-attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "name": "meta.block.head.kal",
+      "contentName": "meta.embedded.block.ts.kal",
+      "patterns": [
+        { "include": "#kallo-keywords" },
+        { "include": "source.ts" }
+      ]
+    },
+    "style-block": {
+      "begin": "(<)(Style|style)\\b([^>]*)(>)",
+      "end": "(</)(Style|style)\\s*(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "patterns": [{ "include": "#tag-attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "name": "meta.block.style.kal",
+      "contentName": "meta.embedded.block.css.kal",
+      "patterns": [{ "include": "source.css" }]
+    },
+    "view-block": {
+      "begin": "(<)(View)\\b([^>]*)(>)",
+      "end": "(</)(View)\\s*(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "patterns": [{ "include": "#tag-attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.block.kal" },
+        "3": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "name": "meta.block.view.kal",
+      "contentName": "meta.embedded.block.html.kal",
+      "patterns": [{ "include": "#view-content" }]
+    },
+    "view-content": {
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#interpolation" },
+        { "include": "#kallo-tag" },
+        { "include": "#html-tag" },
+        { "include": "text.html.basic" }
+      ]
+    },
+    "interpolation": {
+      "name": "meta.interpolation.kal",
+      "begin": "\\{\\{",
+      "end": "\\}\\}",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.embedded.begin.kal" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.section.embedded.end.kal" }
+      },
+      "contentName": "meta.embedded.expression.ts.kal",
+      "patterns": [{ "include": "source.ts" }]
+    },
+    "kallo-tag": {
+      "begin": "(</?)(Each|When|Show|Else|Slot|Portal|Image|Suspense|Boundary)\\b",
+      "end": "(/?>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "support.class.component.kallo.kal" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "name": "meta.tag.kallo.kal",
+      "patterns": [{ "include": "#tag-attributes" }]
+    },
+    "html-tag": {
+      "begin": "(</?)([a-zA-Z][\\w:-]*|[A-Z][\\w.]*)",
+      "end": "(/?>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.kal" },
+        "2": { "name": "entity.name.tag.kal" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.end.kal" }
+      },
+      "name": "meta.tag.kal",
+      "patterns": [{ "include": "#tag-attributes" }]
+    },
+    "tag-attributes": {
+      "patterns": [
+        { "include": "#directive-attribute" },
+        { "include": "#plain-attribute" }
+      ]
+    },
+    "directive-attribute": {
+      "begin": "(?:([:@])|(#)|(\\$))([\\w.-]+)(=)(\")",
+      "end": "(\")",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.directive.kal" },
+        "2": { "name": "punctuation.definition.directive.slot.kal" },
+        "3": { "name": "punctuation.definition.directive.kal" },
+        "4": { "name": "entity.other.attribute-name.directive.kal" },
+        "5": { "name": "punctuation.separator.key-value.kal" },
+        "6": { "name": "punctuation.definition.string.begin.kal" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.string.end.kal" }
+      },
+      "contentName": "meta.embedded.expression.ts.kal",
+      "patterns": [{ "include": "source.ts" }]
+    },
+    "plain-attribute": {
+      "patterns": [
+        {
+          "match": "([:@#]?[\\w.-]+)(=)(\"[^\"]*\"|'[^']*')",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.kal" },
+            "2": { "name": "punctuation.separator.key-value.kal" },
+            "3": { "name": "string.quoted.kal" }
+          }
+        },
+        {
+          "match": "[:@#]?[\\w.-]+",
+          "name": "entity.other.attribute-name.kal"
+        }
+      ]
+    }
+  }
+}
