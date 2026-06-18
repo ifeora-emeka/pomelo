@@ -35,7 +35,10 @@ function main() {
   runCommand("pnpm run build", "Building all packages and applications");
 
   // 4. Publish workspace packages
-  runCommand("pnpm -r publish --access public --no-git-checks", "Publishing packages to npm");
+  runCommand(
+    'pnpm -r --filter "./packages/*" publish --access public --no-git-checks',
+    "Publishing packages to npm",
+  );
 
   console.log("\n\x1b[32m[Release System] Release completed successfully! 🍊\x1b[0m\n");
 }

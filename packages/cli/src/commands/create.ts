@@ -3,6 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
 
+// npm requires `npm run <script>` for custom scripts; pnpm/yarn/bun alias `run`.
+function runCmd(pm: string, script: string): string {
+  return pm === "npm" ? `npm run ${script}` : `${pm} ${script}`;
+}
+
 // ---------------------------------------------------------------------------
 // Prompt helper — falls back to the default in non-interactive environments.
 // ---------------------------------------------------------------------------
@@ -84,6 +89,9 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
   }
   if (!ACCENTS[accent]) accent = "violet";
 
+  // 4. Template — "ecommerce" (default) or "empty" (minimal tasks starter).
+  const template = (flagValue(args, "--template") || "ecommerce").toLowerCase();
+
   if (fs.existsSync(targetDir)) {
     KalloLogger.warn(`Directory ${appName} already exists!`);
     return false;
@@ -92,7 +100,8 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
   KalloLogger.info(`Scaffolding Kallo store '${storeName}' in ${targetDir}...`);
 
   try {
-    const files = buildStoreFiles({ pkgName, storeName, accent, packageManager });
+    const opts: BuildOpts = { pkgName, storeName, accent, packageManager };
+    const files = template === "empty" ? buildEmptyFiles(opts) : buildStoreFiles(opts);
     for (const [rel, content] of Object.entries(files)) {
       const full = path.join(targetDir, rel);
       fs.mkdirSync(path.dirname(full), { recursive: true });
@@ -104,7 +113,7 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
     console.log("Next steps:");
     console.log(`  cd ${appName}`);
     console.log(`  ${packageManager} install`);
-    console.log(`  ${packageManager} dev`);
+    console.log(`  ${runCmd(packageManager, "dev")}`);
     console.log("\nThen open http://localhost:3000 — happy building! 🍊\n");
     return true;
   } catch (err) {
@@ -125,7 +134,7 @@ interface BuildOpts {
 
 function buildStoreFiles(opts: BuildOpts): Record<string, string | Buffer> {
   const { pkgName, storeName, accent, packageManager } = opts;
-  const kalloDep = process.env.KALLO_LOCAL_DEPS === "true" ? "workspace:*" : "^0.0.2";
+  const kalloDep = process.env.KALLO_LOCAL_DEPS === "true" ? "workspace:*" : "latest";
   const today = new Date().toISOString().split("T")[0];
 
   const files: Record<string, string | Buffer> = {};
@@ -197,6 +206,287 @@ function buildStoreFiles(opts: BuildOpts): Record<string, string | Buffer> {
   files["README.md"] = readmeMd(pkgName, storeName, packageManager);
 
   return files;
+}
+
+// ---------------------------------------------------------------------------
+// File map for the minimal "empty" starter — a small reactive tasks app that
+// still demonstrates the core of Kallo (a store, an API route, a component
+// rendered in a loop, and a server-rendered page) without the ecommerce demo.
+// ---------------------------------------------------------------------------
+function buildEmptyFiles(opts: BuildOpts): Record<string, string | Buffer> {
+  const { pkgName, storeName, accent, packageManager } = opts;
+  const kalloDep = process.env.KALLO_LOCAL_DEPS === "true" ? "workspace:*" : "latest";
+
+  const files: Record<string, string | Buffer> = {};
+
+  // ---- package.json -------------------------------------------------------
+  files["package.json"] = JSON.stringify(
+    {
+      name: pkgName,
+      version: "0.1.0",
+      private: true,
+      type: "module",
+      scripts: {
+        dev: "kallo dev",
+        build: "kallo build",
+        start: "kallo start",
+      },
+      dependencies: {
+        "@kallojs/runtime": kalloDep,
+        "@kallojs/server": kalloDep,
+      },
+      devDependencies: {
+        "@kallojs/cli": kalloDep,
+        tailwindcss: "^4.0.0",
+        "@tailwindcss/cli": "^4.0.0",
+      },
+    },
+    null,
+    2,
+  );
+
+  // ---- global.css (shared with the ecommerce template) --------------------
+  files["src/styles/global.css"] = buildGlobalCss(accent);
+
+  // ---- stores -------------------------------------------------------------
+  files["src/stores/tasks.ts"] = TASKS_TS;
+
+  // ---- api ----------------------------------------------------------------
+  files["src/api/index.ts"] = API_INDEX_TS;
+
+  // ---- components ---------------------------------------------------------
+  files["src/components/EachTask.kal"] = EACH_TASK_KAL;
+
+  // ---- views --------------------------------------------------------------
+  files["src/view/layout.kal"] = emptyLayoutKal(storeName);
+  files["src/view/page.kal"] = emptyPageKal(storeName);
+  files["src/view/not-found.kal"] = NOT_FOUND_KAL;
+  files["src/view/error.kal"] = ERROR_KAL;
+
+  // ---- env ----------------------------------------------------------------
+  files[".env"] = `# Public env vars are exposed to the client (KALLO_PUBLIC_*)\nKALLO_PUBLIC_APP_NAME=${storeName}\n`;
+  files[".env.local"] = `# Local overrides — DO NOT commit\nKALLO_PUBLIC_APP_NAME=${storeName} (Local)\n`;
+
+  // ---- meta ---------------------------------------------------------------
+  files[".gitignore"] = `node_modules\n.kallo\n.kallo-cache\ndist\n.env.local\n.DS_Store\n`;
+  files["README.md"] = emptyReadmeMd(pkgName, storeName, packageManager);
+
+  return files;
+}
+
+// ===========================================================================
+// Empty template — store
+// ===========================================================================
+const TASKS_TS = `import { $store } from "@kallojs/runtime";
+
+export interface Task {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
+let nextId = 100;
+
+// Global, reactive task list shared across the app.
+export const useTasks = $store({
+  items: [] as Task[],
+  draft: "",
+  remaining: 0,
+
+  _recalc() {
+    this.remaining = this.items.filter((t: Task) => !t.done).length;
+  },
+
+  // Seed from server-fetched data. Runs during SSR *and* on the client, so the
+  // list is correct on first paint.
+  setTasks(list: Task[]) {
+    this.items = [...list];
+    this._recalc();
+  },
+
+  setDraft(value: string) {
+    this.draft = value;
+  },
+
+  add() {
+    const title = this.draft.trim();
+    if (!title) return;
+    this.items = [...this.items, { id: String(nextId++), title, done: false }];
+    this.draft = "";
+    this._recalc();
+  },
+
+  toggle(id: string) {
+    this.items = this.items.map((t: Task) => (t.id === id ? { ...t, done: !t.done } : t));
+    this._recalc();
+  },
+
+  remove(id: string) {
+    this.items = this.items.filter((t: Task) => t.id !== id);
+    this._recalc();
+  },
+});
+`;
+
+// ===========================================================================
+// Empty template — API
+// ===========================================================================
+const API_INDEX_TS = `import { $router } from "@kallojs/server";
+
+const router = $router();
+
+// Add your API routes here. Run \`kallo generate api <name>\` to scaffold a
+// full route + controller + service package and wire it up below.
+router.get("/health", (_req: any, res: any) => {
+  res.ok({ status: "ok" });
+});
+
+export default router;
+`;
+
+// ===========================================================================
+// Empty template — component
+// ===========================================================================
+const EACH_TASK_KAL = `<View>
+  <li class="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-bg-secondary">
+    <button @click="onToggle(task.id)" title="Toggle done"
+      class="w-6 h-6 rounded-md border flex items-center justify-center text-xs cursor-pointer transition-colors"
+      :class="task.done ? 'bg-primary-600 border-primary-600 text-white' : 'bg-bg-primary border-border hover:border-primary-400'">
+      <When condition="task.done"><span>✓</span></When>
+    </button>
+    <span class="flex-1" :class="task.done ? 'line-through text-muted' : 'text-foreground'">{{ task.title }}</span>
+    <button @click="onRemove(task.id)" class="text-xs text-danger-600 hover:underline cursor-pointer">Remove</button>
+  </li>
+</View>
+`;
+
+// ===========================================================================
+// Empty template — views
+// ===========================================================================
+function emptyLayoutKal(storeName: string): string {
+  return `<Server>
+  // Layout-level metadata becomes the site-wide SEO default. Pages can override
+  // any field via their own $meta().
+  $meta(() => ({
+    title: "${storeName}",
+    description: "A minimal app built with the Kallo framework.",
+    openGraph: { siteName: "${storeName}", type: "website" },
+  }));
+</Server>
+
+<View>
+  <html lang="en">
+    <head>
+      <link rel="stylesheet" href="/tailwind.css">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300..800&display=swap" rel="stylesheet">
+    </head>
+    <body class="min-h-screen bg-bg-primary text-foreground">
+      <main class="max-w-6xl mx-auto px-5 py-12">
+        <Slot />
+      </main>
+    </body>
+  </html>
+</View>
+`;
+}
+
+function emptyPageKal(storeName: string): string {
+  return `<Server>
+  // Server-side data fetching: the initial tasks are rendered on the server.
+  $page(async () => {
+    return {
+      tasks: [
+        { id: "1", title: "Read the Kallo docs", done: true },
+        { id: "2", title: "Build something delightful", done: false },
+      ],
+    };
+  });
+
+  $meta(() => ({
+    title: "${storeName} — Tasks",
+    description: "A minimal Kallo starter with a reactive store, a component, and a server-rendered page.",
+  }));
+</Server>
+
+<Client>
+  import { useTasks } from "../stores/tasks.js";
+  import EachTask from "../components/EachTask.kal";
+
+  const tasks = useTasks;
+
+  // Seed the store from server data so the list is correct on first paint.
+  tasks.setTasks(props.tasks);
+
+  const onInput = (event) => tasks.setDraft(event.target.value);
+  const addTask = () => tasks.add();
+  const toggleTask = (id) => tasks.toggle(id);
+  const removeTask = (id) => tasks.remove(id);
+</Client>
+
+<View>
+  <section class="max-w-xl mx-auto flex flex-col gap-6">
+    <header class="flex flex-col gap-1">
+      <h1 class="text-3xl font-extrabold tracking-tight">Tasks</h1>
+      <p class="text-muted">{{ tasks.remaining }} remaining</p>
+    </header>
+
+    <div class="flex gap-2">
+      <input type="text" placeholder="Add a task..." :value="tasks.draft" @input="onInput(event)"
+        class="flex-1 px-4 py-2.5 rounded-xl border border-border bg-bg-secondary text-foreground placeholder-muted focus:outline-none focus:border-primary-500 text-sm" />
+      <button @click="addTask()"
+        class="px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold text-sm cursor-pointer transition-colors">
+        Add
+      </button>
+    </div>
+
+    <When condition="tasks.items.length > 0">
+      <ul class="flex flex-col gap-2">
+        <Each of="tasks.items" as="task">
+          <EachTask :task="task" :onToggle="toggleTask" :onRemove="removeTask" />
+        </Each>
+      </ul>
+    </When>
+    <Else>
+      <div class="text-center py-16 border-2 border-dashed border-border rounded-2xl text-muted">
+        <p class="font-semibold">No tasks yet.</p>
+        <p class="text-sm mt-1">Add your first task above.</p>
+      </div>
+    </Else>
+  </section>
+</View>
+`;
+}
+
+function emptyReadmeMd(pkgName: string, storeName: string, pm: string): string {
+  return `# ${storeName}
+
+A minimal starter built with the [Kallo](https://www.npmjs.com/package/@kallojs/cli) framework.
+
+## What's inside
+
+- **Reactive store** — \`src/stores/tasks.ts\` holds the task list and mutators, shared across the app.
+- **Server-side data fetching** — \`src/view/page.kal\` seeds the initial tasks in its \`<Server>\` block.
+- **Components in a loop** — \`src/components/EachTask.kal\` renders one task; \`<Each>\` drives the list.
+- **API routes** — \`src/api/index.ts\` exposes a starter route; run \`kallo generate api <name>\` to add more.
+
+## Getting started
+
+\`\`\`bash
+${pm} install
+${runCmd(pm, "dev")}
+\`\`\`
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Build for production
+
+\`\`\`bash
+${runCmd(pm, "build")}
+${runCmd(pm, "start")}
+\`\`\`
+`;
 }
 
 // ===========================================================================
@@ -1099,7 +1389,7 @@ This starter is intentionally complete — it shows off the core of Kallo in one
 
 \`\`\`bash
 ${pm} install
-${pm} dev
+${runCmd(pm, "dev")}
 \`\`\`
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -1122,8 +1412,8 @@ src/
 ## Build for production
 
 \`\`\`bash
-${pm} build
-${pm} start
+${runCmd(pm, "build")}
+${runCmd(pm, "start")}
 \`\`\`
 `;
 }
