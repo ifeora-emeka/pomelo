@@ -191,7 +191,7 @@ function generateHydrationScript(
 ): string {
   if (strategy === "never") return "";
   return `<script type="module">
-import { hydrate } from "/@kallojs/runtime/index.js";
+import { hydrate } from "/@kallojs/runtime/client.js";
 import * as component from "/@kallojs/view/${cacheFileName}";
 const container = document.getElementById("app");
 const serverState = ${stateJSON};
@@ -227,7 +227,7 @@ function generateHydrationScriptWithLayouts(
   }
 
   return `<script type="module">
-import { hydrate } from "/@kallojs/runtime/index.js";
+import { hydrate } from "/@kallojs/runtime/client.js";
 ${imports.join("\n")}
 
 const container = document.getElementById("app");
@@ -1467,37 +1467,100 @@ export interface ServerInstance {
   start: () => any;
 }
 
-function rewriteBrowserImports(content: string): string {
-  let result = content.replace(
-    /(\b(?:import|export)\s+[\s\S]*?\s+from\s+['"]|import\s+['"])@kallo\/runtime(['"])/g,
-    "$1/@kallojs/runtime/index.js$2",
-  );
+function browserUrlForPackage(shortName: string, subpath: string): string {
+  if (subpath === "" || subpath === "/dist/index.js" || subpath === "/index.js") {
+    return shortName === "runtime"
+      ? "/@kallojs/runtime/client.js"
+      : `/@kallojs/${shortName}/index.js`;
+  }
+  if (subpath.startsWith("/dist/")) {
+    return `/@kallojs/${shortName}/${subpath.slice(6)}`;
+  }
+  return `/@kallojs/${shortName}${subpath}`;
+}
 
+export function rewriteBrowserImports(content: string): string {
+  let result = content;
   const pomPackages = ["@kallojs/runtime", "@kallojs/shared", "@kallojs/types"];
   for (const pkg of pomPackages) {
-    const pkgDir = resolvePackageToAbsolute(pkg);
-    if (!pkgDir) continue;
+    const shortName = pkg.replace("@kallojs/", "");
+    const importPrefix =
+      "(\\b(?:import|export)\\s+[\\s\\S]*?\\s+from\\s+['\"]|import\\s+['\"])";
 
-    const absEntry = `file://${pkgDir.replace(/\\/g, "/")}`;
-    const escapedPkgDir = absEntry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(
-      `(\\b(?:import|export)\\s+[\\s\\S]*?\\s+from\\s+['"]|import\\s+['"])${escapedPkgDir}([^'"]*)(['"])`,
+    // Bare specifiers (e.g. `from "@kallojs/shared"`) — browsers can't resolve
+    // these, so map them onto the served browser URLs.
+    const escapedPkg = pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const bareRegex = new RegExp(
+      `${importPrefix}${escapedPkg}([^'"]*)(['"])`,
       "g",
     );
+    result = result.replace(bareRegex, (_m, prefix, subpath, suffix) => {
+      return `${prefix}${browserUrlForPackage(shortName, subpath)}${suffix}`;
+    });
 
-    const shortName = pkg.replace("@kallojs/", "");
-    result = result.replace(regex, (match, prefix, subpath, suffix) => {
-      let targetPath = `/@kallojs/${shortName}${subpath}`;
-      if (subpath.startsWith("/dist/")) {
-        targetPath = `/@kallojs/${shortName}/${subpath.slice(6)}`;
-      } else if (subpath === "/dist/index.js") {
-        targetPath = `/@kallojs/${shortName}/index.js`;
-      }
-      return `${prefix}${targetPath}${suffix}`;
+    // Absolute file:// specifiers produced by rewriteBareModuleImports at
+    // compile time (needed for Node SSR import; rewritten back for the browser).
+    const pkgDir = resolvePackageToAbsolute(pkg);
+    if (!pkgDir) continue;
+    const absEntry = `file://${pkgDir.replace(/\\/g, "/")}`;
+    const escapedPkgDir = absEntry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const absRegex = new RegExp(
+      `${importPrefix}${escapedPkgDir}([^'"]*)(['"])`,
+      "g",
+    );
+    result = result.replace(absRegex, (_m, prefix, subpath, suffix) => {
+      return `${prefix}${browserUrlForPackage(shortName, subpath)}${suffix}`;
     });
   }
 
   return result;
+}
+
+function resolveKalloDistDir(pkg: string, fallbackName: string): string | null {
+  try {
+    const pkgPath = require.resolve(`${pkg}/package.json`, {
+      paths: [process.cwd()],
+    });
+    return path.join(path.dirname(pkgPath), "dist");
+  } catch {
+    const pathsToTry = [
+      path.join(__dirname, `../../../${fallbackName}`),
+      path.join(process.cwd(), `packages/${fallbackName}`),
+      path.join(process.cwd(), `../${fallbackName}`),
+    ];
+    for (const p of pathsToTry) {
+      if (fs.existsSync(path.join(p, "package.json"))) {
+        return path.join(p, "dist");
+      }
+    }
+    return null;
+  }
+}
+
+function serveKalloPackage(
+  app: express.Express,
+  mount: string,
+  distDir: string,
+): void {
+  const root = path.resolve(distDir);
+  app.use(mount, (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    const rel = decodeURIComponent(req.path).replace(/^\/+/, "");
+    const filePath = path.resolve(root, rel);
+    if (filePath !== root && !filePath.startsWith(root + path.sep)) {
+      res.status(403).end();
+      return;
+    }
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      return next();
+    }
+    if (filePath.endsWith(".js")) {
+      res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+      res.send(rewriteBrowserImports(fs.readFileSync(filePath, "utf-8")));
+    } else {
+      res.sendFile(filePath);
+    }
+  });
 }
 
 export function createServer(config: FrameworkConfig): ServerInstance {
@@ -1519,33 +1582,22 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   const routeCacheMap = new Map<string, string>();
   app.set("routeCacheMap", routeCacheMap);
 
-  // Serve @kallojs/runtime client-side files
-  try {
-    const runtimePkgPath = require.resolve("@kallojs/runtime/package.json", {
-      paths: [process.cwd()],
-    });
-    const runtimeDir = path.dirname(runtimePkgPath);
-    app.use("/@kallojs/runtime", express.static(path.join(runtimeDir, "dist")));
-  } catch (err) {
-    let resolved = false;
-    const pathsToTry = [
-      path.join(__dirname, "../../../runtime"),
-      path.join(process.cwd(), "packages/runtime"),
-      path.join(process.cwd(), "../runtime"),
-    ];
-    for (const p of pathsToTry) {
-      if (fs.existsSync(path.join(p, "package.json"))) {
-        app.use("/@kallojs/runtime", express.static(path.join(p, "dist")));
-        resolved = true;
-        break;
-      }
-    }
-    if (!resolved) {
-      KalloLogger.warn(
-        "Could not resolve @kallojs/runtime path for static serving: " +
-          String(err),
-      );
-    }
+  // Serve @kallojs client-side files. These are passed through
+  // rewriteBrowserImports so bare specifiers (e.g. "@kallojs/shared") that the
+  // browser cannot resolve are mapped onto served URLs before delivery.
+  const runtimeDist = resolveKalloDistDir("@kallojs/runtime", "runtime");
+  if (runtimeDist) {
+    serveKalloPackage(app, "/@kallojs/runtime", runtimeDist);
+  } else {
+    KalloLogger.warn("Could not resolve @kallojs/runtime path for serving.");
+  }
+  const sharedDist = resolveKalloDistDir("@kallojs/shared", "shared");
+  if (sharedDist) {
+    serveKalloPackage(app, "/@kallojs/shared", sharedDist);
+  }
+  const typesDist = resolveKalloDistDir("@kallojs/types", "types");
+  if (typesDist) {
+    serveKalloPackage(app, "/@kallojs/types", typesDist);
   }
 
   app.use("/@kallojs/view", (req, res, _next) => {

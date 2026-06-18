@@ -159,6 +159,10 @@ importers:
       '@kallojs/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      esbuild:
+        specifier: ^0.24.2
+        version: 0.24.2
 
   packages/server:
     dependencies:
@@ -217,14 +221,14 @@ importers:
     dependencies:
       '@kallojs/runtime':
         specifier: ^0.0.2
-        version: 0.0.2
+        version: link:../../packages/runtime
       '@kallojs/server':
         specifier: ^0.0.2
-        version: 0.0.2
+        version: link:../../packages/server
     devDependencies:
       '@kallojs/cli':
         specifier: ^0.0.2
-        version: 0.0.2
+        version: link:../../packages/cli
       '@tailwindcss/cli':
         specifier: ^4.0.0
         version: 4.3.1
@@ -667,31 +671,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
-
-  '@kallojs/cli@0.0.2':
-    resolution: {integrity: sha512-8LEK1zDB5Ic6fq3kyGCeAjD3/DeRYa3b+cbSwW+vxkDRSBNsnKUkcFAJXF+yVgfq8bQCJY2qI7sveGSL+3vhvA==}
-    hasBin: true
-
-  '@kallojs/compiler@0.0.2':
-    resolution: {integrity: sha512-ggShiu7LCf1eddUbSvb9XIqqnHG8nmK10Bu+XJDLPhazAKPO8Wee1iDK6/J8srGM751ifU/eVCI2jnnvxHqItQ==}
-
-  '@kallojs/parser@0.0.2':
-    resolution: {integrity: sha512-mv3QMEp5llt+ZrPzkaK4bNzjFbhvt0i1DwiotIAyTyuJvHZOljiuSbOPZVQhS2TF2WoPfqjSfW5qV031ddBcCw==}
-
-  '@kallojs/runtime@0.0.2':
-    resolution: {integrity: sha512-aEWrqkkNTm/5OXJLcMYH6RPyT95HNkM/QW7ofzmGB/DBwJpZUnHFBdVhpeEENJYwq6gCjSbBngcBc0If+Yshcw==}
-
-  '@kallojs/server@0.0.2':
-    resolution: {integrity: sha512-2myKzmp4KtWTPvgoEjfKDMqTbpoM3TZ6J6UFczw0F7lP3qWb6cPNuBOTaWolK3W9Rd0hfZFlJ+2O7HZcDkmuig==}
-
-  '@kallojs/shared@0.0.2':
-    resolution: {integrity: sha512-Cj2XhPNCCMU/fNeRkEIoFKngtH74XGd+TyBXHWMqlQ4YqHSzhVeBYJv+svCReL3przEoENKho9qRCpkizG9JCw==}
-
-  '@kallojs/types@0.0.2':
-    resolution: {integrity: sha512-FUKwy542gEXGTtI6bSk/YSMncMzJl3VOFqE405mk5Uf4Urjz4QUVvmIaxV/dQaK0aYz7adSHo7Qz1QzWZRi/Qw==}
-
-  '@kallojs/vite-plugin@0.0.2':
-    resolution: {integrity: sha512-LI9JS0Nph5atNod2qxAVYoFHJsV+NOnFo4vj+2M3qkgQKPRxCY84LUmWeFWFT1I6T1JoqvXxIhx9YXD8UCtPYA==}
 
   '@next/eslint-plugin-next@16.2.0':
     resolution: {integrity: sha512-3D3pEMcGKfENC9Pzlkr67GOm+205+5hRdYPZvHuNIy5sr9k0ybSU8g+sxOO/R/RLEh/gWZ3UlY+5LmEyZ1xgXQ==}
@@ -3316,56 +3295,6 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
-
-  '@kallojs/cli@0.0.2':
-    dependencies:
-      '@kallojs/compiler': 0.0.2
-      '@kallojs/parser': 0.0.2
-      '@kallojs/runtime': 0.0.2
-      '@kallojs/server': 0.0.2
-      '@kallojs/shared': 0.0.2
-      '@kallojs/types': 0.0.2
-      '@kallojs/vite-plugin': 0.0.2
-    transitivePeerDependencies:
-      - supports-color
-
-  '@kallojs/compiler@0.0.2':
-    dependencies:
-      '@kallojs/parser': 0.0.2
-      '@kallojs/shared': 0.0.2
-      '@kallojs/types': 0.0.2
-
-  '@kallojs/parser@0.0.2':
-    dependencies:
-      '@kallojs/shared': 0.0.2
-      '@kallojs/types': 0.0.2
-
-  '@kallojs/runtime@0.0.2':
-    dependencies:
-      '@kallojs/shared': 0.0.2
-      '@kallojs/types': 0.0.2
-
-  '@kallojs/server@0.0.2':
-    dependencies:
-      '@kallojs/compiler': 0.0.2
-      '@kallojs/shared': 0.0.2
-      '@kallojs/types': 0.0.2
-      express: 5.2.1
-      typescript: 5.9.2
-    transitivePeerDependencies:
-      - supports-color
-
-  '@kallojs/shared@0.0.2':
-    dependencies:
-      '@kallojs/types': 0.0.2
-
-  '@kallojs/types@0.0.2': {}
-
-  '@kallojs/vite-plugin@0.0.2':
-    dependencies:
-      '@kallojs/compiler': 0.0.2
-      '@kallojs/shared': 0.0.2
-      '@kallojs/types': 0.0.2
 
   '@next/eslint-plugin-next@16.2.0':
     dependencies:

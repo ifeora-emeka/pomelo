@@ -1,4 +1,3 @@
-import { KalloLogger } from "@kallojs/shared";
 import { $effect, $batch, Signal } from "../reactivity/index.js";
 import {
   prefetch,
@@ -6,6 +5,10 @@ import {
   isInternalHref,
   shouldPrefetch,
 } from "../prefetch.js";
+
+const KalloLogger = {
+  error: (message: string): void => console.error(`[Kallo] ${message}`),
+};
 
 export type RenderState = Record<string, unknown>;
 export type SlotMap = Record<string, () => string>;
