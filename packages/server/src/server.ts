@@ -817,11 +817,14 @@ async function renderSpecialFile(
   }
 }
 
-export function registerFileSystemRoutes(
+// Builds a fresh Express router holding every file-system page route plus the
+// catch-all. Kept separate from registration so dev can rebuild it in place
+// (picking up newly added / removed routes) without restarting the server.
+function buildPageRouter(
   app: express.Express,
   pagesDir: string,
-) {
-  if (!fs.existsSync(pagesDir)) return;
+): express.Router {
+  const router = express.Router();
 
   const routes = sortRoutesBySpecificity(scanRoutes(pagesDir));
   const cacheDir = getCacheDir();
@@ -882,7 +885,7 @@ export function registerFileSystemRoutes(
       layoutCacheFiles.push(layoutCacheFile);
     }
 
-    app.get(route.path, async (req, res, next) => {
+    router.get(route.path, async (req, res, next) => {
       try {
         if (
           process.env.NODE_ENV === "development" ||
@@ -992,7 +995,7 @@ export function registerFileSystemRoutes(
   }
 
   // Catch-all 404 handler for unmatched pages
-  app.get("*splat", async (req, res, next) => {
+  router.get("*splat", async (req, res, next) => {
     if (req.path.startsWith("/api") || (req.accepts && !req.accepts("html"))) {
       return next();
     }
@@ -1012,6 +1015,44 @@ export function registerFileSystemRoutes(
     }
     next();
   });
+
+  return router;
+}
+
+// Holds the live page router so it can be swapped atomically on a dev rebuild.
+interface PageRouterRef {
+  current: express.Router;
+}
+
+export function registerFileSystemRoutes(
+  app: express.Express,
+  pagesDir: string,
+) {
+  if (!fs.existsSync(pagesDir)) return;
+  app.set("pagesDir", pagesDir);
+
+  const existing = app.get("__kalloPageRouterRef") as PageRouterRef | undefined;
+  if (existing) {
+    // Already wired up (dev rebuild): swap in a freshly scanned router so new
+    // or removed routes take effect without touching the mounted middleware.
+    existing.current = buildPageRouter(app, pagesDir);
+    return;
+  }
+
+  const ref: PageRouterRef = { current: buildPageRouter(app, pagesDir) };
+  app.set("__kalloPageRouterRef", ref);
+  // Stable indirection: the mounted middleware always delegates to whichever
+  // router is current, so rebuilds never re-add middleware to the app stack.
+  app.use((req, res, next) => ref.current(req, res, next));
+}
+
+// Re-scan src/view and rebuild the page routes in place (dev only) so newly
+// added or removed page.kal / layout.kal files are served without a restart.
+export function reloadFileSystemRoutes(
+  app: express.Express,
+  pagesDir: string,
+) {
+  registerFileSystemRoutes(app, pagesDir);
 }
 
 export function apiFileToRoutePath(relativePath: string): string {
@@ -1889,6 +1930,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
         }
         watchers.length = 0;
       });
+      const viewDir = path.join(process.cwd(), "src/view");
       const watchCallback = (event: string, filePath: string) => {
         if (
           filePath.endsWith(".kal") ||
@@ -1896,6 +1938,22 @@ export function createServer(config: FrameworkConfig): ServerInstance {
           filePath.endsWith(".js") ||
           filePath.endsWith(".css")
         ) {
+          // A 'rename' event under src/view means a route file was added,
+          // removed, or renamed — re-register routes so the new URL is served
+          // without a restart. (Edits to existing routes already hot-reload via
+          // the per-request recompile.)
+          if (
+            event === "rename" &&
+            filePath.endsWith(".kal") &&
+            filePath.startsWith(viewDir)
+          ) {
+            try {
+              reloadFileSystemRoutes(app, viewDir);
+              KalloLogger.info(`[Kallo Dev] Routes reloaded (${path.relative(process.cwd(), filePath)}).`);
+            } catch (err) {
+              KalloLogger.warn(`[Kallo Dev] Failed to reload routes: ${String(err)}`);
+            }
+          }
           if (debounceTimer) clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
             KalloLogger.info(`[Kallo Dev] File change detected: ${filePath}. Notifying clients...`);

@@ -2,6 +2,7 @@ import { KalloLogger } from "@kallojs/shared";
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
+import { spawnSync } from "node:child_process";
 
 // npm requires `npm run <script>` for custom scripts; pnpm/yarn/bun alias `run`.
 function runCmd(pm: string, script: string): string {
@@ -106,9 +107,43 @@ async function askQuestion(query: string, defaultValue: string): Promise<string>
   }
 }
 
+// Yes/no prompt. Returns the default in non-interactive environments.
+async function askYesNo(query: string, defaultYes: boolean): Promise<boolean> {
+  if (!process.stdin.isTTY) return defaultYes;
+  const answer = (
+    await askQuestion(`${query} ${defaultYes ? "(Y/n)" : "(y/N)"}: `, "")
+  )
+    .trim()
+    .toLowerCase();
+  if (!answer) return defaultYes;
+  return answer === "y" || answer === "yes";
+}
+
 function flagValue(args: string[], name: string): string | undefined {
   const idx = args.indexOf(name);
   return idx !== -1 ? args[idx + 1] : undefined;
+}
+
+// Detect the package manager the user invoked us with (npm/pnpm/yarn/bun),
+// matching what create-next-app does — no prompt needed. `npm_config_user_agent`
+// looks like "pnpm/9.0.0 npm/? node/v22 ...".
+function detectPackageManager(args: string[]): string {
+  const flag = (flagValue(args, "--pm") || "").toLowerCase();
+  if (["pnpm", "npm", "yarn", "bun"].includes(flag)) return flag;
+  const ua = process.env.npm_config_user_agent || "";
+  const name = ua.split("/")[0];
+  if (name && ["pnpm", "yarn", "bun"].includes(name)) return name;
+  return "npm";
+}
+
+// Run `<pm> install` in the new project directory, streaming output.
+function installDependencies(pm: string, cwd: string): boolean {
+  const result = spawnSync(pm, ["install"], {
+    cwd,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
+  return result.status === 0;
 }
 
 function titleCase(input: string): string {
@@ -132,49 +167,39 @@ const ACCENTS: Record<string, string[]> = {
 };
 
 export async function executeCreateCommand(args: string[]): Promise<boolean> {
-  const appName = args.find((a) => !a.startsWith("-")) || "my-kallo-store";
-  const targetDir = path.resolve(process.cwd(), appName);
-  const pkgName = path.basename(targetDir);
-
   const skipPrompts = args.includes("--yes") || args.includes("-y") || !process.stdin.isTTY;
 
-  // 1. Package manager
-  let packageManager = (flagValue(args, "--pm") || "").toLowerCase();
-  if (!packageManager && !skipPrompts) {
-    packageManager = (
-      await askQuestion("📋 Package manager? (pnpm/npm/yarn) [pnpm]: ", "pnpm")
-    ).toLowerCase();
+  // 1. Project name — the one thing we confirm with the user (create-next-app
+  //    style). Everything else has a sensible default or is derived/flagged.
+  let appName = args.find((a) => !a.startsWith("-"));
+  if (!appName && !skipPrompts) {
+    appName = await askQuestion("◆  Project name: (my-kallo-app) ", "my-kallo-app");
   }
-  if (!["pnpm", "npm", "yarn"].includes(packageManager)) packageManager = "pnpm";
+  appName = (appName || "my-kallo-app").trim();
 
-  // 2. Store / brand display name
-  let storeName = flagValue(args, "--name") || "";
-  if (!storeName && !skipPrompts) {
-    storeName = await askQuestion(
-      `🏬 Store name? [${titleCase(pkgName)}]: `,
-      titleCase(pkgName),
-    );
-  }
-  if (!storeName) storeName = titleCase(pkgName);
-
-  // 3. Accent color
-  let accent = (flagValue(args, "--accent") || "").toLowerCase();
-  if (!accent && !skipPrompts) {
-    accent = (
-      await askQuestion("🎨 Accent color? (violet/blue/emerald/rose) [violet]: ", "violet")
-    ).toLowerCase();
-  }
-  if (!ACCENTS[accent]) accent = "violet";
-
-  // 4. Template — "ecommerce" (default) or "empty" (minimal tasks starter).
-  const template = (flagValue(args, "--template") || "ecommerce").toLowerCase();
+  const targetDir = path.resolve(process.cwd(), appName);
+  const pkgName = path.basename(targetDir);
 
   if (fs.existsSync(targetDir)) {
     KalloLogger.warn(`Directory ${appName} already exists!`);
     return false;
   }
 
-  KalloLogger.info(`Scaffolding Kallo store '${storeName}' in ${targetDir}...`);
+  // Derived / flag-only options — no prompts, to keep create simple & fast.
+  const packageManager = detectPackageManager(args);
+  const storeName = flagValue(args, "--name") || titleCase(pkgName);
+  let accent = (flagValue(args, "--accent") || "violet").toLowerCase();
+  if (!ACCENTS[accent]) accent = "violet";
+  const template = (flagValue(args, "--template") || "ecommerce").toLowerCase();
+
+  // 2. Install dependencies? The only other thing we ask.
+  let install: boolean;
+  if (args.includes("--install")) install = true;
+  else if (args.includes("--no-install")) install = false;
+  else if (skipPrompts) install = false;
+  else install = await askYesNo(`◆  Install dependencies with ${packageManager}?`, true);
+
+  KalloLogger.info(`Scaffolding Kallo app '${storeName}' in ${targetDir}...`);
 
   try {
     const opts: BuildOpts = { pkgName, storeName, accent, packageManager };
@@ -187,10 +212,22 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
     }
 
     KalloLogger.info(`Successfully created project ${appName}!`);
-    console.log(`\n🎉 Created your Kallo store: ${appName}\n`);
+
+    let installed = false;
+    if (install) {
+      console.log(`\nInstalling dependencies with ${packageManager}...\n`);
+      installed = installDependencies(packageManager, targetDir);
+      if (!installed) {
+        KalloLogger.warn(
+          `Dependency installation failed — run \`${packageManager} install\` manually.`,
+        );
+      }
+    }
+
+    console.log(`\n🎉 Created your Kallo app: ${appName}\n`);
     console.log("Next steps:");
     console.log(`  cd ${appName}`);
-    console.log(`  ${packageManager} install`);
+    if (!installed) console.log(`  ${packageManager} install`);
     console.log(`  ${runCmd(packageManager, "dev")}`);
     console.log("\nThen open http://localhost:3000 — happy building! 🍊\n");
     return true;

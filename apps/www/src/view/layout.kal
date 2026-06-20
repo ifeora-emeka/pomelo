@@ -23,11 +23,15 @@
 </Server>
 
 <Client>
-  import { $local } from "@kallojs/runtime";
+  import { $store } from "@kallojs/runtime";
   import { useTheme } from "../stores/theme.js";
 
   const theme = useTheme;
-  const navOpen = $local(false);
+  // Mobile nav open/closed. A $store (not $local) so the boolean is unwrapped
+  // consistently in template conditions on both the server and the hydrated
+  // client — a bare $local signal reads as a truthy object on the client, which
+  // would pin the drawer permanently open.
+  const menu = $store({ open: false });
 
   // Sync the store with the persisted theme on the client (the no-flash
   // <script> in <head> applies the class before paint). Runs during client
@@ -35,8 +39,8 @@
   theme.init();
 
   const toggleTheme = () => theme.toggle();
-  const toggleNav = () => navOpen.set(!navOpen.get());
-  const closeNav = () => navOpen.set(false);
+  const toggleNav = () => { menu.open = !menu.open; };
+  const closeNav = () => { menu.open = false; };
 </Client>
 
 <View>
@@ -75,8 +79,8 @@
       </header>
 
       <div class="max-w-[1400px] mx-auto px-4 sm:px-6 flex gap-8">
-        <div @click="closeNav()" :class="navOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'" class="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out lg:hidden"></div>
-        <aside :class="navOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'" class="fixed top-0 left-0 z-40 h-full w-72 max-w-[80vw] bg-bg-primary p-6 pt-24 overflow-y-auto kallo-scroll shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:z-auto lg:h-[calc(100vh-4rem)] lg:w-64 lg:max-w-none lg:shrink-0 lg:sticky lg:top-16 lg:p-0 lg:pt-8 lg:pb-10 lg:bg-transparent lg:shadow-none lg:overflow-y-auto">
+        <div @click="closeNav()" :class="menu.open ? 'opacity-100' : 'opacity-0 pointer-events-none'" class="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out lg:hidden"></div>
+        <aside :class="menu.open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'" class="fixed top-0 left-0 z-40 h-full w-72 max-w-[80vw] bg-bg-primary p-6 pt-24 overflow-y-auto kallo-scroll shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:z-auto lg:h-[calc(100vh-4rem)] lg:w-64 lg:max-w-none lg:shrink-0 lg:sticky lg:top-16 lg:p-0 lg:pt-8 lg:pb-10 lg:bg-transparent lg:shadow-none lg:overflow-y-auto">
           <nav class="flex flex-col gap-6 text-sm">
             <Each of="nav" as="group">
               <div class="flex flex-col gap-1">
