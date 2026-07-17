@@ -190,7 +190,7 @@ function generateHydrationScript(
   strategy = "load",
 ): string {
   if (strategy === "never") return "";
-  return `<script type="module">
+  return `<script type="module" data-kallo-hydrate>
 import { hydrate } from "/@kallojs/runtime/client.js";
 import * as component from "/@kallojs/view/${cacheFileName}";
 const container = document.getElementById("app");
@@ -226,7 +226,7 @@ function generateHydrationScriptWithLayouts(
     );
   }
 
-  return `<script type="module">
+  return `<script type="module" data-kallo-hydrate>
 import { hydrate } from "/@kallojs/runtime/client.js";
 ${imports.join("\n")}
 

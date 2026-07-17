@@ -1,6 +1,6 @@
 {
   "name": "@kallojs/cli",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
@@ -20,7 +20,8 @@
     "@kallojs/compiler": "workspace:*",
     "@kallojs/runtime": "workspace:*",
     "@kallojs/server": "workspace:*",
-    "@kallojs/vite-plugin": "workspace:*"
+    "@kallojs/vite-plugin": "workspace:*",
+    "typescript": "^5.9.2"
   },
   "homepage": "https://kallo.idegin.com"
 }

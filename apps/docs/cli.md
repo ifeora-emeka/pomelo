@@ -13,6 +13,7 @@ The `kallo` CLI powers your app's scripts.
 | --- | --- |
 | `kallo dev` | Start the dev server with HMR and Tailwind watch |
 | `kallo build` | Compile routes and Tailwind for production |
+| `kallo export` | Pre-render a static site to `out/` (GitHub Pages, CDN) |
 | `kallo start` | Run the production server |
 | `kallo create <dir>` | Scaffold a new app |
 | `kallo generate <type> <name>` | Generate views, components, API routes, and stores |
@@ -34,3 +35,4 @@ Your `package.json` wires the common ones:
 - `kallo dev --port 4000` / `kallo start --port 4000` — change the port (default `3000`).
 - `kallo create my-app --template empty` — scaffold the minimal starter.
 - `kallo create my-app --pm npm` — choose the package manager for the generated instructions.
+- `kallo export` / `kallo build --static` — pre-render every route to a static site (see [Static Export & Deployment](/docs/deployment)).

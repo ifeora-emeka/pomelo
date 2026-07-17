@@ -79,3 +79,16 @@ src/view/docs/[...slug]/page.kal  ->  /docs/*
 
 - `src/view/not-found.kal` renders for unmatched routes (404).
 - `src/view/error.kal` renders when a page throws.
+
+## Dynamic routes in static export
+
+When you use [static export](/docs/deployment) (`output: "static"`), Kallo can't know a dynamic route's params at request time — there is no request. Each dynamic route must enumerate its pages at build time by exporting `$staticParams` (alias `$paths`) from its `<Server>` block, the equivalent of Next.js `generateStaticParams`:
+
+```html
+<Server>
+  $staticParams(() => products.map((p) => ({ id: p.slug })));
+  $page(async ({ params }) => ({ product: await getProduct(params.id) }));
+</Server>
+```
+
+It returns an array of param objects — one pre-rendered page each — using the **same** param value your links use (slug vs numeric id). A missing `$staticParams` on a dynamic route causes `kallo export` to error; an empty array renders nothing for that route.

@@ -52,6 +52,27 @@ Example:
     return true;
   }
 
+  if (subCommand === "export") {
+    console.log(`
+Usage: kallo export [options]
+Alias: kallo build --static
+
+Pre-render every route to a static site in the output directory (default: out/)
+that can be hosted on GitHub Pages or any static host / CDN. Reads output,
+basePath, outDir and trailingSlash from kallo.config.ts.
+
+Dynamic routes ([param]) must export $staticParams()/$paths() to enumerate the
+concrete params to render (the generateStaticParams equivalent).
+
+Options:
+  --test           Do not fail the process on per-route errors (CI dry-run)
+
+Example:
+  kallo export
+`);
+    return true;
+  }
+
   if (subCommand === "start") {
     console.log(`
 Usage: kallo start [options]
@@ -95,6 +116,7 @@ Commands:
   create <name>        Scaffold a new Kallo project
   dev                  Start development server
   build                Build application for production
+  export               Pre-render a static site to out/ (GitHub Pages, CDN)
   start                Start production server
   generate <type> <n>  Generate view or component (alias: g)
   help [command]       Display help for a command

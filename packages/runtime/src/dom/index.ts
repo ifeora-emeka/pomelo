@@ -599,7 +599,156 @@ export function destroyInstance(instance: ComponentInstance): void {
 
 export let activePageInstance: ComponentInstance | null = null;
 
+/**
+ * Prepend the configured base path (GitHub project pages, sub-path hosting) to
+ * an app-absolute href if it isn't already present. Idempotent.
+ */
+function withBasePath(href: string): string {
+  const base =
+    (typeof window !== "undefined" &&
+      (window as unknown as { __KALLO_BASE_PATH__?: string })
+        .__KALLO_BASE_PATH__) ||
+    "";
+  if (
+    base &&
+    href.startsWith("/") &&
+    href !== base &&
+    !href.startsWith(base + "/")
+  ) {
+    return base + href;
+  }
+  return href;
+}
+
+function isStaticMode(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as unknown as { __KALLO_STATIC__?: boolean }).__KALLO_STATIC__ ===
+      true
+  );
+}
+
+// Monotonic token so a superseded (slower) navigation bails out instead of
+// clobbering the DOM of a newer one.
+let staticNavToken = 0;
+
+/**
+ * Fetch a URL, falling back across the on-disk layouts a static host might use
+ * (`/x`, `/x.html`, `/x/index.html`) so client navigation works regardless of
+ * whether the host rewrites extensionless URLs.
+ */
+async function fetchStaticHtml(url: string): Promise<string | null> {
+  const candidates = [url];
+  if (!/\.[a-z0-9]+$/i.test(url.split("?")[0]!)) {
+    const clean = url.replace(/\/$/, "");
+    candidates.push(clean + ".html", clean + "/index.html");
+  }
+  for (const c of candidates) {
+    try {
+      const res = await fetch(c);
+      if (res.ok) return res.text();
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return null;
+}
+
+/**
+ * Reconcile framework-owned `<head>` nodes (scoped `<style id="kallo-style-*">`
+ * and `<title>`) from a freshly fetched document into the live one, so a
+ * navigated-to page gets its styles and previous pages' styles don't pile up.
+ */
+function reconcileHead(doc: Document): void {
+  const head = document.head;
+  head
+    .querySelectorAll('style[id^="kallo-style-"]')
+    .forEach((n) => n.remove());
+  doc
+    .querySelectorAll('style[id^="kallo-style-"]')
+    .forEach((n) => head.appendChild(n.cloneNode(true)));
+  const newTitle = doc.querySelector("title");
+  if (newTitle) document.title = newTitle.textContent || document.title;
+}
+
+/**
+ * Client navigation for statically-exported sites. There is no SSR navigation
+ * endpoint, so fetch the pre-rendered HTML for the target, swap `#app`, bring
+ * over its head styles, and re-run the page's hydration module script.
+ */
+function navigateStatic(href: string, pushState: boolean): Promise<void> {
+  const url = withBasePath(href);
+  const token = ++staticNavToken;
+  return fetchStaticHtml(url)
+    .then((htmlText) => {
+      // A newer navigation started while we were fetching — abandon this one.
+      if (token !== staticNavToken) return;
+      if (!htmlText) {
+        window.location.href = url;
+        return;
+      }
+      const doc = new DOMParser().parseFromString(htmlText, "text/html");
+      const newApp = doc.getElementById("app");
+      const curApp = document.getElementById("app");
+      if (!newApp || !curApp) {
+        window.location.href = url;
+        return;
+      }
+      if (pushState) {
+        window.history.pushState(null, "", url);
+      }
+      reconcileHead(doc);
+
+      if (activePageInstance) {
+        activePageInstance.teardown();
+        activePageInstance = null;
+      }
+
+      // Morph the new markup into the existing tree (rather than replacing
+      // innerHTML) so shared nested-layout DOM is preserved across navigation —
+      // matching Next.js partial rendering and Kallo's own SSR navigation.
+      const oldChildren = Array.from(curApp.childNodes);
+      const newChildren = Array.from(newApp.childNodes);
+      const maxLen = Math.max(oldChildren.length, newChildren.length);
+      for (let i = 0; i < maxLen; i++) {
+        const oldChild = oldChildren[i];
+        const newChild = newChildren[i];
+        if (oldChild === undefined && newChild !== undefined) {
+          curApp.appendChild(newChild.cloneNode(true));
+        } else if (newChild === undefined && oldChild !== undefined) {
+          curApp.removeChild(oldChild);
+        } else if (oldChild !== undefined && newChild !== undefined) {
+          morph(oldChild, newChild);
+        }
+      }
+      window.scrollTo(0, 0);
+
+      // Re-execute ONLY the framework hydration module script (tagged
+      // data-kallo-hydrate) — never arbitrary user `<script type="module">`,
+      // which would re-run side effects each navigation.
+      const injected: HTMLScriptElement[] = [];
+      doc
+        .querySelectorAll('script[type="module"][data-kallo-hydrate]')
+        .forEach((old) => {
+          const s = document.createElement("script");
+          s.type = "module";
+          s.textContent = old.textContent || "";
+          document.body.appendChild(s);
+          injected.push(s);
+        });
+      setTimeout(() => injected.forEach((s) => s.remove()), 0);
+
+      window.dispatchEvent(new Event("load"));
+    })
+    .catch(() => {
+      if (token === staticNavToken) window.location.href = url;
+    });
+}
+
 export function navigateTo(href: string, pushState = true): Promise<void> {
+  if (isStaticMode()) {
+    return navigateStatic(href, pushState);
+  }
   const prefetched = consumePrefetched(href);
   const payload = prefetched
     ? prefetched
@@ -753,6 +902,8 @@ if (typeof window !== "undefined") {
   });
 
   const prefetchOnIntent = (e: Event) => {
+    // Static sites have no SSR navigation endpoint to prefetch against.
+    if (isStaticMode()) return;
     let target = e.target as HTMLElement | null;
     while (target && target.tagName !== "A") {
       target = target.parentElement;

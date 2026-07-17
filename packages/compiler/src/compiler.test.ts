@@ -57,6 +57,53 @@ test("Compiler compiles server block keywords", () => {
   assert.ok(result.code.includes("const $abort ="));
 });
 
+test("Compiler rewrites $staticParams to $serverStaticParams export", () => {
+  const sfc = `
+  <Server>
+    $staticParams(() => [{ id: "a" }, { id: "b" }]);
+    $page(() => ({}));
+  </Server>
+  `;
+  const result = compile(sfc, "view/products/[id]/page.kal");
+  assert.ok(result.code.includes("export const $serverStaticParams = (() =>"));
+});
+
+test("Compiler treats $paths as an alias of $staticParams", () => {
+  const sfc = `
+  <Server>
+    $paths(() => [{ slug: "x" }]);
+  </Server>
+  `;
+  const result = compile(sfc, "view/blog/[slug]/page.kal");
+  assert.ok(result.code.includes("export const $serverStaticParams = (() =>"));
+});
+
+test("Compiler avoids duplicate $serverStaticParams export when both aliases used", () => {
+  const sfc = `
+  <Server>
+    $staticParams(() => [{ id: "a" }]);
+    $paths(() => [{ id: "b" }]);
+  </Server>
+  `;
+  const result = compile(sfc, "view/x/[id]/page.kal");
+  const count = (result.code.match(/export const \$serverStaticParams/g) || []).length;
+  assert.strictEqual(count, 1);
+  // The second alias becomes a discarded local, not a duplicate export.
+  assert.ok(result.code.includes("$unusedStaticParams"));
+});
+
+test("Compiler does not confuse $static with $staticParams", () => {
+  const sfc = `
+  <Server>
+    $static({ revalidate: 60 });
+    $staticParams(() => [{ id: "a" }]);
+  </Server>
+  `;
+  const result = compile(sfc, "view/x/[id]/page.kal");
+  assert.ok(result.code.includes("export const $serverStatic = ({ revalidate: 60 })"));
+  assert.ok(result.code.includes("export const $serverStaticParams = (() =>"));
+});
+
 test("Compiler compiles client block setup and returns", () => {
   const clientSFC = `
   <Client>

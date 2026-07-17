@@ -238,6 +238,33 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
+// kallo.config.ts — shared by every template. Defaults to SSR ("server"); the
+// commented block shows how to switch to a static export for GitHub Pages.
+// ---------------------------------------------------------------------------
+function kalloConfigTs(storeName: string): string {
+  return `import { defineConfig } from "@kallojs/server";
+
+export default defineConfig({
+  name: ${JSON.stringify(storeName)},
+  version: "0.1.0",
+  port: 3000,
+
+  // Rendering target:
+  //   "server" (default) — SSR at request time (kallo build + kallo start).
+  //   "static"           — pre-render every route to out/ (kallo export) for
+  //                        GitHub Pages or any static host / CDN.
+  output: "server",
+
+  // --- Static export options (used when output: "static") ------------------
+  // outDir: "out",
+  // For GitHub *project* pages served at user.github.io/<repo>:
+  // basePath: "/<repo>",
+  // trailingSlash: false, // "/about" -> out/about.html (GH Pages resolves it)
+});
+`;
+}
+
+// ---------------------------------------------------------------------------
 // File map for the ecommerce starter.
 // ---------------------------------------------------------------------------
 interface BuildOpts {
@@ -265,6 +292,7 @@ function buildStoreFiles(opts: BuildOpts): Record<string, string | Buffer> {
         dev: "kallo dev",
         build: "kallo build",
         start: "kallo start",
+        export: "kallo export",
       },
       dependencies: {
         "@kallojs/runtime": kalloDep,
@@ -282,6 +310,9 @@ function buildStoreFiles(opts: BuildOpts): Record<string, string | Buffer> {
 
   // ---- global.css (Tailwind v4 + class-based dark mode) -------------------
   files["src/styles/global.css"] = buildGlobalCss(accent);
+
+  // ---- kallo.config.ts ----------------------------------------------------
+  files["kallo.config.ts"] = kalloConfigTs(storeName);
 
   // ---- data ---------------------------------------------------------------
   files["src/data/products.ts"] = PRODUCTS_TS;
@@ -317,7 +348,7 @@ function buildStoreFiles(opts: BuildOpts): Record<string, string | Buffer> {
   files["public/favicon.ico"] = Buffer.from(KALLO_ICON_B64, "base64");
 
   // ---- meta ---------------------------------------------------------------
-  files[".gitignore"] = `node_modules\n.kallo\n.kallo-cache\ndist\n.env.local\n.DS_Store\n`;
+  files[".gitignore"] = `node_modules\n.kallo\n.kallo-cache\ndist\nout\n.env.local\n.DS_Store\n`;
   files["README.md"] = readmeMd(pkgName, storeName, packageManager);
 
   return files;
@@ -345,6 +376,7 @@ function buildEmptyFiles(opts: BuildOpts): Record<string, string | Buffer> {
         dev: "kallo dev",
         build: "kallo build",
         start: "kallo start",
+        export: "kallo export",
       },
       dependencies: {
         "@kallojs/runtime": kalloDep,
@@ -362,6 +394,9 @@ function buildEmptyFiles(opts: BuildOpts): Record<string, string | Buffer> {
 
   // ---- global.css (shared with the ecommerce template) --------------------
   files["src/styles/global.css"] = buildGlobalCss(accent);
+
+  // ---- kallo.config.ts ----------------------------------------------------
+  files["kallo.config.ts"] = kalloConfigTs(storeName);
 
   // ---- stores -------------------------------------------------------------
   files["src/stores/tasks.ts"] = TASKS_TS;
@@ -383,7 +418,7 @@ function buildEmptyFiles(opts: BuildOpts): Record<string, string | Buffer> {
   files[".env.local"] = `# Local overrides — DO NOT commit\nKALLO_PUBLIC_APP_NAME=${storeName} (Local)\n`;
 
   // ---- meta ---------------------------------------------------------------
-  files[".gitignore"] = `node_modules\n.kallo\n.kallo-cache\ndist\n.env.local\n.DS_Store\n`;
+  files[".gitignore"] = `node_modules\n.kallo\n.kallo-cache\ndist\nout\n.env.local\n.DS_Store\n`;
   files["README.md"] = emptyReadmeMd(pkgName, storeName, packageManager);
 
   return files;

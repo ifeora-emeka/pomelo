@@ -237,7 +237,7 @@ test("handleSSR injects hydration script when component has setup function", asy
 
   await handleSSR(req, res, mockComponent);
 
-  assert.ok(bodyHTML.includes('<script type="module">'));
+  assert.ok(bodyHTML.includes('<script type="module" data-kallo-hydrate>'));
   assert.ok(bodyHTML.includes("hydrate"));
   assert.ok(bodyHTML.includes("/@kallojs/runtime"));
 });

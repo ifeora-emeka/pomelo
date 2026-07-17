@@ -20,7 +20,7 @@
       }
     },
     "kallo-keywords": {
-      "match": "(?<![\\w$])(\\$(?:page|layout|meta|static|action|validate|rule|cache|revalidate|csrf|securityHeaders|rateLimit|uploads|files|file|router|guard|requireAuth|roles|auth|currentUser|abort|redirect|env|channel|pwa|local|store|use|watch|effect|computed|batch|model|subscribe|mount|destroy))\\b",
+      "match": "(?<![\\w$])(\\$(?:staticParams|paths|page|layout|meta|static|action|validate|rule|cache|revalidate|csrf|securityHeaders|rateLimit|uploads|files|file|router|guard|requireAuth|roles|auth|currentUser|abort|redirect|env|channel|pwa|local|store|use|watch|effect|computed|batch|model|subscribe|mount|destroy))\\b",
       "name": "support.function.kallo.kal"
     },
     "server-block": {

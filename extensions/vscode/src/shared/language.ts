@@ -94,6 +94,20 @@ export const KEYWORDS: readonly KeywordDoc[] = [
     doc: "Marks a route as static/ISR with optional `revalidate` TTL (seconds).",
   },
   {
+    name: "$staticParams",
+    scope: "server",
+    detail: "$staticParams(handler)",
+    doc: "Enumerate the concrete params for a dynamic route to pre-render at build time (static export). The generateStaticParams equivalent — return an array of param objects, e.g. `[{ id: 'a' }, { id: 'b' }]`.",
+    snippet: "$staticParams(() => {\n\treturn [$1];\n});",
+  },
+  {
+    name: "$paths",
+    scope: "server",
+    detail: "$paths(handler)",
+    doc: "Alias of `$staticParams`. Enumerate the concrete params for a dynamic route to pre-render at build time (static export).",
+    snippet: "$paths(() => {\n\treturn [$1];\n});",
+  },
+  {
     name: "$action",
     scope: "server",
     detail: "$action(handler)",

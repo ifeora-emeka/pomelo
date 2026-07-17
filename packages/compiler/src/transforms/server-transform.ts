@@ -22,6 +22,21 @@ export function transformServer(node: KalloASTNode): string {
     /(?<![a-zA-Z0-9_$])\$layout\s*\(/g,
     "export const $serverLayout = (",
   );
+  // `$staticParams`/`$paths` enumerate the concrete params for a dynamic route
+  // at build time (the `generateStaticParams` equivalent). They are aliases, so
+  // only the FIRST occurrence becomes the exported const — a second use (e.g.
+  // someone writing both aliases) is turned into a discarded local instead of a
+  // duplicate `export const`, which would be a SyntaxError at import time.
+  // Must run before the `$static` rule below (although `\$static\s*\(` cannot
+  // match `$staticParams(`, keeping this first avoids future footguns).
+  let staticParamsSeen = 0;
+  content = content.replace(
+    /(?<![a-zA-Z0-9_$])\$(?:staticParams|paths)\s*\(/g,
+    () =>
+      staticParamsSeen++ === 0
+        ? "export const $serverStaticParams = ("
+        : "const $unusedStaticParams = (",
+  );
   content = content.replace(
     /(?<![a-zA-Z0-9_$])\$static\s*\(/g,
     "export const $serverStatic = (",
