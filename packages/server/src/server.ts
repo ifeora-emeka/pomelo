@@ -630,6 +630,10 @@ export function compileKalDeps(
   cacheDir: string,
   projectRoot: string,
   visited: Set<string> = new Set(),
+  // Component cache files already compiled+written this build. A component
+  // shared by many routes/layouts (e.g. Navbar) is compiled once, not once per
+  // importer — every importer still gets its import rewritten below.
+  emitted: Set<string> = new Set(),
 ): void {
   if (visited.has(cacheFile)) return;
   visited.add(cacheFile);
@@ -657,20 +661,26 @@ export function compileKalDeps(
     }
 
     if (fs.existsSync(absolutePomPath)) {
-      const pomSource = fs.readFileSync(absolutePomPath, "utf-8");
-      const compiled = compile(pomSource, absolutePomPath);
       const relative = path.relative(projectRoot, absolutePomPath);
       const compCacheName =
         "comp_" + relative.replace(/[\/\\]/g, "_").replace(new RegExp(`\\${SFC_EXTENSION}$`), ".js");
       const compCacheFile = path.join(cacheDir, compCacheName);
-      const rewroteCode = rewriteRelativeImports(
-        compiled.code,
-        absolutePomPath,
-        compCacheFile,
-      );
-      fs.writeFileSync(compCacheFile, rewriteBareModuleImports(rewroteCode));
-      compileTypeScriptDeps(compCacheFile, cacheDir, new Set());
-      compileKalDeps(compCacheFile, cacheDir, projectRoot, visited);
+
+      // Compile the component only the first time we see it this build; later
+      // importers reuse the emitted module and just rewrite their import path.
+      if (!emitted.has(compCacheFile)) {
+        emitted.add(compCacheFile);
+        const pomSource = fs.readFileSync(absolutePomPath, "utf-8");
+        const compiled = compile(pomSource, absolutePomPath);
+        const rewroteCode = rewriteRelativeImports(
+          compiled.code,
+          absolutePomPath,
+          compCacheFile,
+        );
+        fs.writeFileSync(compCacheFile, rewriteBareModuleImports(rewroteCode));
+        compileTypeScriptDeps(compCacheFile, cacheDir, new Set());
+        compileKalDeps(compCacheFile, cacheDir, projectRoot, visited, emitted);
+      }
 
       const newRelPath =
         "./" +

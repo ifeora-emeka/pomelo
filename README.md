@@ -9,7 +9,7 @@
 [![license](https://img.shields.io/npm/l/@kallojs/cli.svg)](./LICENSE)
 [![docs](https://img.shields.io/badge/docs-kallo.idegin.com-fd8d35)](https://kallo.idegin.com)
 
-> **Current version: `0.0.4`** — Kallo is in early development. APIs may change between releases.
+> **Current version: `0.0.7`** — Kallo is in early development. APIs may change between releases.
 
 ## 📚 Documentation
 

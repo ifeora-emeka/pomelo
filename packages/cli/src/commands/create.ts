@@ -124,6 +124,62 @@ function flagValue(args: string[], name: string): string | undefined {
   return idx !== -1 ? args[idx + 1] : undefined;
 }
 
+// Files we tolerate in an otherwise-"empty" target so `kallo create` works in a
+// freshly-cloned repo (create-next-app does the same). Everything here is either
+// VCS metadata or something the scaffold legitimately overwrites.
+const SCAFFOLDABLE_EXISTING = new Set([
+  ".git",
+  ".gitignore",
+  ".gitattributes",
+  ".hg",
+  ".svn",
+  "readme",
+  "readme.md",
+  "license",
+  "license.md",
+  "license.txt",
+  ".ds_store",
+  "thumbs.db",
+]);
+
+// A target is scaffoldable if it doesn't exist, is empty, or contains only the
+// ignorable files above. Non-empty targets require --force.
+function dirIsScaffoldable(dir: string): boolean {
+  if (!fs.existsSync(dir)) return true;
+  return fs
+    .readdirSync(dir)
+    .every((entry) => SCAFFOLDABLE_EXISTING.has(entry.toLowerCase()));
+}
+
+// Coerce an arbitrary string into a valid, unscoped npm package name.
+function sanitizePackageName(input: string): string {
+  const cleaned = (input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-._~]+/g, "-")
+    .replace(/^[-._]+/, "")
+    .replace(/[-._]+$/, "")
+    .replace(/-+/g, "-");
+  return cleaned || "kallo-app";
+}
+
+// Version to pin the scaffolded @kallojs/* dependencies to. In the monorepo
+// (KALLO_LOCAL_DEPS) we link the workspace; otherwise we pin to *this* CLI's
+// published version so installs are reproducible and fast instead of resolving
+// "latest" for every package. Falls back to "latest" if the version is unknown.
+function frameworkDepVersion(): string {
+  if (process.env.KALLO_LOCAL_DEPS === "true") return "workspace:*";
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf-8"),
+    );
+    if (pkg?.version) return `^${pkg.version}`;
+  } catch {
+    // fall through
+  }
+  return "latest";
+}
+
 // Detect the package manager the user invoked us with (npm/pnpm/yarn/bun),
 // matching what create-next-app does — no prompt needed. `npm_config_user_agent`
 // looks like "pnpm/9.0.0 npm/? node/v22 ...".
@@ -177,13 +233,27 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
   }
   appName = (appName || "my-kallo-app").trim();
 
-  const targetDir = path.resolve(process.cwd(), appName);
-  const pkgName = path.basename(targetDir);
+  // `.` (or `./`) scaffolds into the current directory — the common flow when
+  // you've already created and cloned a repo, then want a Kallo app inside it.
+  const targetIsCwd = appName === "." || appName === "./";
+  const targetDir = targetIsCwd
+    ? process.cwd()
+    : path.resolve(process.cwd(), appName);
 
-  if (fs.existsSync(targetDir)) {
-    KalloLogger.warn(`Directory ${appName} already exists!`);
+  const force = args.includes("--force") || args.includes("-f");
+  if (!force && !dirIsScaffoldable(targetDir)) {
+    KalloLogger.warn(
+      `Directory ${appName} already exists and is not empty. ` +
+        `Re-run with --force to scaffold into it anyway (existing files may be overwritten).`,
+    );
     return false;
   }
+
+  // Package name: --pkg-name wins, else derive from the target folder. Always
+  // sanitized to a valid npm name (the folder could be "My App", "." → cwd, …).
+  const pkgName = sanitizePackageName(
+    flagValue(args, "--pkg-name") || path.basename(targetDir),
+  );
 
   // Derived / flag-only options — no prompts, to keep create simple & fast.
   const packageManager = detectPackageManager(args);
@@ -224,9 +294,9 @@ export async function executeCreateCommand(args: string[]): Promise<boolean> {
       }
     }
 
-    console.log(`\n🎉 Created your Kallo app: ${appName}\n`);
+    console.log(`\n🎉 Created your Kallo app: ${storeName}\n`);
     console.log("Next steps:");
-    console.log(`  cd ${appName}`);
+    if (!targetIsCwd) console.log(`  cd ${appName}`);
     if (!installed) console.log(`  ${packageManager} install`);
     console.log(`  ${runCmd(packageManager, "dev")}`);
     console.log("\nThen open http://localhost:3000 — happy building! 🍊\n");
@@ -276,7 +346,7 @@ interface BuildOpts {
 
 function buildStoreFiles(opts: BuildOpts): Record<string, string | Buffer> {
   const { pkgName, storeName, accent, packageManager } = opts;
-  const kalloDep = process.env.KALLO_LOCAL_DEPS === "true" ? "workspace:*" : "latest";
+  const kalloDep = frameworkDepVersion();
   const today = new Date().toISOString().split("T")[0];
 
   const files: Record<string, string | Buffer> = {};
@@ -361,7 +431,7 @@ function buildStoreFiles(opts: BuildOpts): Record<string, string | Buffer> {
 // ---------------------------------------------------------------------------
 function buildEmptyFiles(opts: BuildOpts): Record<string, string | Buffer> {
   const { pkgName, storeName, accent, packageManager } = opts;
-  const kalloDep = process.env.KALLO_LOCAL_DEPS === "true" ? "workspace:*" : "latest";
+  const kalloDep = frameworkDepVersion();
 
   const files: Record<string, string | Buffer> = {};
 

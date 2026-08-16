@@ -8,16 +8,20 @@ Usage: kallo create <project-name> [options]
 Scaffold a new fullstack Kallo ecommerce starter in the target directory.
 
 Arguments:
-  <project-name>  The directory name to create for the project (required)
+  <project-name>  Target directory to scaffold into. Use "." for the current
+                  directory (e.g. inside an already-cloned repo).
 
 Options:
-  --name <text>     Store / brand display name
-  --accent <color>  Accent color: violet | blue | emerald | rose (default: violet)
-  --pm <manager>    Package manager: pnpm | npm | yarn (default: pnpm)
-  -y, --yes         Skip prompts and accept defaults
+  --name <text>      Store / brand display name
+  --pkg-name <name>  package.json "name" (default: sanitized folder name)
+  --accent <color>   Accent color: violet | blue | emerald | rose (default: violet)
+  --pm <manager>     Package manager: pnpm | npm | yarn (default: pnpm)
+  -f, --force        Scaffold into a non-empty directory (may overwrite files)
+  -y, --yes          Skip prompts and accept defaults
 
-Example:
+Examples:
   kallo create my-shop --accent emerald --pm npm
+  git clone <repo> my-shop && cd my-shop && kallo create . --force
 `);
     return true;
   }
