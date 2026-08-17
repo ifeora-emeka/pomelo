@@ -7,6 +7,8 @@ export interface RateLimitHit {
 
 export interface RateLimitStore {
   increment(key: string, windowMs: number): RateLimitHit;
+  /** Clear a single key's counter (e.g. after a successful login). */
+  resetKey?(key: string): void;
   reset?(): void;
 }
 
@@ -25,6 +27,10 @@ export class MemoryRateLimitStore implements RateLimitStore {
     return existing;
   }
 
+  resetKey(key: string): void {
+    this.hits.delete(key);
+  }
+
   reset(): void {
     this.hits.clear();
   }
@@ -40,16 +46,15 @@ export interface RateLimitOptions {
   standardHeaders?: boolean;
 }
 
+/**
+ * Default key = the client IP as Express resolves it. Express only honours
+ * X-Forwarded-For when `app.set("trust proxy", ...)` is configured, so we do
+ * NOT read that header ourselves — trusting it unconditionally would let any
+ * client spoof its rate-limit bucket by sending a forged X-Forwarded-For.
+ * Behind a proxy, configure trust proxy so req.ip is the real client address.
+ */
 function defaultKeyGenerator(req: Request): string {
-  if (req.ip) return req.ip;
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.length > 0) {
-    return forwarded.split(",")[0]!.trim();
-  }
-  if (Array.isArray(forwarded) && forwarded.length > 0) {
-    return forwarded[0]!.trim();
-  }
-  return req.socket?.remoteAddress ?? "unknown";
+  return req.ip ?? req.socket?.remoteAddress ?? "unknown";
 }
 
 /**

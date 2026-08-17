@@ -23,7 +23,14 @@ import {
   resolveLayoutChain,
 } from "./route-scanner.js";
 import { mergeMetadata, renderMetadataHTML } from "./metadata.js";
-import { signToken, verifyToken } from "./auth.js";
+import {
+  createKalloAuth,
+  type AuthEngineOptions,
+  type CredentialProvider,
+} from "./auth-engine.js";
+import type { AuthAdapter } from "./auth-adapter.js";
+import type { OAuthProvider } from "./oauth.js";
+import type { RateLimitStore } from "./rate-limit.js";
 import { applyConfigHooks, applyServerHooks } from "./plugins.js";
 import { staticStore, type StaticRenderConfig } from "./static-render.js";
 
@@ -1784,93 +1791,42 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   // Authentication & Session Configuration
   if (config.auth) {
     const authOptions = config.auth;
-    const cookieName = authOptions.cookieName || "kallo.session";
 
-    // 1. Simple custom cookie parser
-    app.use((req: Request, res: Response, next: NextFunction) => {
+    // Cookie parser (splits on the first "=" so base64/token values survive).
+    app.use((req: Request, _res: Response, next: NextFunction) => {
       const cookieHeader = req.headers.cookie;
       const cookies: Record<string, string> = {};
       if (cookieHeader) {
-        cookieHeader.split(";").forEach((cookie) => {
-          const parts = cookie.split("=");
-          const k = parts[0];
-          const v = parts[1];
-          if (parts.length === 2 && k && v) {
-            cookies[k.trim()] = v.trim();
+        for (const part of cookieHeader.split(";")) {
+          const idx = part.indexOf("=");
+          if (idx === -1) continue;
+          const k = part.slice(0, idx).trim();
+          if (!k) continue;
+          try {
+            cookies[k] = decodeURIComponent(part.slice(idx + 1).trim());
+          } catch {
+            cookies[k] = part.slice(idx + 1).trim();
           }
-        });
+        }
       }
       req.cookies = cookies;
       next();
     });
 
-    // 2. Session identification and context injection
-    app.use((req: Request, res: Response, next: NextFunction) => {
-      const token = req.cookies?.[cookieName];
-      if (token) {
-        const user = verifyToken(token, authOptions.secret);
-        if (user) {
-          (req as SessionRequest).user = user;
-          (req as SessionRequest).session = { user };
-        }
-      }
-      next();
+    // The auth engine owns revocable sessions and the full /api/auth surface
+    // (sign-up/in/out, password reset, email verification, OAuth), with CSRF
+    // and rate limiting wired in by default. It resolves the current user from
+    // a server-side session so the cookie only carries an opaque session id.
+    const auth = createKalloAuth({
+      ...(authOptions as AuthEngineOptions),
+      secret: authOptions.secret,
+      adapter: authOptions.adapter as AuthAdapter | undefined,
+      oauthProviders: authOptions.oauthProviders as OAuthProvider[] | undefined,
+      providers: authOptions.providers as CredentialProvider[] | undefined,
+      rateLimitStore: authOptions.rateLimitStore as RateLimitStore | undefined,
     });
-
-    // 3. NextAuth-like built-in auth API endpoints
-    app.get("/api/auth/session", (req: Request, res: Response) => {
-      res.json({ user: (req as SessionRequest).user || null });
-    });
-
-    app.post("/api/auth/signin", async (req: Request, res: Response) => {
-      const { provider: providerId, credentials } = req.body || {};
-      if (!providerId || !credentials) {
-        res.status(400).json({ error: "Missing provider or credentials" });
-        return;
-      }
-
-      const provider = authOptions.providers?.find((p) => p.id === providerId);
-      if (!provider) {
-        res.status(400).json({ error: `Provider ${providerId} not found` });
-        return;
-      }
-
-      try {
-        const user = await provider.authorize(credentials);
-        if (!user) {
-          res.status(401).json({ error: "Invalid credentials" });
-          return;
-        }
-
-        const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-        const token = signToken(user, authOptions.secret, SESSION_MAX_AGE_MS);
-        res.cookie(cookieName, token, {
-          httpOnly: true,
-          secure:
-            config.env === "production" ||
-            process.env.NODE_ENV === "production",
-          path: "/",
-          domain: authOptions.cookieDomain,
-          maxAge: SESSION_MAX_AGE_MS,
-          sameSite: "lax",
-        });
-
-        res.json({ user });
-      } catch (err) {
-        res.status(500).json({ error: String(err) });
-      }
-    });
-
-    app.post("/api/auth/signout", (req: Request, res: Response) => {
-      res.clearCookie(cookieName, {
-        httpOnly: true,
-        secure:
-          config.env === "production" || process.env.NODE_ENV === "production",
-        path: "/",
-        domain: authOptions.cookieDomain,
-      });
-      res.json({ success: true });
-    });
+    app.use(auth.middleware);
+    app.use(auth.router);
   }
 
   app.get("/favicon.ico", (req: Request, res: Response, _next: NextFunction) => {
