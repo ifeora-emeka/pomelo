@@ -1,6 +1,6 @@
 {
   "name": "create-kallo-app",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Scaffold a new Kallo app. Run: npm create kallo-app@latest my-app",
   "license": "MIT",
   "type": "module",
