@@ -24,14 +24,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Scope to publishable packages and exclude apps (playground/www), which
+      # invoke the `kallo` bin whose pnpm shim isn't present in CI — mirrors the
+      # scoping already applied in ci.yml.
       - name: Type-check
-        run: pnpm check-types
+        run: pnpm exec turbo run check-types --filter='!./apps/*'
 
       - name: Test
-        run: pnpm test
+        run: pnpm exec turbo run test --filter='!./apps/*'
 
       - name: Build
-        run: pnpm build
+        run: pnpm exec turbo run build --filter='!./apps/*'
 
       # Publishes packages/* whose version is not yet on npm; pnpm skips
       # already-published versions, so this is a no-op until a version is bumped.
