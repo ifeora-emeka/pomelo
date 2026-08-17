@@ -85,6 +85,7 @@ function extractIdentifiers(expression: string): string[] {
     "global",
     "globalThis",
     "$event",
+    "event",
     "target",
     // Strict-mode reserved words — never valid as destructured bindings.
     "static",
@@ -242,13 +243,17 @@ export function transformTemplate(
     const loopDestructure = loopVars.length
       ? `const { ${loopVars.join(", ")} } = $scope;`
       : "";
+    // `event` is an alias for the native DOM event (as the docs promise). It is
+    // NOT component state, so bind it from the handler's $event param instead of
+    // (incorrectly) destructuring an undefined `event` off $state.
+    const eventAlias = /\bevent\b/.test(expr) ? "const event = $event;" : "";
     const snapshot = stateVars.length
       ? `const $init = [${stateVars.join(", ")}];`
       : "";
     const writeBack = stateVars
       .map((v, i) => `if (${v} !== $init[${i}]) $state.${v} = ${v};`)
       .join(" ");
-    const body = `${stateDestructure} ${loopDestructure} ${snapshot} const $r = (${expr}); ${writeBack} return $r;`;
+    const body = `${stateDestructure} ${loopDestructure} ${eventAlias} ${snapshot} const $r = (${expr}); ${writeBack} return $r;`;
     eventHandlers.push(`function($state, $scope, $event) { ${body.trim()} }`);
     return eventHandlers.length - 1;
   }
@@ -384,8 +389,10 @@ export function transformTemplate(
       if (tagName === TAG_WHEN) {
         const cond = n.attributes?.["condition"] || "true";
         const childHTML = compileChildren(n.children || [], activeLoopVars);
+        // Unwrap so a bare $local signal (a truthy object) is evaluated by its
+        // value — consistent with text/attribute bindings.
         return {
-          html: `\${${cond} ? \`${childHTML}\` : ""}`,
+          html: `\${_unwrapSignal(${cond}) ? \`${childHTML}\` : ""}`,
           nextWhen: cond,
         };
       }
@@ -394,13 +401,13 @@ export function transformTemplate(
         const cond = n.attributes?.["when"] || "true";
         const childHTML = compileChildren(n.children || [], activeLoopVars);
         return {
-          html: `\${${cond} ? \`${childHTML}\` : ""}`,
+          html: `\${_unwrapSignal(${cond}) ? \`${childHTML}\` : ""}`,
           nextWhen: cond,
         };
       }
 
       if (tagName === TAG_ELSE) {
-        const cond = lastWhen ? `!(${lastWhen})` : "true";
+        const cond = lastWhen ? `!_unwrapSignal(${lastWhen})` : "true";
         const childHTML = compileChildren(n.children || [], activeLoopVars);
         return {
           html: `\${${cond} ? \`${childHTML}\` : ""}`,

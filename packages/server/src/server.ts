@@ -242,39 +242,43 @@ const serverPageState = ${stateJSON};
 const serverLayoutStates = [${layoutStatesJSON.join(", ")}];
 
 if (container) {
-  const pageState = { ...serverPageState, ...(component.setup ? component.setup(serverPageState) : {}) };
-  const layoutStates = [];
-  
   const layoutModules = [${layoutCacheFileNames.map((_, i) => `layout_${i}`).join(", ")}];
-  for (let i = 0; i < serverLayoutStates.length; i++) {
-    const layoutMod = layoutModules[i];
-    const s = serverLayoutStates[i];
-    const layoutState = { ...s, ...(layoutMod.setup ? layoutMod.setup(s) : {}) };
-    layoutStates.push(layoutState);
-  }
-
-  const combinedState = { ...pageState };
-  for (const s of layoutStates) {
-    Object.assign(combinedState, s);
-  }
+  let layoutStates = [];
 
   const combinedRender = (state) => {
     let html = component.render ? component.render(state) : "";
     for (let i = layoutModules.length - 1; i >= 0; i--) {
       const layoutMod = layoutModules[i];
-      const layoutStateForRender = { ...state, ...layoutStates[i] };
+      const layoutStateForRender = { ...state, ...(layoutStates[i] || {}) };
       html = layoutMod.render ? layoutMod.render(layoutStateForRender, { default: () => html }) : html;
     }
     return html;
   };
 
+  // Run every setup (page + layouts) INSIDE hydrate's active instance so their
+  // $mount()/$destroy() lifecycle callbacks register and get flushed. Running
+  // them here (once) rather than precomputing outside is what makes layout
+  // lifecycle hooks fire under composed layouts.
+  const runSetups = () => {
+    const pageState = { ...serverPageState, ...(component.setup ? component.setup(serverPageState) : {}) };
+    layoutStates = [];
+    for (let i = 0; i < serverLayoutStates.length; i++) {
+      const layoutMod = layoutModules[i];
+      const s = serverLayoutStates[i];
+      layoutStates.push({ ...s, ...(layoutMod.setup ? layoutMod.setup(s) : {}) });
+    }
+    const combined = { ...pageState };
+    for (const s of layoutStates) Object.assign(combined, s);
+    return combined;
+  };
+
   function _kalHydrate() {
     hydrate(container, {
-      setup: () => combinedState,
+      setup: runSetups,
       render: combinedRender,
       css: component.css || "",
       componentId: "${componentId}"
-    }, combinedState);
+    }, serverPageState);
   }
   ${hydrationScheduler(strategy, "_kalHydrate")}
 }
@@ -1282,6 +1286,13 @@ export async function handleSSRWithLayouts(
         if (layoutMeta) {
           mergedMeta = mergeMetadata(mergedMeta, layoutMeta);
         }
+      }
+
+      // A layout $serverPage may end the response (e.g. an auth guard calling
+      // res.redirect). Stop before running the page's $serverPage so it never
+      // executes against a request the layout already rejected.
+      if (res.headersSent) {
+        return;
       }
     }
 

@@ -181,8 +181,8 @@ test("Compiler compiles template features, directives, and slots", () => {
   assert.ok(result.code.includes("(products || []).map((prod) =>"));
   // Keyed lists emit data-kal-key for reconciliation
   assert.ok(result.code.includes('data-kal-key="${_escapeAttr(prod.id)}"'));
-  assert.ok(result.code.includes("showBanner ?"));
-  assert.ok(result.code.includes("!(showBanner) ?"));
+  assert.ok(result.code.includes("_unwrapSignal(showBanner) ?"));
+  assert.ok(result.code.includes("!_unwrapSignal(showBanner) ?"));
 
   // Slots
   assert.ok(result.code.includes("slots.footer ? slots.footer() :"));
@@ -203,8 +203,8 @@ test("Compiler compiles <Show when> with following <Else>", () => {
   `;
   const result = compile(viewSFC, "view/show.kal");
 
-  assert.ok(result.code.includes("user ?"));
-  assert.ok(result.code.includes("!(user) ?"));
+  assert.ok(result.code.includes("_unwrapSignal(user) ?"));
+  assert.ok(result.code.includes("!_unwrapSignal(user) ?"));
   assert.ok(result.code.includes("${_escape(user.name)}"));
   // <Show>/<Else> are control-flow tags, never rendered as components
   assert.ok(!result.code.includes("_renderComponent(Show"));
@@ -461,4 +461,44 @@ test("Compiler does not destructure tokens from :class string literals (no reser
   for (const bad of ["static", "fixed", "block", "hidden", "lg", "p"]) {
     assert.ok(!names.includes(bad), `should not destructure "${bad}"`);
   }
+});
+
+test("Event handlers alias `event` to the real DOM event, not $state", () => {
+  const result = compile(
+    `<Client>const submit = (e) => e.preventDefault();</Client>` +
+      `<View><form @submit="submit(event)"></form></View>`,
+    "view/page.kal",
+  );
+  // `event` must be bound from the $event param, not destructured off $state.
+  assert.ok(result.code.includes("const event = $event;"));
+  assert.ok(!/let \{[^}]*\bevent\b[^}]*\} = \$state/.test(result.code));
+  assert.ok(result.code.includes("submit(event)"));
+});
+
+test("Client block hoists only TOP-LEVEL declarations (not nested / comments)", () => {
+  const result = compile(
+    `<Client>\n` +
+      `  const form = 1;\n` +
+      `  const submit = (e) => { const email = e.target.value; return email; }; // let sneaky\n` +
+      `  // const alsoFake = 2\n` +
+      `</Client><View><p>{{ form }}</p></View>`,
+    "view/page.kal",
+  );
+  const ret = (result.code.match(/return \{[^}]*\};/) || [""])[0];
+  assert.ok(ret.includes("form"));
+  assert.ok(ret.includes("submit"));
+  assert.ok(!ret.includes("email"), "nested const must not be hoisted");
+  assert.ok(!ret.includes("sneaky"), "comment word must not be hoisted");
+  assert.ok(!ret.includes("alsoFake"), "commented decl must not be hoisted");
+});
+
+test("When/Show/Else unwrap signals in the condition", () => {
+  const result = compile(
+    `<View><When condition="busy"><b>x</b></When><Else><i>y</i></Else>` +
+      `<Show when="open"><u>z</u></Show></View>`,
+    "view/page.kal",
+  );
+  assert.ok(result.code.includes("_unwrapSignal(busy) ?"));
+  assert.ok(result.code.includes("!_unwrapSignal(busy)"));
+  assert.ok(result.code.includes("_unwrapSignal(open) ?"));
 });

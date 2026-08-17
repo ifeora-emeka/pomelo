@@ -650,3 +650,56 @@ test("Fine-grained: attribute binding updates only its attribute", () => {
   destroyInstance(instance);
   delete (globalThis as any).__kal_bindings__;
 });
+
+// ── morph: input value/checked preservation ────────────────────────────────
+class FakeInput {
+  nodeType = 1;
+  tagName = "INPUT";
+  childNodes: unknown[] = [];
+  value = "";
+  checked = false;
+  private _a = new Map<string, string>();
+  constructor(attrs: Record<string, string> = {}) {
+    for (const k of Object.keys(attrs)) this._a.set(k, attrs[k] as string);
+    if ("value" in attrs) this.value = attrs.value as string;
+  }
+  get attributes() {
+    return Array.from(this._a, ([name, value]) => ({ name, value }));
+  }
+  hasAttribute(n: string) { return this._a.has(n); }
+  getAttribute(n: string) { return this._a.has(n) ? this._a.get(n)! : null; }
+  setAttribute(n: string, v: string) { this._a.set(n, v); }
+  removeAttribute(n: string) { this._a.delete(n); }
+  replaceWith() {}
+  cloneNode() { return this; }
+  setSelectionRange() {}
+}
+const doMorph = (o: FakeInput, n: FakeInput) => morph(o as unknown as Node, n as unknown as Node);
+
+test("morph preserves uncontrolled input value across re-render", () => {
+  const o = new FakeInput({ name: "email" }); o.value = "typed@example.com";
+  const n = new FakeInput({ name: "email" }); n.value = "";
+  doMorph(o, n);
+  assert.strictEqual(o.value, "typed@example.com");
+});
+
+test("morph syncs controlled input value (has value attr)", () => {
+  const o = new FakeInput({ name: "email", value: "old" }); o.value = "old";
+  const n = new FakeInput({ name: "email", value: "new" }); n.value = "new";
+  doMorph(o, n);
+  assert.strictEqual(o.value, "new");
+});
+
+test("morph preserves uncontrolled checkbox checked state", () => {
+  const o = new FakeInput({ name: "agree", type: "checkbox" }); o.checked = true;
+  const n = new FakeInput({ name: "agree", type: "checkbox" }); n.checked = false;
+  doMorph(o, n);
+  assert.strictEqual(o.checked, true);
+});
+
+test("morph syncs controlled checkbox (has bind marker)", () => {
+  const o = new FakeInput({ name: "agree", type: "checkbox", "data-kal-bind-checked": "form.agreed" }); o.checked = true;
+  const n = new FakeInput({ name: "agree", type: "checkbox", "data-kal-bind-checked": "form.agreed" }); n.checked = false;
+  doMorph(o, n);
+  assert.strictEqual(o.checked, false);
+});

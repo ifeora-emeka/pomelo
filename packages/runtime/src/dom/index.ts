@@ -176,19 +176,57 @@ export function morph(oldNode: Node, newNode: Node) {
     if (oldEl.tagName === "INPUT" || oldEl.tagName === "TEXTAREA") {
       const o = oldEl as HTMLInputElement | HTMLTextAreaElement;
       const n = newEl as HTMLInputElement | HTMLTextAreaElement;
-      if (o.value !== n.value) {
+      // Only overwrite the live value for CONTROLLED inputs — ones the template
+      // actually binds a value/checked for. Uncontrolled inputs (no value
+      // binding) keep whatever the user typed, so a re-render triggered by some
+      // unrelated state change (e.g. toggling show-password) never wipes fields.
+      const controlsValue =
+        newEl.hasAttribute("value") ||
+        newEl.hasAttribute("data-kal-bind") ||
+        newEl.hasAttribute("data-kal-bind-value") ||
+        newEl.hasAttribute("data-kal-attr-value");
+      if (controlsValue && o.value !== n.value) {
+        // Preserve the caret/selection if this input is being edited.
+        const focused =
+          typeof document !== "undefined" && document.activeElement === o;
+        let start: number | null = null;
+        let end: number | null = null;
+        if (focused) {
+          try {
+            start = o.selectionStart;
+            end = o.selectionEnd;
+          } catch {
+            start = null;
+          }
+        }
         o.value = n.value;
+        if (start !== null) {
+          try {
+            o.setSelectionRange(start, end as number);
+          } catch {
+            /* selection not supported for this input type */
+          }
+        }
       }
-      if (
-        o.tagName === "INPUT" &&
-        (o as HTMLInputElement).checked !== (n as HTMLInputElement).checked
-      ) {
-        (o as HTMLInputElement).checked = (n as HTMLInputElement).checked;
+      if (o.tagName === "INPUT") {
+        const oi = o as HTMLInputElement;
+        const ni = n as HTMLInputElement;
+        const controlsChecked =
+          newEl.hasAttribute("data-kal-bind") ||
+          newEl.hasAttribute("data-kal-bind-checked") ||
+          newEl.hasAttribute("data-kal-battr-checked");
+        if (controlsChecked && oi.checked !== ni.checked) {
+          oi.checked = ni.checked;
+        }
       }
     } else if (oldEl.tagName === "SELECT") {
       const o = oldEl as HTMLSelectElement;
       const n = newEl as HTMLSelectElement;
-      if (o.value !== n.value) {
+      const controls =
+        newEl.hasAttribute("data-kal-bind") ||
+        newEl.hasAttribute("data-kal-bind-value") ||
+        newEl.hasAttribute("data-kal-attr-value");
+      if (controls && o.value !== n.value) {
         o.value = n.value;
       }
     }
