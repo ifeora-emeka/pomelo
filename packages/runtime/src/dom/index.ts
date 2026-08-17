@@ -721,7 +721,11 @@ function navigateStatic(href: string, pushState: boolean): Promise<void> {
           morph(oldChild, newChild);
         }
       }
-      window.scrollTo(0, 0);
+      // Scroll to top on forward navigation (link clicks); leave popstate
+      // (back/forward) alone so the browser restores the prior position.
+      if (pushState) {
+        window.scrollTo(0, 0);
+      }
 
       // Re-execute ONLY the framework hydration module script (tagged
       // data-kallo-hydrate) — never arbitrary user `<script type="module">`,
@@ -861,6 +865,13 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
           },
           combinedState
         );
+
+        // Scroll to top on forward navigation (link clicks), but leave the
+        // scroll position alone on back/forward (popstate) so the browser can
+        // restore where the user was.
+        if (pushState) {
+          window.scrollTo(0, 0);
+        }
 
         // Dispatch load event to let external scripts know navigation occurred
         window.dispatchEvent(new Event("load"));
