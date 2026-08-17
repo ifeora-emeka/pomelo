@@ -1,0 +1,70 @@
+name: Deploy docs site to GitHub Pages
+
+# Builds the workspace packages, statically exports the docs site (apps/www)
+# with `kallo export`, and publishes ./apps/www/out to GitHub Pages.
+#
+# One-time setup: Repository Settings → Pages → Build and deployment → Source →
+# "GitHub Actions". The custom domain kallo.idegin.com is served via the CNAME
+# file in apps/www/public/ (emitted into the export).
+
+on:
+  push:
+    branches: [main]
+    # Only redeploy when something that affects the site changes.
+    paths:
+      - "apps/www/**"
+      - "apps/docs/**"
+      - "packages/**"
+      - ".github/workflows/deploy-www.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; don't cancel an in-progress publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm --filter "@kallojs/*" build
+
+      # Invoke the CLI via node directly — the `kallo` workspace bin symlink is
+      # not reliably resolvable in CI (same reason as the Dockerfile).
+      - name: Export docs site (static)
+        working-directory: apps/www
+        run: node ../../packages/cli/dist/bin.js export
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/www/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

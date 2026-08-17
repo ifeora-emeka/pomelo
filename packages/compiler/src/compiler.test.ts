@@ -57,6 +57,53 @@ test("Compiler compiles server block keywords", () => {
   assert.ok(result.code.includes("const $abort ="));
 });
 
+test("Compiler rewrites $staticParams to $serverStaticParams export", () => {
+  const sfc = `
+  <Server>
+    $staticParams(() => [{ id: "a" }, { id: "b" }]);
+    $page(() => ({}));
+  </Server>
+  `;
+  const result = compile(sfc, "view/products/[id]/page.kal");
+  assert.ok(result.code.includes("export const $serverStaticParams = (() =>"));
+});
+
+test("Compiler treats $paths as an alias of $staticParams", () => {
+  const sfc = `
+  <Server>
+    $paths(() => [{ slug: "x" }]);
+  </Server>
+  `;
+  const result = compile(sfc, "view/blog/[slug]/page.kal");
+  assert.ok(result.code.includes("export const $serverStaticParams = (() =>"));
+});
+
+test("Compiler avoids duplicate $serverStaticParams export when both aliases used", () => {
+  const sfc = `
+  <Server>
+    $staticParams(() => [{ id: "a" }]);
+    $paths(() => [{ id: "b" }]);
+  </Server>
+  `;
+  const result = compile(sfc, "view/x/[id]/page.kal");
+  const count = (result.code.match(/export const \$serverStaticParams/g) || []).length;
+  assert.strictEqual(count, 1);
+  // The second alias becomes a discarded local, not a duplicate export.
+  assert.ok(result.code.includes("$unusedStaticParams"));
+});
+
+test("Compiler does not confuse $static with $staticParams", () => {
+  const sfc = `
+  <Server>
+    $static({ revalidate: 60 });
+    $staticParams(() => [{ id: "a" }]);
+  </Server>
+  `;
+  const result = compile(sfc, "view/x/[id]/page.kal");
+  assert.ok(result.code.includes("export const $serverStatic = ({ revalidate: 60 })"));
+  assert.ok(result.code.includes("export const $serverStaticParams = (() =>"));
+});
+
 test("Compiler compiles client block setup and returns", () => {
   const clientSFC = `
   <Client>
@@ -378,4 +425,40 @@ test("Compiler rejects an invalid hydrate strategy", () => {
       ),
     /Invalid <Client hydrate/,
   );
+});
+
+test("Compiler registers child component function props for delegated handlers", () => {
+  const result = compile(
+    `<View><Card :onAction="handleAction" :label="title" /></View>`,
+    "page.kal",
+  );
+  // _renderComponent must record the instance's function props so a delegated
+  // handler inside the child can resolve them at click time (client-only).
+  assert.ok(result.code.includes("__kal_instance_props__"));
+  assert.ok(result.code.includes('typeof window !== "undefined"'));
+});
+
+test("Compiler emits unescaped output for triple-mustache, escaped for double", () => {
+  const result = compile(
+    `<View><div>{{{ rawHtml }}}</div><span>{{ text }}</span></View>`,
+    "page.kal",
+  );
+  // Triple mustache -> raw (no _escape), double -> _escape.
+  assert.ok(result.code.includes("_unwrapSignal(rawHtml)"));
+  assert.ok(!result.code.includes("_escape(rawHtml)"));
+  assert.ok(result.code.includes("_escape(text)"));
+});
+
+test("Compiler does not destructure tokens from :class string literals (no reserved words)", () => {
+  const result = compile(
+    `<View><div :class="open ? 'fixed lg:static block hidden' : 'p-0'">x</div></View>`,
+    "page.kal",
+  );
+  const decl = /const \{([^}]*)\} = state\.__raw__/.exec(result.code);
+  const names = (decl?.[1] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  // The dynamic identifier is kept; class-string tokens and reserved words are not.
+  assert.ok(names.includes("open"));
+  for (const bad of ["static", "fixed", "block", "hidden", "lg", "p"]) {
+    assert.ok(!names.includes(bad), `should not destructure "${bad}"`);
+  }
 });

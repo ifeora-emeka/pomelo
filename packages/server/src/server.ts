@@ -45,7 +45,7 @@ function getCacheDir(): string {
   }
 }
 
-function rewriteBareModuleImports(code: string): string {
+export function rewriteBareModuleImports(code: string): string {
   const pomPackages = ["@kallojs/runtime", "@kallojs/shared", "@kallojs/types"];
   let result = code;
   for (const pkg of pomPackages) {
@@ -190,8 +190,8 @@ function generateHydrationScript(
   strategy = "load",
 ): string {
   if (strategy === "never") return "";
-  return `<script type="module">
-import { hydrate } from "/@kallojs/runtime/index.js";
+  return `<script type="module" data-kallo-hydrate>
+import { hydrate } from "/@kallojs/runtime/client.js";
 import * as component from "/@kallojs/view/${cacheFileName}";
 const container = document.getElementById("app");
 const serverState = ${stateJSON};
@@ -226,8 +226,8 @@ function generateHydrationScriptWithLayouts(
     );
   }
 
-  return `<script type="module">
-import { hydrate } from "/@kallojs/runtime/index.js";
+  return `<script type="module" data-kallo-hydrate>
+import { hydrate } from "/@kallojs/runtime/client.js";
 ${imports.join("\n")}
 
 const container = document.getElementById("app");
@@ -558,7 +558,7 @@ export async function handleSSRStream(
   }
 }
 
-function compileTypeScriptDeps(
+export function compileTypeScriptDeps(
   cacheFile: string,
   cacheDir: string,
   visited: Set<string> = new Set(),
@@ -625,11 +625,15 @@ function compileTypeScriptDeps(
   }
 }
 
-function compileKalDeps(
+export function compileKalDeps(
   cacheFile: string,
   cacheDir: string,
   projectRoot: string,
   visited: Set<string> = new Set(),
+  // Component cache files already compiled+written this build. A component
+  // shared by many routes/layouts (e.g. Navbar) is compiled once, not once per
+  // importer — every importer still gets its import rewritten below.
+  emitted: Set<string> = new Set(),
 ): void {
   if (visited.has(cacheFile)) return;
   visited.add(cacheFile);
@@ -657,20 +661,26 @@ function compileKalDeps(
     }
 
     if (fs.existsSync(absolutePomPath)) {
-      const pomSource = fs.readFileSync(absolutePomPath, "utf-8");
-      const compiled = compile(pomSource, absolutePomPath);
       const relative = path.relative(projectRoot, absolutePomPath);
       const compCacheName =
         "comp_" + relative.replace(/[\/\\]/g, "_").replace(new RegExp(`\\${SFC_EXTENSION}$`), ".js");
       const compCacheFile = path.join(cacheDir, compCacheName);
-      const rewroteCode = rewriteRelativeImports(
-        compiled.code,
-        absolutePomPath,
-        compCacheFile,
-      );
-      fs.writeFileSync(compCacheFile, rewriteBareModuleImports(rewroteCode));
-      compileTypeScriptDeps(compCacheFile, cacheDir, new Set());
-      compileKalDeps(compCacheFile, cacheDir, projectRoot, visited);
+
+      // Compile the component only the first time we see it this build; later
+      // importers reuse the emitted module and just rewrite their import path.
+      if (!emitted.has(compCacheFile)) {
+        emitted.add(compCacheFile);
+        const pomSource = fs.readFileSync(absolutePomPath, "utf-8");
+        const compiled = compile(pomSource, absolutePomPath);
+        const rewroteCode = rewriteRelativeImports(
+          compiled.code,
+          absolutePomPath,
+          compCacheFile,
+        );
+        fs.writeFileSync(compCacheFile, rewriteBareModuleImports(rewroteCode));
+        compileTypeScriptDeps(compCacheFile, cacheDir, new Set());
+        compileKalDeps(compCacheFile, cacheDir, projectRoot, visited, emitted);
+      }
 
       const newRelPath =
         "./" +
@@ -817,11 +827,14 @@ async function renderSpecialFile(
   }
 }
 
-export function registerFileSystemRoutes(
+// Builds a fresh Express router holding every file-system page route plus the
+// catch-all. Kept separate from registration so dev can rebuild it in place
+// (picking up newly added / removed routes) without restarting the server.
+function buildPageRouter(
   app: express.Express,
   pagesDir: string,
-) {
-  if (!fs.existsSync(pagesDir)) return;
+): express.Router {
+  const router = express.Router();
 
   const routes = sortRoutesBySpecificity(scanRoutes(pagesDir));
   const cacheDir = getCacheDir();
@@ -882,7 +895,7 @@ export function registerFileSystemRoutes(
       layoutCacheFiles.push(layoutCacheFile);
     }
 
-    app.get(route.path, async (req, res, next) => {
+    router.get(route.path, async (req, res, next) => {
       try {
         if (
           process.env.NODE_ENV === "development" ||
@@ -992,7 +1005,7 @@ export function registerFileSystemRoutes(
   }
 
   // Catch-all 404 handler for unmatched pages
-  app.get("*splat", async (req, res, next) => {
+  router.get("*splat", async (req, res, next) => {
     if (req.path.startsWith("/api") || (req.accepts && !req.accepts("html"))) {
       return next();
     }
@@ -1012,6 +1025,44 @@ export function registerFileSystemRoutes(
     }
     next();
   });
+
+  return router;
+}
+
+// Holds the live page router so it can be swapped atomically on a dev rebuild.
+interface PageRouterRef {
+  current: express.Router;
+}
+
+export function registerFileSystemRoutes(
+  app: express.Express,
+  pagesDir: string,
+) {
+  if (!fs.existsSync(pagesDir)) return;
+  app.set("pagesDir", pagesDir);
+
+  const existing = app.get("__kalloPageRouterRef") as PageRouterRef | undefined;
+  if (existing) {
+    // Already wired up (dev rebuild): swap in a freshly scanned router so new
+    // or removed routes take effect without touching the mounted middleware.
+    existing.current = buildPageRouter(app, pagesDir);
+    return;
+  }
+
+  const ref: PageRouterRef = { current: buildPageRouter(app, pagesDir) };
+  app.set("__kalloPageRouterRef", ref);
+  // Stable indirection: the mounted middleware always delegates to whichever
+  // router is current, so rebuilds never re-add middleware to the app stack.
+  app.use((req, res, next) => ref.current(req, res, next));
+}
+
+// Re-scan src/view and rebuild the page routes in place (dev only) so newly
+// added or removed page.kal / layout.kal files are served without a restart.
+export function reloadFileSystemRoutes(
+  app: express.Express,
+  pagesDir: string,
+) {
+  registerFileSystemRoutes(app, pagesDir);
 }
 
 export function apiFileToRoutePath(relativePath: string): string {
@@ -1467,37 +1518,100 @@ export interface ServerInstance {
   start: () => any;
 }
 
-function rewriteBrowserImports(content: string): string {
-  let result = content.replace(
-    /(\b(?:import|export)\s+[\s\S]*?\s+from\s+['"]|import\s+['"])@kallo\/runtime(['"])/g,
-    "$1/@kallojs/runtime/index.js$2",
-  );
+function browserUrlForPackage(shortName: string, subpath: string): string {
+  if (subpath === "" || subpath === "/dist/index.js" || subpath === "/index.js") {
+    return shortName === "runtime"
+      ? "/@kallojs/runtime/client.js"
+      : `/@kallojs/${shortName}/index.js`;
+  }
+  if (subpath.startsWith("/dist/")) {
+    return `/@kallojs/${shortName}/${subpath.slice(6)}`;
+  }
+  return `/@kallojs/${shortName}${subpath}`;
+}
 
+export function rewriteBrowserImports(content: string): string {
+  let result = content;
   const pomPackages = ["@kallojs/runtime", "@kallojs/shared", "@kallojs/types"];
   for (const pkg of pomPackages) {
-    const pkgDir = resolvePackageToAbsolute(pkg);
-    if (!pkgDir) continue;
+    const shortName = pkg.replace("@kallojs/", "");
+    const importPrefix =
+      "(\\b(?:import|export)\\s+[\\s\\S]*?\\s+from\\s+['\"]|import\\s+['\"])";
 
-    const absEntry = `file://${pkgDir.replace(/\\/g, "/")}`;
-    const escapedPkgDir = absEntry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(
-      `(\\b(?:import|export)\\s+[\\s\\S]*?\\s+from\\s+['"]|import\\s+['"])${escapedPkgDir}([^'"]*)(['"])`,
+    // Bare specifiers (e.g. `from "@kallojs/shared"`) — browsers can't resolve
+    // these, so map them onto the served browser URLs.
+    const escapedPkg = pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const bareRegex = new RegExp(
+      `${importPrefix}${escapedPkg}([^'"]*)(['"])`,
       "g",
     );
+    result = result.replace(bareRegex, (_m, prefix, subpath, suffix) => {
+      return `${prefix}${browserUrlForPackage(shortName, subpath)}${suffix}`;
+    });
 
-    const shortName = pkg.replace("@kallojs/", "");
-    result = result.replace(regex, (match, prefix, subpath, suffix) => {
-      let targetPath = `/@kallojs/${shortName}${subpath}`;
-      if (subpath.startsWith("/dist/")) {
-        targetPath = `/@kallojs/${shortName}/${subpath.slice(6)}`;
-      } else if (subpath === "/dist/index.js") {
-        targetPath = `/@kallojs/${shortName}/index.js`;
-      }
-      return `${prefix}${targetPath}${suffix}`;
+    // Absolute file:// specifiers produced by rewriteBareModuleImports at
+    // compile time (needed for Node SSR import; rewritten back for the browser).
+    const pkgDir = resolvePackageToAbsolute(pkg);
+    if (!pkgDir) continue;
+    const absEntry = `file://${pkgDir.replace(/\\/g, "/")}`;
+    const escapedPkgDir = absEntry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const absRegex = new RegExp(
+      `${importPrefix}${escapedPkgDir}([^'"]*)(['"])`,
+      "g",
+    );
+    result = result.replace(absRegex, (_m, prefix, subpath, suffix) => {
+      return `${prefix}${browserUrlForPackage(shortName, subpath)}${suffix}`;
     });
   }
 
   return result;
+}
+
+function resolveKalloDistDir(pkg: string, fallbackName: string): string | null {
+  try {
+    const pkgPath = require.resolve(`${pkg}/package.json`, {
+      paths: [process.cwd()],
+    });
+    return path.join(path.dirname(pkgPath), "dist");
+  } catch {
+    const pathsToTry = [
+      path.join(__dirname, `../../../${fallbackName}`),
+      path.join(process.cwd(), `packages/${fallbackName}`),
+      path.join(process.cwd(), `../${fallbackName}`),
+    ];
+    for (const p of pathsToTry) {
+      if (fs.existsSync(path.join(p, "package.json"))) {
+        return path.join(p, "dist");
+      }
+    }
+    return null;
+  }
+}
+
+function serveKalloPackage(
+  app: express.Express,
+  mount: string,
+  distDir: string,
+): void {
+  const root = path.resolve(distDir);
+  app.use(mount, (req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    const rel = decodeURIComponent(req.path).replace(/^\/+/, "");
+    const filePath = path.resolve(root, rel);
+    if (filePath !== root && !filePath.startsWith(root + path.sep)) {
+      res.status(403).end();
+      return;
+    }
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      return next();
+    }
+    if (filePath.endsWith(".js")) {
+      res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+      res.send(rewriteBrowserImports(fs.readFileSync(filePath, "utf-8")));
+    } else {
+      res.sendFile(filePath);
+    }
+  });
 }
 
 export function createServer(config: FrameworkConfig): ServerInstance {
@@ -1519,33 +1633,22 @@ export function createServer(config: FrameworkConfig): ServerInstance {
   const routeCacheMap = new Map<string, string>();
   app.set("routeCacheMap", routeCacheMap);
 
-  // Serve @kallojs/runtime client-side files
-  try {
-    const runtimePkgPath = require.resolve("@kallojs/runtime/package.json", {
-      paths: [process.cwd()],
-    });
-    const runtimeDir = path.dirname(runtimePkgPath);
-    app.use("/@kallojs/runtime", express.static(path.join(runtimeDir, "dist")));
-  } catch (err) {
-    let resolved = false;
-    const pathsToTry = [
-      path.join(__dirname, "../../../runtime"),
-      path.join(process.cwd(), "packages/runtime"),
-      path.join(process.cwd(), "../runtime"),
-    ];
-    for (const p of pathsToTry) {
-      if (fs.existsSync(path.join(p, "package.json"))) {
-        app.use("/@kallojs/runtime", express.static(path.join(p, "dist")));
-        resolved = true;
-        break;
-      }
-    }
-    if (!resolved) {
-      KalloLogger.warn(
-        "Could not resolve @kallojs/runtime path for static serving: " +
-          String(err),
-      );
-    }
+  // Serve @kallojs client-side files. These are passed through
+  // rewriteBrowserImports so bare specifiers (e.g. "@kallojs/shared") that the
+  // browser cannot resolve are mapped onto served URLs before delivery.
+  const runtimeDist = resolveKalloDistDir("@kallojs/runtime", "runtime");
+  if (runtimeDist) {
+    serveKalloPackage(app, "/@kallojs/runtime", runtimeDist);
+  } else {
+    KalloLogger.warn("Could not resolve @kallojs/runtime path for serving.");
+  }
+  const sharedDist = resolveKalloDistDir("@kallojs/shared", "shared");
+  if (sharedDist) {
+    serveKalloPackage(app, "/@kallojs/shared", sharedDist);
+  }
+  const typesDist = resolveKalloDistDir("@kallojs/types", "types");
+  if (typesDist) {
+    serveKalloPackage(app, "/@kallojs/types", typesDist);
   }
 
   app.use("/@kallojs/view", (req, res, _next) => {
@@ -1837,6 +1940,7 @@ export function createServer(config: FrameworkConfig): ServerInstance {
         }
         watchers.length = 0;
       });
+      const viewDir = path.join(process.cwd(), "src/view");
       const watchCallback = (event: string, filePath: string) => {
         if (
           filePath.endsWith(".kal") ||
@@ -1844,6 +1948,22 @@ export function createServer(config: FrameworkConfig): ServerInstance {
           filePath.endsWith(".js") ||
           filePath.endsWith(".css")
         ) {
+          // A 'rename' event under src/view means a route file was added,
+          // removed, or renamed — re-register routes so the new URL is served
+          // without a restart. (Edits to existing routes already hot-reload via
+          // the per-request recompile.)
+          if (
+            event === "rename" &&
+            filePath.endsWith(".kal") &&
+            filePath.startsWith(viewDir)
+          ) {
+            try {
+              reloadFileSystemRoutes(app, viewDir);
+              KalloLogger.info(`[Kallo Dev] Routes reloaded (${path.relative(process.cwd(), filePath)}).`);
+            } catch (err) {
+              KalloLogger.warn(`[Kallo Dev] Failed to reload routes: ${String(err)}`);
+            }
+          }
           if (debounceTimer) clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
             KalloLogger.info(`[Kallo Dev] File change detected: ${filePath}. Notifying clients...`);

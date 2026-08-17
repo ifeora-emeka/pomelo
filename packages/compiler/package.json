@@ -1,6 +1,6 @@
 {
   "name": "@kallojs/compiler",
-  "version": "0.0.1",
+  "version": "0.0.7",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "license": "MIT",
@@ -14,5 +14,6 @@
     "@kallojs/types": "workspace:*",
     "@kallojs/shared": "workspace:*",
     "@kallojs/parser": "workspace:*"
-  }
+  },
+  "homepage": "https://kallo.idegin.com"
 }

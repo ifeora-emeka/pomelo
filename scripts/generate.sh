@@ -1,17 +1,17 @@
 #!/bin/bash
 set -e
 
-echo "[Kallo] Cleaning existing temp/ directory..."
-rm -rf temp
-mkdir -p temp
+echo "[Kallo] Cleaning existing examples/ directory..."
+rm -rf examples
+mkdir -p examples
 
-echo "[Kallo] Running CLI to create test-app inside temp/..."
-node packages/cli/dist/bin.js create temp/test-app
+echo "[Kallo] Running CLI to create test-app inside examples/..."
+node packages/cli/dist/bin.js create examples/test-app
 
-# Ensure temp/* is present in pnpm-workspace.yaml
-if ! grep -q "temp/\*" pnpm-workspace.yaml; then
-  echo "[Kallo] Adding temp/* to pnpm-workspace.yaml..."
-  echo "  - \"temp/*\"" >> pnpm-workspace.yaml
+# Ensure examples/* is present in pnpm-workspace.yaml
+if ! grep -q "examples/\*" pnpm-workspace.yaml; then
+  echo "[Kallo] Adding examples/* to pnpm-workspace.yaml..."
+  echo "  - \"examples/*\"" >> pnpm-workspace.yaml
 fi
 
 echo "[Kallo] Installing workspace dependencies..."
@@ -21,7 +21,7 @@ echo "[Kallo] Building the scaffolded test-app..."
 pnpm --filter test-app build
 
 echo "--------------------------------------------------------"
-echo "Success! Kallo test-app generated at temp/test-app"
+echo "Success! Kallo test-app generated at examples/test-app"
 echo "To run the app, execute:"
 echo "  pnpm --filter test-app start"
 echo "--------------------------------------------------------"

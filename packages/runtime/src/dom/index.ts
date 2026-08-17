@@ -1,4 +1,3 @@
-import { KalloLogger } from "@kallojs/shared";
 import { $effect, $batch, Signal } from "../reactivity/index.js";
 import {
   prefetch,
@@ -6,6 +5,10 @@ import {
   isInternalHref,
   shouldPrefetch,
 } from "../prefetch.js";
+
+const KalloLogger = {
+  error: (message: string): void => console.error(`[Kallo] ${message}`),
+};
 
 export type RenderState = Record<string, unknown>;
 export type SlotMap = Record<string, () => string>;
@@ -38,6 +41,48 @@ function resolveHandler(ref: string): EventHandler | null {
   const handlers = registry && registry[componentId];
   if (!handlers || !handlers[index]) return null;
   return handlers[index];
+}
+
+type InstancePropsRegistry = Record<string, Record<string, unknown>>;
+
+// Build the $state a delegated handler runs against. Compiled handlers read
+// component props and loop variables from $state, but the live proxy only holds
+// the root component's state. Overlay the handler's component-instance function
+// props (registered during render) and the loop scope on top of the proxy;
+// reads/writes for keys not in the overlay fall through to the reactive proxy.
+function buildHandlerState(
+  ref: string,
+  stateProxy: Record<string, unknown>,
+  loopScope: Record<string, unknown>,
+): Record<string, unknown> {
+  const sep = ref.indexOf("::");
+  const componentId = sep === -1 ? ref : ref.slice(0, sep);
+  const registry = (globalThis as { __kal_instance_props__?: InstancePropsRegistry })
+    .__kal_instance_props__;
+  const instanceProps = registry && registry[componentId];
+
+  const overlay: Record<string, unknown> = {};
+  if (instanceProps) Object.assign(overlay, instanceProps);
+  if (loopScope) Object.assign(overlay, loopScope);
+  if (Object.keys(overlay).length === 0) return stateProxy;
+
+  return new Proxy(stateProxy, {
+    has(target, key) {
+      return key in overlay || key in target;
+    },
+    get(target, key) {
+      if (key in overlay) return overlay[key as string];
+      return target[key as string];
+    },
+    set(target, key, value) {
+      if (key in overlay) {
+        overlay[key as string] = value;
+        return true;
+      }
+      target[key as string] = value;
+      return true;
+    },
+  }) as Record<string, unknown>;
 }
 
 // Fine-grained bindings: read-only thunks returning one expression's value.
@@ -294,10 +339,21 @@ export function setupEventDelegation(
               const handler = resolveHandler(ref);
               if (handler) {
                 try {
+                  // Compiled handlers read everything (component props, loop
+                  // vars) from $state. Overlay the component instance's
+                  // function props and the loop scope onto the live root proxy
+                  // so a handler in a nested component (or inside a loop)
+                  // resolves the right values while root reads/writes stay
+                  // reactive.
+                  const handlerState = buildHandlerState(
+                    ref,
+                    stateProxy,
+                    loopScope,
+                  );
                   // Batch all state writes in a handler into one re-render.
                   let result: unknown;
                   $batch(() => {
-                    result = handler(stateProxy, loopScope, event);
+                    result = handler(handlerState, loopScope, event);
                   });
                   if (typeof result === "function") {
                     (result as (e: Event) => void)(event);
@@ -328,9 +384,20 @@ export function setupEventDelegation(
 // One-time render of an HTML string into a container via morph diffing.
 // Used for the initial paint of fine-grained components and for every change
 // in coarse (whole-component) mode.
+// A layout's render produces a full `<html><head>…</head><body>…</body></html>`
+// document, but the hydration container (#app) holds only the body's inner
+// content. Re-rendering the whole document into #app would leak <head> nodes and
+// wipe the page, so extract the body's inner HTML when a full document is seen.
+function extractAppHtml(html: string): string {
+  if (typeof DOMParser === "undefined") return html;
+  if (!/<html[\s>]/i.test(html) && !/<body[\s>]/i.test(html)) return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return doc.body ? doc.body.innerHTML : html;
+}
+
 function morphInto(container: HTMLElement, html: string): void {
   const temp = document.createElement("div");
-  temp.innerHTML = html;
+  temp.innerHTML = extractAppHtml(html);
 
   const oldLoader = container.querySelector(".loader-wrap");
   if (oldLoader) oldLoader.remove();
@@ -532,7 +599,160 @@ export function destroyInstance(instance: ComponentInstance): void {
 
 export let activePageInstance: ComponentInstance | null = null;
 
+/**
+ * Prepend the configured base path (GitHub project pages, sub-path hosting) to
+ * an app-absolute href if it isn't already present. Idempotent.
+ */
+function withBasePath(href: string): string {
+  const base =
+    (typeof window !== "undefined" &&
+      (window as unknown as { __KALLO_BASE_PATH__?: string })
+        .__KALLO_BASE_PATH__) ||
+    "";
+  if (
+    base &&
+    href.startsWith("/") &&
+    href !== base &&
+    !href.startsWith(base + "/")
+  ) {
+    return base + href;
+  }
+  return href;
+}
+
+function isStaticMode(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as unknown as { __KALLO_STATIC__?: boolean }).__KALLO_STATIC__ ===
+      true
+  );
+}
+
+// Monotonic token so a superseded (slower) navigation bails out instead of
+// clobbering the DOM of a newer one.
+let staticNavToken = 0;
+
+/**
+ * Fetch a URL, falling back across the on-disk layouts a static host might use
+ * (`/x`, `/x.html`, `/x/index.html`) so client navigation works regardless of
+ * whether the host rewrites extensionless URLs.
+ */
+async function fetchStaticHtml(url: string): Promise<string | null> {
+  const candidates = [url];
+  if (!/\.[a-z0-9]+$/i.test(url.split("?")[0]!)) {
+    const clean = url.replace(/\/$/, "");
+    candidates.push(clean + ".html", clean + "/index.html");
+  }
+  for (const c of candidates) {
+    try {
+      const res = await fetch(c);
+      if (res.ok) return res.text();
+    } catch {
+      /* try next candidate */
+    }
+  }
+  return null;
+}
+
+/**
+ * Reconcile framework-owned `<head>` nodes (scoped `<style id="kallo-style-*">`
+ * and `<title>`) from a freshly fetched document into the live one, so a
+ * navigated-to page gets its styles and previous pages' styles don't pile up.
+ */
+function reconcileHead(doc: Document): void {
+  const head = document.head;
+  head
+    .querySelectorAll('style[id^="kallo-style-"]')
+    .forEach((n) => n.remove());
+  doc
+    .querySelectorAll('style[id^="kallo-style-"]')
+    .forEach((n) => head.appendChild(n.cloneNode(true)));
+  const newTitle = doc.querySelector("title");
+  if (newTitle) document.title = newTitle.textContent || document.title;
+}
+
+/**
+ * Client navigation for statically-exported sites. There is no SSR navigation
+ * endpoint, so fetch the pre-rendered HTML for the target, swap `#app`, bring
+ * over its head styles, and re-run the page's hydration module script.
+ */
+function navigateStatic(href: string, pushState: boolean): Promise<void> {
+  const url = withBasePath(href);
+  const token = ++staticNavToken;
+  return fetchStaticHtml(url)
+    .then((htmlText) => {
+      // A newer navigation started while we were fetching — abandon this one.
+      if (token !== staticNavToken) return;
+      if (!htmlText) {
+        window.location.href = url;
+        return;
+      }
+      const doc = new DOMParser().parseFromString(htmlText, "text/html");
+      const newApp = doc.getElementById("app");
+      const curApp = document.getElementById("app");
+      if (!newApp || !curApp) {
+        window.location.href = url;
+        return;
+      }
+      if (pushState) {
+        window.history.pushState(null, "", url);
+      }
+      reconcileHead(doc);
+
+      if (activePageInstance) {
+        activePageInstance.teardown();
+        activePageInstance = null;
+      }
+
+      // Morph the new markup into the existing tree (rather than replacing
+      // innerHTML) so shared nested-layout DOM is preserved across navigation —
+      // matching Next.js partial rendering and Kallo's own SSR navigation.
+      const oldChildren = Array.from(curApp.childNodes);
+      const newChildren = Array.from(newApp.childNodes);
+      const maxLen = Math.max(oldChildren.length, newChildren.length);
+      for (let i = 0; i < maxLen; i++) {
+        const oldChild = oldChildren[i];
+        const newChild = newChildren[i];
+        if (oldChild === undefined && newChild !== undefined) {
+          curApp.appendChild(newChild.cloneNode(true));
+        } else if (newChild === undefined && oldChild !== undefined) {
+          curApp.removeChild(oldChild);
+        } else if (oldChild !== undefined && newChild !== undefined) {
+          morph(oldChild, newChild);
+        }
+      }
+      // Scroll to top on forward navigation (link clicks); leave popstate
+      // (back/forward) alone so the browser restores the prior position.
+      if (pushState) {
+        window.scrollTo(0, 0);
+      }
+
+      // Re-execute ONLY the framework hydration module script (tagged
+      // data-kallo-hydrate) — never arbitrary user `<script type="module">`,
+      // which would re-run side effects each navigation.
+      const injected: HTMLScriptElement[] = [];
+      doc
+        .querySelectorAll('script[type="module"][data-kallo-hydrate]')
+        .forEach((old) => {
+          const s = document.createElement("script");
+          s.type = "module";
+          s.textContent = old.textContent || "";
+          document.body.appendChild(s);
+          injected.push(s);
+        });
+      setTimeout(() => injected.forEach((s) => s.remove()), 0);
+
+      window.dispatchEvent(new Event("load"));
+    })
+    .catch(() => {
+      if (token === staticNavToken) window.location.href = url;
+    });
+}
+
 export function navigateTo(href: string, pushState = true): Promise<void> {
+  if (isStaticMode()) {
+    return navigateStatic(href, pushState);
+  }
   const prefetched = consumePrefetched(href);
   const payload = prefetched
     ? prefetched
@@ -609,7 +829,7 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
         };
 
         const temp = document.createElement("div");
-        temp.innerHTML = combinedRender(combinedState);
+        temp.innerHTML = extractAppHtml(combinedRender(combinedState));
 
         const oldLoader = appContainer.querySelector(".loader-wrap");
         if (oldLoader) {
@@ -645,6 +865,13 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
           },
           combinedState
         );
+
+        // Scroll to top on forward navigation (link clicks), but leave the
+        // scroll position alone on back/forward (popstate) so the browser can
+        // restore where the user was.
+        if (pushState) {
+          window.scrollTo(0, 0);
+        }
 
         // Dispatch load event to let external scripts know navigation occurred
         window.dispatchEvent(new Event("load"));
@@ -686,6 +913,8 @@ if (typeof window !== "undefined") {
   });
 
   const prefetchOnIntent = (e: Event) => {
+    // Static sites have no SSR navigation endpoint to prefetch against.
+    if (isStaticMode()) return;
     let target = e.target as HTMLElement | null;
     while (target && target.tagName !== "A") {
       target = target.parentElement;

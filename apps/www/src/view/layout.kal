@@ -1,0 +1,112 @@
+<Server>
+  import { getNav } from "../lib/docs.js";
+
+  $page(async ({ req }) => ({
+    nav: getNav(),
+    currentPath: req.path,
+  }));
+
+  $meta((state) => ({
+    title: "Kallo — TypeScript-first fullstack framework",
+    description:
+      "Kallo is a TypeScript-first, HTML-first fullstack framework built on Express, with a compiler, a reactive client runtime, and file-based routing.",
+    canonical: "https://kallo.idegin.com" + (state.currentPath || ""),
+    robots: "index,follow",
+    openGraph: {
+      siteName: "Kallo",
+      type: "website",
+      url: "https://kallo.idegin.com" + (state.currentPath || ""),
+      image: "https://kallo.idegin.com/kallo-128.png",
+    },
+    twitter: { card: "summary_large_image", image: "https://kallo.idegin.com/kallo-128.png" },
+  }));
+</Server>
+
+<Client>
+  import { $store } from "@kallojs/runtime";
+  import { useTheme } from "../stores/theme.js";
+
+  const theme = useTheme;
+  // Mobile nav open/closed. A $store (not $local) so the boolean is unwrapped
+  // consistently in template conditions on both the server and the hydrated
+  // client — a bare $local signal reads as a truthy object on the client, which
+  // would pin the drawer permanently open.
+  const menu = $store({ open: false });
+
+  // Sync the store with the persisted theme on the client (the no-flash
+  // <script> in <head> applies the class before paint). Runs during client
+  // setup; it is a no-op on the server.
+  theme.init();
+
+  const toggleTheme = () => theme.toggle();
+  const toggleNav = () => { menu.open = !menu.open; };
+  const closeNav = () => { menu.open = false; };
+</Client>
+
+<View>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <link rel="icon" type="image/png" href="/kallo-128.png" />
+      <link rel="stylesheet" href="/tailwind.css" />
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300..800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Kallo","applicationCategory":"DeveloperApplication","operatingSystem":"Node.js","description":"TypeScript-first, HTML-first fullstack framework built on Express.","url":"https://kallo.idegin.com","offers":{"@type":"Offer","price":"0"}}</script>
+      <script>try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}</script>
+    </head>
+    <body class="min-h-screen bg-bg-primary text-foreground">
+      <header class="sticky top-0 z-50 backdrop-blur bg-bg-primary/80 border-b border-border">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
+          <button @click="toggleNav()" class="lg:hidden w-9 h-9 -ml-1 rounded-lg border border-border bg-bg-secondary flex items-center justify-center text-lg cursor-pointer" title="Menu">☰</button>
+          <a href="/" class="flex items-center gap-2.5 font-extrabold text-lg tracking-tight">
+            <img src="/kallo-128.png" alt="Kallo" class="w-8 h-8 rounded-lg" />
+            <span>Kallo</span>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">docs</span>
+          </a>
+          <div class="flex-1"></div>
+          <nav class="hidden sm:flex items-center gap-1 text-sm font-medium">
+            <a href="/docs/introduction" class="px-3 py-2 rounded-lg hover:bg-bg-secondary transition-colors">Docs</a>
+            <a href="https://github.com/ifeora-emeka/kallo" target="_blank" class="px-3 py-2 rounded-lg hover:bg-bg-secondary transition-colors">GitHub</a>
+            <a href="https://www.npmjs.com/package/@kallojs/cli" target="_blank" class="px-3 py-2 rounded-lg hover:bg-bg-secondary transition-colors">npm</a>
+          </nav>
+          <button @click="toggleTheme()" title="Toggle theme" class="w-9 h-9 rounded-lg border border-border bg-bg-secondary hover:bg-bg-tertiary flex items-center justify-center cursor-pointer transition-colors">
+            <When condition="theme.isDark"><span>🌙</span></When>
+            <Else><span>☀️</span></Else>
+          </button>
+        </div>
+      </header>
+
+      <div class="max-w-[1400px] mx-auto px-4 sm:px-6 flex gap-8">
+        <div @click="closeNav()" :class="menu.open ? 'opacity-100' : 'opacity-0 pointer-events-none'" class="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-in-out lg:hidden"></div>
+        <aside :class="menu.open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'" class="fixed top-0 left-0 z-40 h-full w-72 max-w-[80vw] bg-bg-primary p-6 pt-24 overflow-y-auto kallo-scroll shadow-2xl transition-transform duration-300 ease-in-out lg:static lg:z-auto lg:h-[calc(100vh-4rem)] lg:w-64 lg:max-w-none lg:shrink-0 lg:sticky lg:top-16 lg:p-0 lg:pt-8 lg:pb-10 lg:bg-transparent lg:shadow-none lg:overflow-y-auto">
+          <nav class="flex flex-col gap-6 text-sm">
+            <Each of="nav" as="group">
+              <div class="flex flex-col gap-1">
+                <h4 class="px-3 mb-1 text-[11px] font-bold uppercase tracking-wider text-muted">{{ group.category }}</h4>
+                <Each of="group.items" as="item">
+                  <a :href="'/docs/' + item.slug" @click="closeNav()"
+                    :class="currentPath === '/docs/' + item.slug ? 'block px-3 py-1.5 rounded-lg font-semibold bg-primary-50 text-primary-700 dark:bg-primary-950/60 dark:text-primary-300' : 'block px-3 py-1.5 rounded-lg text-foreground/80 hover:bg-bg-secondary hover:text-foreground transition-colors'">
+                    {{ item.title }}
+                  </a>
+                </Each>
+              </div>
+            </Each>
+          </nav>
+        </aside>
+
+        <main class="min-w-0 flex-1 py-8 lg:py-10">
+          <Slot />
+        </main>
+      </div>
+
+      <footer class="border-t border-border mt-10">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted">
+          <span>© 2026 Kallo — MIT Licensed.</span>
+          <span class="flex items-center gap-1">Built with <span class="text-primary-600 font-semibold">Kallo</span> 🍊</span>
+        </div>
+      </footer>
+    </body>
+  </html>
+</View>

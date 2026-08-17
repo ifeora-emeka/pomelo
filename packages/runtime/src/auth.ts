@@ -26,6 +26,14 @@ export const authStore = $store<AuthState>({
   error: null,
 
   async fetchSession() {
+    // Static exports have no auth server; skip the probe to avoid a 404.
+    if (
+      typeof window !== "undefined" &&
+      (window as unknown as { __KALLO_STATIC__?: boolean }).__KALLO_STATIC__ ===
+        true
+    ) {
+      return null;
+    }
     this.loading = true;
     this.error = null;
     try {

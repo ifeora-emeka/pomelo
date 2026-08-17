@@ -1,0 +1,54 @@
+{
+  "comments": {
+    "blockComment": ["<!--", "-->"]
+  },
+  "brackets": [
+    ["<", ">"],
+    ["{", "}"],
+    ["(", ")"],
+    ["[", "]"]
+  ],
+  "autoClosingPairs": [
+    { "open": "{", "close": "}" },
+    { "open": "[", "close": "]" },
+    { "open": "(", "close": ")" },
+    { "open": "'", "close": "'", "notIn": ["string", "comment"] },
+    { "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
+    { "open": "`", "close": "`", "notIn": ["string", "comment"] },
+    { "open": "{{", "close": " }}", "notIn": ["string"] },
+    { "open": "<!--", "close": " -->", "notIn": ["comment", "string"] }
+  ],
+  "autoCloseBefore": ";:.,=}])>` \n\t",
+  "surroundingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["'", "'"],
+    ["\"", "\""],
+    ["`", "`"],
+    ["<", ">"]
+  ],
+  "colorizedBracketPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"]
+  ],
+  "onEnterRules": [
+    {
+      "beforeText": "<(?!(?:Server|Client|View|Style|Head|area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\\b)([_:\\w][_:\\w-]*)(?:[^/>]*?(?!/)>)[^<]*$",
+      "afterText": "^</([_:\\w][_:\\w-]*)\\s*>",
+      "action": { "indent": "indentOutdent" }
+    },
+    {
+      "beforeText": "<(?!(?:Server|Client|View|Style|Head|area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\\b)([_:\\w][_:\\w-]*)(?:[^/>]*?(?!/)>)[^<]*$",
+      "action": { "indent": "indent" }
+    }
+  ],
+  "folding": {
+    "markers": {
+      "start": "^\\s*<(Server|Client|View|Style|Head)\\b",
+      "end": "^\\s*</(Server|Client|View|Style|Head)>"
+    }
+  },
+  "wordPattern": "(\\$?[A-Za-z_][\\w$]*)"
+}

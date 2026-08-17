@@ -17,6 +17,7 @@ import {
   signToken,
   verifyToken,
   clearStaticCache,
+  rewriteBrowserImports,
 } from "./index.js";
 
 function makeReqRes(path = "/test") {
@@ -236,7 +237,7 @@ test("handleSSR injects hydration script when component has setup function", asy
 
   await handleSSR(req, res, mockComponent);
 
-  assert.ok(bodyHTML.includes('<script type="module">'));
+  assert.ok(bodyHTML.includes('<script type="module" data-kallo-hydrate>'));
   assert.ok(bodyHTML.includes("hydrate"));
   assert.ok(bodyHTML.includes("/@kallojs/runtime"));
 });
@@ -731,4 +732,20 @@ test("Server integrates CORS and Authentication endpoints", async () => {
       });
     });
   }
+});
+
+test("rewriteBrowserImports maps bare @kallojs runtime import to the client bundle", () => {
+  const out = rewriteBrowserImports(`import { hydrate } from "@kallojs/runtime";`);
+  assert.equal(out, `import { hydrate } from "/@kallojs/runtime/client.js";`);
+});
+
+test("rewriteBrowserImports maps bare @kallojs/shared to a served browser URL", () => {
+  const out = rewriteBrowserImports(`import { KalloLogger } from "@kallojs/shared";`);
+  assert.equal(out, `import { KalloLogger } from "/@kallojs/shared/index.js";`);
+  assert.ok(!out.includes(`"@kallojs/shared"`));
+});
+
+test("rewriteBrowserImports leaves relative imports untouched", () => {
+  const src = `import { $effect } from "./reactivity/index.js";`;
+  assert.equal(rewriteBrowserImports(src), src);
 });

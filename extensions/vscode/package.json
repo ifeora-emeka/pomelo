@@ -1,0 +1,127 @@
+{
+  "name": "kallo-vscode",
+  "displayName": "Kallo",
+  "description": "Language support for the Kallo framework: syntax highlighting, IntelliSense, and diagnostics for .kal single-file components.",
+  "version": "0.0.1",
+  "publisher": "kallojs",
+  "license": "MIT",
+  "icon": "icons/kallo-128.png",
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=18"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Linters"
+  ],
+  "keywords": [
+    "kallo",
+    "kal",
+    "fullstack",
+    "ssr",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ifeora-emeka/kallo",
+    "directory": "extensions/vscode"
+  },
+  "main": "./dist/client.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "kal",
+        "aliases": [
+          "Kallo",
+          "kal"
+        ],
+        "extensions": [
+          ".kal"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/kal-file.svg",
+          "dark": "./icons/kal-file.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kal",
+        "scopeName": "source.kal",
+        "path": "./syntaxes/kal.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.ts.kal": "typescript",
+          "meta.embedded.block.css.kal": "css",
+          "meta.embedded.block.html.kal": "html",
+          "meta.embedded.expression.ts.kal": "typescript"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "kal",
+        "path": "./snippets/kal.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "kallo.restartServer",
+        "title": "Kallo: Restart Language Server"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Kallo",
+      "properties": {
+        "kallo.validate.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable structural diagnostics for .kal files."
+        },
+        "kallo.css.validate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate the contents of <Style> blocks."
+        },
+        "kallo.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace the communication between VS Code and the Kallo language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs --production",
+    "dev": "node esbuild.mjs --watch",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "test": "node --test --import tsx ./src/**/*.test.ts",
+    "package": "vsce package --no-dependencies -o kallo-vscode.vsix",
+    "publish": "vsce publish --no-dependencies",
+    "clean": "rm -rf dist kallo-vscode.vsix"
+  },
+  "dependencies": {
+    "vscode-css-languageservice": "^6.3.1",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.0.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2",
+    "typescript": "5.9.2"
+  }
+}

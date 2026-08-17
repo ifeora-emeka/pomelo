@@ -1,6 +1,6 @@
 {
   "name": "@kallojs/cli",
-  "version": "0.0.1",
+  "version": "0.0.7",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
@@ -8,7 +8,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/sync-docs.mjs",
     "clean": "rm -rf dist",
     "check-types": "tsc --noEmit",
     "test": "NODE_ENV=test node --test dist/**/*.test.js"
@@ -20,6 +20,8 @@
     "@kallojs/compiler": "workspace:*",
     "@kallojs/runtime": "workspace:*",
     "@kallojs/server": "workspace:*",
-    "@kallojs/vite-plugin": "workspace:*"
-  }
+    "@kallojs/vite-plugin": "workspace:*",
+    "typescript": "^5.9.2"
+  },
+  "homepage": "https://kallo.idegin.com"
 }

@@ -20,6 +20,10 @@ const BOOLEAN_ATTRS = new Set([
 
 function extractIdentifiers(expression: string): string[] {
   const cleanExpr = expression
+    // Drop string literals first — their contents (e.g. Tailwind class names in
+    // a :class expression) are not identifiers and must never be destructured.
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
     .replace(/\?\.\s*[a-zA-Z_$][a-zA-Z0-9_$]*/g, "")
     .replace(/\.\s*[a-zA-Z_$][a-zA-Z0-9_$]*/g, "");
   const matches =
@@ -82,6 +86,21 @@ function extractIdentifiers(expression: string): string[] {
     "globalThis",
     "$event",
     "target",
+    // Strict-mode reserved words — never valid as destructured bindings.
+    "static",
+    "public",
+    "private",
+    "protected",
+    "interface",
+    "implements",
+    "package",
+    "yield",
+    "enum",
+    "super",
+    "extends",
+    "with",
+    "arguments",
+    "eval",
   ]);
   return matches.filter((id) => !keywords.has(id));
 }
@@ -241,14 +260,22 @@ export function transformTemplate(
     keyExpr?: string,
   ): { html: string; nextWhen: string } {
     if (n.type === NODE_TEXT) {
-      const html = n.content.replace(/\{\{([\s\S]*?)\}\}/g, (_, raw) => {
-        const expr = raw.trim();
-        if (eligible) {
-          const idx = buildBinding(expr);
-          return `<span data-kal-txt="${componentId}::${idx}">\${_escape(${expr})}</span>`;
-        }
-        return `\${_escape(${expr})}`;
-      });
+      const html = n.content
+        // Triple mustache: raw, unescaped HTML output (e.g. rendered markdown).
+        // Not bound for fine-grained updates — it paints with the component.
+        .replace(/\{\{\{([\s\S]*?)\}\}\}/g, (_, raw) => {
+          const expr = raw.trim();
+          return `\${_unwrapSignal(${expr}) ?? ""}`;
+        })
+        // Double mustache: escaped text interpolation.
+        .replace(/\{\{([\s\S]*?)\}\}/g, (_, raw) => {
+          const expr = raw.trim();
+          if (eligible) {
+            const idx = buildBinding(expr);
+            return `<span data-kal-txt="${componentId}::${idx}">\${_escape(${expr})}</span>`;
+          }
+          return `\${_escape(${expr})}`;
+        });
       return { html, nextWhen: lastWhen };
     }
 
@@ -654,6 +681,11 @@ export function transformTemplate(
     var unwrappedProps = {};
     for (var _k in props) { unwrappedProps[_k] = typeof props[_k] === "function" ? props[_k] : _unwrapSignal(props[_k]); }
     var _s = C.setup ? Object.assign({}, C.setup(props), props) : props;
+    if (typeof window !== "undefined" && C.componentId) {
+      var _fp = {};
+      for (var _fk in _s) { if (typeof _s[_fk] === "function") _fp[_fk] = _s[_fk]; }
+      (globalThis.__kal_instance_props__ || (globalThis.__kal_instance_props__ = {}))[C.componentId] = _fp;
+    }
     var _a = Object.entries(unwrappedProps).filter(function(e) { return typeof e[1] !== "function"; }).map(function(e) { try { return 'data-kal-loop-item-' + e[0] + '="' + _escapeAttr(JSON.stringify(e[1])) + '"'; } catch(ex) { return ""; } }).filter(Boolean).join(" ");
     return '<span data-kal-component style="display:contents"' + (_a ? ' ' + _a : '') + '>' + C.render(_s) + '</span>';
   }

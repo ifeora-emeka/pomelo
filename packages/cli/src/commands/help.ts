@@ -3,15 +3,25 @@ export function executeHelpCommand(args: string[]): boolean {
 
   if (subCommand === "create") {
     console.log(`
-Usage: kallo create <project-name>
+Usage: kallo create <project-name> [options]
 
-Scaffold a new fullstack Kallo project in the target directory.
+Scaffold a new fullstack Kallo ecommerce starter in the target directory.
 
 Arguments:
-  <project-name>  The directory name to create for the project (required)
+  <project-name>  Target directory to scaffold into. Use "." for the current
+                  directory (e.g. inside an already-cloned repo).
 
-Example:
-  kallo create my-app
+Options:
+  --name <text>      Store / brand display name
+  --pkg-name <name>  package.json "name" (default: sanitized folder name)
+  --accent <color>   Accent color: violet | blue | emerald | rose (default: violet)
+  --pm <manager>     Package manager: pnpm | npm | yarn (default: pnpm)
+  -f, --force        Scaffold into a non-empty directory (may overwrite files)
+  -y, --yes          Skip prompts and accept defaults
+
+Examples:
+  kallo create my-shop --accent emerald --pm npm
+  git clone <repo> my-shop && cd my-shop && kallo create . --force
 `);
     return true;
   }
@@ -42,6 +52,27 @@ Options:
 
 Example:
   kallo build --minify
+`);
+    return true;
+  }
+
+  if (subCommand === "export") {
+    console.log(`
+Usage: kallo export [options]
+Alias: kallo build --static
+
+Pre-render every route to a static site in the output directory (default: out/)
+that can be hosted on GitHub Pages or any static host / CDN. Reads output,
+basePath, outDir and trailingSlash from kallo.config.ts.
+
+Dynamic routes ([param]) must export $staticParams()/$paths() to enumerate the
+concrete params to render (the generateStaticParams equivalent).
+
+Options:
+  --test           Do not fail the process on per-route errors (CI dry-run)
+
+Example:
+  kallo export
 `);
     return true;
   }
@@ -89,6 +120,7 @@ Commands:
   create <name>        Scaffold a new Kallo project
   dev                  Start development server
   build                Build application for production
+  export               Pre-render a static site to out/ (GitHub Pages, CDN)
   start                Start production server
   generate <type> <n>  Generate view or component (alias: g)
   help [command]       Display help for a command

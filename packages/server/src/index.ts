@@ -15,3 +15,4 @@ export * from "./pwa.js";
 export * from "./plugins.js";
 export * from "./realtime.js";
 export * from "./static-render.js";
+export * from "./static-export.js";

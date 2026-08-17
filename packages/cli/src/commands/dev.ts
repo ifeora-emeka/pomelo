@@ -7,6 +7,29 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { execSync, spawn } from "node:child_process";
+import { loadConfig } from "../config.js";
+import { lintProjectForStatic, formatIssue } from "../static-lint.js";
+
+/**
+ * When the project targets a static export, surface static-incompatible
+ * features early (as warnings) so they aren't discovered only at `kallo export`
+ * time. Fire-and-forget so it never blocks dev startup.
+ */
+function warnIfStaticIncompatible(cwd: string): void {
+  loadConfig(cwd)
+    .then((cfg) => {
+      if (cfg.output !== "static") return;
+      const { errors, warnings } = lintProjectForStatic(cwd);
+      for (const issue of [...errors, ...warnings]) {
+        KalloLogger.warn(
+          `static-export: this will ${issue.severity === "error" ? "fail" : "degrade"} in \`kallo export\`:\n${formatIssue(issue)}`,
+        );
+      }
+    })
+    .catch(() => {
+      /* config load issues are reported by loadConfig itself */
+    });
+}
 
 export function executeDevCommand(args: string[]): boolean {
   const isTest =
@@ -21,6 +44,8 @@ export function executeDevCommand(args: string[]): boolean {
   loadEnv("development");
 
   KalloLogger.info(`Starting Kallo development server...`);
+
+  warnIfStaticIncompatible(process.cwd());
 
   const globalCssPath = path.join(process.cwd(), "src/styles/global.css");
   const outputCssPath = path.join(process.cwd(), "public/tailwind.css");

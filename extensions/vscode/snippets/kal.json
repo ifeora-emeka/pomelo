@@ -1,0 +1,142 @@
+{
+  "Kallo page": {
+    "prefix": "kpage",
+    "description": "Scaffold a Kallo page.kal (Server + Client + View + Style)",
+    "body": [
+      "<Server lang=\"ts\">",
+      "  $page(async ({ params }) => {",
+      "    ${1:// load data}",
+      "    return { ${2} };",
+      "  });",
+      "</Server>",
+      "",
+      "<Client lang=\"ts\">",
+      "  ${3}",
+      "</Client>",
+      "",
+      "<View>",
+      "  <section>",
+      "    ${0}",
+      "  </section>",
+      "</View>",
+      "",
+      "<Style scoped>",
+      "</Style>"
+    ]
+  },
+  "Kallo layout": {
+    "prefix": "klayout",
+    "description": "Scaffold a Kallo layout.kal",
+    "body": [
+      "<Server lang=\"ts\">",
+      "  $layout(async () => {",
+      "    return { ${1} };",
+      "  });",
+      "</Server>",
+      "",
+      "<View>",
+      "  <Slot />",
+      "</View>"
+    ]
+  },
+  "Kallo component": {
+    "prefix": "kcomponent",
+    "description": "Scaffold a Kallo component.kal (Client + View)",
+    "body": [
+      "<Client lang=\"ts\">",
+      "  ${1}",
+      "</Client>",
+      "",
+      "<View>",
+      "  ${0}",
+      "</View>",
+      "",
+      "<Style scoped>",
+      "</Style>"
+    ]
+  },
+  "Server block": {
+    "prefix": "server",
+    "description": "<Server> block",
+    "body": ["<Server lang=\"ts\">", "  ${0}", "</Server>"]
+  },
+  "Client block": {
+    "prefix": "client",
+    "description": "<Client> block",
+    "body": ["<Client lang=\"ts\">", "  ${0}", "</Client>"]
+  },
+  "View block": {
+    "prefix": "view",
+    "description": "<View> block",
+    "body": ["<View>", "  ${0}", "</View>"]
+  },
+  "Scoped style block": {
+    "prefix": "style",
+    "description": "<Style scoped> block",
+    "body": ["<Style scoped>", "  ${0}", "</Style>"]
+  },
+  "$page loader": {
+    "prefix": "$page",
+    "description": "Server data loader",
+    "body": [
+      "$page(async ({ params }) => {",
+      "  ${1}",
+      "  return { ${2} };",
+      "});"
+    ]
+  },
+  "$meta": {
+    "prefix": "$meta",
+    "description": "SSR metadata",
+    "body": ["$meta(({ ${1} }) => ({", "  title: ${2},", "}));"]
+  },
+  "$action": {
+    "prefix": "$action",
+    "description": "Server action",
+    "body": ["$action(async ({ input }) => {", "  ${0}", "});"]
+  },
+  "$store": {
+    "prefix": "$store",
+    "description": "Global reactive store",
+    "body": [
+      "export const ${1:store} = $store({",
+      "  ${2}",
+      "});"
+    ]
+  },
+  "$local": {
+    "prefix": "$local",
+    "description": "Component-local reactive state",
+    "body": ["const ${1:state} = $local(${2});"]
+  },
+  "$watch": {
+    "prefix": "$watch",
+    "description": "Reactive watcher",
+    "body": ["$watch(() => ${1}, (${2:value}) => {", "  ${0}", "});"]
+  },
+  "Show block": {
+    "prefix": "show",
+    "description": "Conditional rendering",
+    "body": ["<Show :when=\"${1:condition}\">", "  ${0}", "</Show>"]
+  },
+  "Each loop": {
+    "prefix": "each",
+    "description": "List rendering",
+    "body": [
+      "<Each :of=\"${1:items}\" :as=\"${2:item}\">",
+      "  ${0}",
+      "</Each>"
+    ]
+  },
+  "Suspense": {
+    "prefix": "suspense",
+    "description": "Async boundary with fallback/error slots",
+    "body": [
+      "<Suspense>",
+      "  ${0}",
+      "  <template #fallback>${1:Loading…}</template>",
+      "  <template #error>${2:Something went wrong}</template>",
+      "</Suspense>"
+    ]
+  }
+}

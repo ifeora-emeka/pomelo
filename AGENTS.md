@@ -117,6 +117,58 @@ When adding framework APIs:
 
 ---
 
+## Editor Tooling (VS Code extension)
+
+The VS Code extension lives in `extensions/vscode` (a leaf artifact published to the
+Marketplace — **not** a `@kallojs/*` package, and not part of the framework
+dependency graph). It depends on the framework only one-way, for shared concepts.
+
+**The language surface the extension knows about is mirrored, not imported.** The
+editor must tolerate half-typed/invalid documents that the framework parser throws
+on, so it does not import `@kallojs/parser` at runtime. Instead it keeps its own
+copies of the language constants.
+
+When you change the language surface, you MUST update the extension in the same
+change:
+
+- **Add/rename/remove a `$keyword` API** → update `KEYWORDS` in
+  `extensions/vscode/src/shared/language.ts` (name, scope, detail, doc, snippet)
+  and the keyword alternation in `extensions/vscode/syntaxes/kal.tmLanguage.json`
+  (`#kallo-keywords`).
+- **Add/rename a block** (`<Server>`/`<Client>`/`<View>`/`<Style>`/`<Head>`) →
+  update `BLOCK_NAMES`/`BLOCK_LANGUAGE` in `language.ts`, the block rules in the
+  grammar, `language-configuration.json` folding markers, and snippets.
+- **Add/rename a `<View>` template tag** (`<Show>`, `<Each>`, …) → update
+  `VIEW_TAGS` in `language.ts` and `#kallo-tag` in the grammar.
+- **Add/rename a template directive** (`:`/`@`/`#`) → update the directive lists in
+  `extensions/vscode/server/src/features/completion.ts` and the grammar.
+
+These lists are the editor's mirror of `packages/shared/src/constants.ts`; keep them
+in sync. After changing the extension, run `pnpm --filter kallo-vscode check-types`,
+`pnpm --filter kallo-vscode test`, and `pnpm --filter kallo-vscode build`.
+
+**Versioning and CHANGELOG.** The `version` in `extensions/vscode/package.json` is
+the Marketplace release version, independent of the `@kallojs/*` framework versions.
+Bump it only when cutting a Marketplace release — not on every edit. Each released
+version MUST have a matching heading in `extensions/vscode/CHANGELOG.md`; never bump
+`version` without adding the corresponding CHANGELOG entry, and never publish a
+`version` that has no CHANGELOG section. Accumulate in-progress notes under an
+`## Unreleased` heading and rename it to the version number when you publish.
+
+**Publishing to the Marketplace** (publisher: `kallojs`):
+
+1. Land the change with the bumped `version` + CHANGELOG entry.
+2. `pnpm --filter kallo-vscode build`
+3. `cd extensions/vscode && pnpm exec vsce publish --no-dependencies`
+   (`vsce login kallojs` once first; `--no-dependencies` is required because esbuild
+   bundles everything into `dist/`).
+
+The framework's single-file component extension is `.kal` (`SFC_EXTENSION`); do not
+introduce alternative SFC extensions. (`.kallo`/`.kallo-cache` are build-cache
+directories, unrelated to file types.)
+
+---
+
 ## Performance Rules
 
 Always consider:
