@@ -102,21 +102,18 @@ export function executeDevCommand(args: string[]): boolean {
   const port =
     portIndex !== -1 ? parseInt(args[portIndex + 1] || "3000") : 3000;
 
-  const authSecret = process.env.KALLO_AUTH_SECRET;
-
   try {
+    // NOTE: the built-in auth engine is opt-in via `auth` in kallo.config.ts —
+    // it is NOT auto-enabled from the KALLO_AUTH_SECRET env var. That var is
+    // also used by the low-level session helpers ($setSessionCookie/
+    // $currentUser), so keying the whole engine off it would hijack the
+    // /api/auth/* routes of apps that roll their own auth (and diverge from
+    // `kallo start`, which never enables it implicitly).
     const server = createServer({
       name: "Kallo App (Dev)",
       version: "1.0.0",
       port,
       env: "development",
-      ...(authSecret ? {
-        auth: {
-          secret: authSecret,
-          cookieName: "kallo.session",
-          providers: [],
-        }
-      } : {}),
     });
 
     const pagesDir = path.join(process.cwd(), "src/view");
