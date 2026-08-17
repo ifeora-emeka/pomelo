@@ -1,6 +1,11 @@
 <Server>
   import { getDoc, getOrderedDocs } from "../../../lib/docs.js";
 
+  // Enumerate every doc slug so `kallo export` pre-renders one HTML file per
+  // page (this catch-all has no single URL). Slugs are flat single segments,
+  // matching the `/docs/<slug>` links used across the site.
+  $staticParams(() => getOrderedDocs().map((d) => ({ slug: d.slug })));
+
   $page(async ({ params }) => {
     const slug = String(params.slug || "").replace(/\/+$/, "");
     const doc = getDoc(slug);
