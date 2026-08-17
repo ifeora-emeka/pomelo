@@ -660,15 +660,28 @@ test("Server integrates CORS and Authentication endpoints", async () => {
       "true",
     );
 
-    // 2. Test initial session is null
+    // 2. Test initial session is null (and capture the CSRF token cookie the
+    //    server issues on safe requests — required for the POSTs below).
     const sessRes = await fetch("http://localhost:4050/api/auth/session");
     const sessData = await sessRes.json();
     assert.strictEqual(sessData.user, null);
 
+    const csrfSetCookie = (sessRes.headers.getSetCookie?.() ?? []).find((c) =>
+      c.startsWith("kallo.csrf="),
+    );
+    assert.ok(csrfSetCookie, "server issues a CSRF cookie");
+    const csrfCookie = csrfSetCookie.split(";")[0]!;
+    const csrfToken = csrfCookie.slice("kallo.csrf=".length);
+    const csrfHeaders = {
+      "Content-Type": "application/json",
+      Cookie: csrfCookie,
+      "x-kallo-csrf": csrfToken,
+    };
+
     // 3. Test signin with invalid credentials
     const signinFailRes = await fetch("http://localhost:4050/api/auth/signin", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: csrfHeaders,
       body: JSON.stringify({
         provider: "credentials",
         credentials: { username: "admin", password: "wrong-password" },
@@ -681,7 +694,7 @@ test("Server integrates CORS and Authentication endpoints", async () => {
       "http://localhost:4050/api/auth/signin",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders,
         body: JSON.stringify({
           provider: "credentials",
           credentials: { username: "admin", password: "secret" },
@@ -713,11 +726,12 @@ test("Server integrates CORS and Authentication endpoints", async () => {
     assert.ok(activeSessData.user);
     assert.strictEqual(activeSessData.user.id, "admin-id");
 
-    // 6. Test signout clears the cookie
+    // 6. Test signout clears the cookie (CSRF token required on the POST)
     const signoutRes = await fetch("http://localhost:4050/api/auth/signout", {
       method: "POST",
       headers: {
-        Cookie: cookieValue,
+        Cookie: `${cookieValue}; ${csrfCookie}`,
+        "x-kallo-csrf": csrfToken,
       },
     });
     assert.strictEqual(signoutRes.status, 200);

@@ -6,10 +6,58 @@ export interface AuthProvider {
 }
 
 export interface AuthConfig {
-  secret: string;
+  /**
+   * HMAC signing secret. Optional here because it may instead be supplied via
+   * the KALLO_AUTH_SECRET environment variable; one of the two is required.
+   */
+  secret?: string;
   cookieName?: string;
   cookieDomain?: string;
-  providers: AuthProvider[];
+  /** Legacy / custom credential providers (email+password uses the adapter). */
+  providers?: AuthProvider[];
+
+  /**
+   * Persistence for users, sessions, OAuth accounts and verification tokens.
+   * A concrete `AuthAdapter` from `@kallojs/server` (e.g. `MemoryAuthAdapter`
+   * or your database adapter). Required for revocable sessions, password reset,
+   * email verification and OAuth. Typed loosely here to avoid a dependency
+   * cycle with the server package.
+   */
+  adapter?: unknown;
+  /** Mount path for the auth routes. Default "/api/auth". */
+  basePath?: string;
+  /** Session lifetime in ms. Default 7 days. */
+  sessionMaxAgeMs?: number;
+  /** Re-issue the session cookie past half its lifetime. */
+  slidingSession?: boolean;
+  /** Block sign-in until email is verified. Default false. */
+  requireEmailVerification?: boolean;
+  /** Minimum password length for signup/reset. Default 8. */
+  minPasswordLength?: number;
+  /** Maximum accepted password length (guards scrypt CPU DoS). Default 1024. */
+  maxPasswordLength?: number;
+  /** Local path an OAuth failure redirects to (with ?auth_error=). Default "/". */
+  errorRedirect?: string;
+  /** Absolute site origin, used to build OAuth redirect URIs / email links. */
+  baseUrl?: string;
+  /** Trust X-Forwarded-* headers when deriving origin. Default false. */
+  trustProxy?: boolean;
+  /** OAuth providers (from `googleOAuth`/`githubOAuth` or custom). */
+  oauthProviders?: unknown[];
+  /** Delivers verification / reset emails. Defaults to a console transport. */
+  sendEmail?: (input: {
+    to: string;
+    subject: string;
+    text: string;
+    url: string;
+    purpose: "email-verify" | "password-reset";
+  }) => void | Promise<void>;
+  /** Disable the built-in CSRF guard on auth routes (not recommended). */
+  csrf?: boolean;
+  /** Shared rate-limit store (e.g. Redis-backed). Defaults to in-memory. */
+  rateLimitStore?: unknown;
+  /** Enable auth routes without an adapter (stateless legacy mode). */
+  allowStateless?: boolean;
 }
 
 export interface KalloPlugin {
