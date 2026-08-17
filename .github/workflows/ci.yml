@@ -26,11 +26,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Scope to the framework packages/extensions, excluding apps/* (www,
+      # playground). Those apps invoke the `kallo` bin, whose pnpm shim is only
+      # created when packages/cli/dist exists at install time — which it doesn't
+      # in a fresh CI install. The apps are built + deployed by their own
+      # workflows (e.g. deploy-www.yml), which call the CLI via node directly.
       - name: Type-check
-        run: pnpm check-types
+        run: pnpm exec turbo run check-types --filter='!./apps/*'
 
       - name: Test
-        run: pnpm test
+        run: pnpm exec turbo run test --filter='!./apps/*'
 
       - name: Build
-        run: pnpm build
+        run: pnpm exec turbo run build --filter='!./apps/*'
