@@ -922,6 +922,54 @@ export function navigateTo(href: string, pushState = true): Promise<void> {
 }
 
 if (typeof window !== "undefined") {
+  // Auto-attach the double-submit CSRF token to same-origin unsafe fetch
+  // requests. The `$csrf` middleware issues a readable `kallo.csrf` cookie on
+  // safe requests and expects it echoed in the `x-kallo-csrf` header — doing it
+  // here means app code calling fetch("/api/...") works with no manual wiring.
+  if (typeof window.fetch === "function") {
+    const SAFE_FETCH = /^(GET|HEAD|OPTIONS)$/i;
+    const originalFetch = window.fetch.bind(window);
+    const readCsrf = (): string => {
+      const m =
+        typeof document !== "undefined"
+          ? document.cookie.match(/(?:^|;\s*)kallo\.csrf=([^;]+)/)
+          : null;
+      return m && m[1] ? decodeURIComponent(m[1]) : "";
+    };
+    window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      try {
+        const req = typeof input === "object" && "url" in input ? input : null;
+        const method = (
+          init?.method ||
+          (req ? req.method : "") ||
+          "GET"
+        ).toUpperCase();
+        if (!SAFE_FETCH.test(method)) {
+          const rawUrl =
+            typeof input === "string"
+              ? input
+              : input instanceof URL
+                ? input.href
+                : (req?.url ?? "");
+          const abs = new URL(rawUrl, window.location.href);
+          if (abs.origin === window.location.origin) {
+            const token = readCsrf();
+            if (token) {
+              const headers = new Headers(init?.headers ?? req?.headers ?? {});
+              if (!headers.has("x-kallo-csrf")) {
+                headers.set("x-kallo-csrf", token);
+                init = { ...(init ?? {}), headers };
+              }
+            }
+          }
+        }
+      } catch {
+        /* fall through to the original fetch on any detection error */
+      }
+      return originalFetch(input, init);
+    }) as typeof window.fetch;
+  }
+
   window.addEventListener("click", (e) => {
     let target = e.target as HTMLElement | null;
     while (target && target.tagName !== "A") {
